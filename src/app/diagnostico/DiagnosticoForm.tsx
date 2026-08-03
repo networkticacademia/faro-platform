@@ -67,6 +67,7 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
   const [guardando, setGuardando] = useState(false);
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null);
   const [guardadoOk, setGuardadoOk] = useState(false);
+  const [projectIdGuardado, setProjectIdGuardado] = useState<string | null>(null);
 
   const vectorU = useMemo(() => calcularVectorIncertidumbre(respuestas), [respuestas]);
   const pesos = useMemo(() => pesosU0ParaTau(tau), [tau]);
@@ -102,6 +103,8 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? "No se pudo guardar el diagnóstico.");
       }
+      const data = await res.json();
+      setProjectIdGuardado(data.project?.id ?? null);
       setGuardadoOk(true);
     } catch (e) {
       setErrorGuardado(e instanceof Error ? e.message : "Error desconocido.");
@@ -293,7 +296,17 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
       </div>
 
       {guardadoOk ? (
-        <p className="text-green-600 font-medium">Diagnóstico guardado correctamente.</p>
+        <div className="space-y-3">
+          <p className="text-green-600 font-medium">Diagnóstico guardado correctamente.</p>
+          {projectIdGuardado && (
+            <a
+              href={`/formulacion/${projectIdGuardado}`}
+              className="block w-full bg-faro-navy text-white rounded-md py-3 font-medium"
+            >
+              Continuar a la formulación (RUTA) →
+            </a>
+          )}
+        </div>
       ) : autenticado ? (
         <button
           className="w-full bg-faro-navy text-white rounded-md py-3 font-medium disabled:opacity-40"
