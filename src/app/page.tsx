@@ -15,6 +15,12 @@ export default function Home() {
         <p className="text-xs text-faro-cream/50 pt-8">
           Fase 0 — cimientos de la plataforma en construcción.
         </p>
+        <a
+          href="/diagnostico"
+          className="inline-block bg-faro-blue text-white px-8 py-3 rounded-md font-medium hover:opacity-90 transition-opacity"
+        >
+          Iniciar diagnóstico M0 →
+        </a>
       </div>
     </main>
   );

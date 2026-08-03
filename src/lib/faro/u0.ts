@@ -1,4 +1,52 @@
 import { PESOS_U0_DEFAULT, type PesosU0, type RutaActivacion, type VectorIncertidumbre } from "./types";
+import { INSTRUMENTO_M0, sMaxDeEscala, type ItemDiagnostico } from "./instrumento";
+
+/**
+ * Respuestas crudas del usuario: { r01: 3, r02: 0 (NS), ... }
+ * NS (no sabe) se codifica como 0, según el protocolo de honestidad
+ * epistémica documentado (NS = incertidumbre máxima, no invalida la respuesta).
+ */
+export type RespuestasInstrumento = Record<string, number | null>;
+
+/**
+ * Ud = 1 - (sum si) / (nd * smax)
+ * Calcula la incertidumbre de UNA dimensión a partir de las respuestas crudas.
+ */
+export function calcularUd(
+  dimension: ItemDiagnostico["dimension"],
+  respuestas: RespuestasInstrumento,
+  instrumento: ItemDiagnostico[] = INSTRUMENTO_M0
+): number {
+  const items = instrumento.filter((i) => i.dimension === dimension);
+  if (items.length === 0) return 0;
+
+  let sumaSi = 0;
+  let sumaSmax = 0;
+
+  for (const item of items) {
+    const respuesta = respuestas[item.id];
+    const si = respuesta === null || respuesta === undefined ? 0 : respuesta; // NS -> 0
+    sumaSi += si;
+    sumaSmax += sMaxDeEscala(item.escala);
+  }
+
+  const ud = 1 - sumaSi / sumaSmax;
+  return Math.round(ud * 1000) / 1000;
+}
+
+/** Calcula las 4 dimensiones Ud de una sola vez a partir de las respuestas crudas. */
+export function calcularVectorIncertidumbre(
+  respuestas: RespuestasInstrumento,
+  instrumento: ItemDiagnostico[] = INSTRUMENTO_M0
+): VectorIncertidumbre {
+  return {
+    u1_claridad_conceptual: calcularUd("u1", respuestas, instrumento),
+    u2_competencia_metodologica: calcularUd("u2", respuestas, instrumento),
+    u3_viabilidad_contextual: calcularUd("u3", respuestas, instrumento),
+    u4_encaje_estructural: calcularUd("u4", respuestas, instrumento),
+  };
+}
+
 
 /**
  * Ud = 1 - (sum si) / (nd * smax)
