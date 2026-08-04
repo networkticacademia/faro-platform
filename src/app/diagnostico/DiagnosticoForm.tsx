@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   INSTRUMENTO_M0,
   OPCIONES_CERTEZA,
@@ -17,6 +17,20 @@ import { calcularVectorIncertidumbre, calcularU0, clasificarRuta, INTERPRETACION
 import type { Nivel, TipoProyecto, Enfoque } from "@/lib/faro/types";
 
 type Paso = "contexto" | "diagnostico" | "resultado";
+
+// Guarda el progreso del diagnóstico en sessionStorage (solo este navegador,
+// solo esta pestaña) mientras el usuario no tiene cuenta todavía. Evita que
+// se pierdan las 20 respuestas al mandarlo a /login para crear la cuenta.
+// Se limpia automáticamente al guardar exitosamente en la base de datos.
+const CLAVE_BORRADOR = "faro_diagnostico_draft";
+
+interface BorradorDiagnostico {
+  paso: Paso;
+  nu: Nivel; tau: TipoProyecto; mu: Enfoque;
+  alphaArea: string; lambdaTrl: number; sigma: string; rho: string;
+  psiNu: OpcionCerteza; psiTau: OpcionCerteza; psiMu: OpcionCerteza; psiTrl: OpcionCerteza;
+  respuestas: RespuestasInstrumento;
+}
 
 function SelectorCerteza({ valor, onChange }: { valor: OpcionCerteza; onChange: (v: OpcionCerteza) => void }) {
   return (
@@ -77,6 +91,38 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
   const totalItems = INSTRUMENTO_M0.length;
   const respondidos = Object.keys(respuestas).length;
 
+  // Restaurar borrador al montar (ej. al volver de /login tras crear cuenta)
+  const [borradorCargado, setBorradorCargado] = useState(false);
+  useEffect(() => {
+    try {
+      const guardado = sessionStorage.getItem(CLAVE_BORRADOR);
+      if (guardado) {
+        const d: BorradorDiagnostico = JSON.parse(guardado);
+        setPaso(d.paso);
+        setNu(d.nu); setTau(d.tau); setMu(d.mu);
+        setAlphaArea(d.alphaArea); setLambdaTrl(d.lambdaTrl);
+        setSigma(d.sigma); setRho(d.rho);
+        setPsiNu(d.psiNu); setPsiTau(d.psiTau); setPsiMu(d.psiMu); setPsiTrl(d.psiTrl);
+        setRespuestas(d.respuestas);
+      }
+    } catch {
+      // borrador corrupto o inaccesible: se ignora, el usuario empieza de nuevo
+    } finally {
+      setBorradorCargado(true);
+    }
+  }, []);
+
+  // Guardar borrador en cada cambio relevante (solo después de la carga inicial,
+  // para no sobreescribir un borrador restaurado con los valores por defecto)
+  useEffect(() => {
+    if (!borradorCargado || guardadoOk) return;
+    const borrador: BorradorDiagnostico = {
+      paso, nu, tau, mu, alphaArea, lambdaTrl, sigma, rho,
+      psiNu, psiTau, psiMu, psiTrl, respuestas,
+    };
+    sessionStorage.setItem(CLAVE_BORRADOR, JSON.stringify(borrador));
+  }, [borradorCargado, guardadoOk, paso, nu, tau, mu, alphaArea, lambdaTrl, sigma, rho, psiNu, psiTau, psiMu, psiTrl, respuestas]);
+
   function responder(itemId: string, valor: number | null) {
     setRespuestas((prev) => ({ ...prev, [itemId]: valor }));
   }
@@ -106,6 +152,7 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
       const data = await res.json();
       setProjectIdGuardado(data.project?.id ?? null);
       setGuardadoOk(true);
+      sessionStorage.removeItem(CLAVE_BORRADOR);
     } catch (e) {
       setErrorGuardado(e instanceof Error ? e.message : "Error desconocido.");
     } finally {
