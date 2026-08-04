@@ -126,7 +126,7 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
 
         <label className="block">
           <span className="text-sm font-medium">¿En qué nivel se inscribe su proyecto de investigación?</span>
-          <select className="mt-1 w-full border rounded-md p-2" value={nu} onChange={(e) => setNu(e.target.value as Nivel)}>
+          <select className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white" value={nu} onChange={(e) => setNu(e.target.value as Nivel)}>
             {OPCIONES_NIVEL.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
           </select>
           <SelectorCerteza valor={psiNu} onChange={setPsiNu} />
@@ -134,7 +134,7 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
 
         <label className="block">
           <span className="text-sm font-medium">¿Qué tipo de investigación describe mejor su proyecto?</span>
-          <select className="mt-1 w-full border rounded-md p-2" value={tau} onChange={(e) => setTau(e.target.value as TipoProyecto)}>
+          <select className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white" value={tau} onChange={(e) => setTau(e.target.value as TipoProyecto)}>
             {OPCIONES_TIPO.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
           </select>
           <SelectorCerteza valor={psiTau} onChange={setPsiTau} />
@@ -142,7 +142,7 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
 
         <label className="block">
           <span className="text-sm font-medium">¿Cuál es el enfoque metodológico de su proyecto?</span>
-          <select className="mt-1 w-full border rounded-md p-2" value={mu} onChange={(e) => setMu(e.target.value as Enfoque)}>
+          <select className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white" value={mu} onChange={(e) => setMu(e.target.value as Enfoque)}>
             {OPCIONES_ENFOQUE.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
           </select>
           <SelectorCerteza valor={psiMu} onChange={setPsiMu} />
@@ -151,7 +151,7 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
         <label className="block">
           <span className="text-sm font-medium">¿En qué área de conocimiento se ubica principalmente su proyecto?</span>
           <input
-            className="mt-1 w-full border rounded-md p-2"
+            className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white"
             placeholder="Ej. Ingeniería de Sistemas, Ciencias de la Salud..."
             value={alphaArea}
             onChange={(e) => setAlphaArea(e.target.value)}
@@ -160,7 +160,7 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
 
         <label className="block">
           <span className="text-sm font-medium">¿Qué nivel de madurez tecnológica (TRL) espera alcanzar con su proyecto?</span>
-          <select className="mt-1 w-full border rounded-md p-2" value={lambdaTrl} onChange={(e) => setLambdaTrl(Number(e.target.value))}>
+          <select className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white" value={lambdaTrl} onChange={(e) => setLambdaTrl(Number(e.target.value))}>
             {OPCIONES_TRL.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
           </select>
           <SelectorCerteza valor={psiTrl} onChange={setPsiTrl} />
@@ -168,7 +168,7 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
 
         <label className="block">
           <span className="text-sm font-medium">¿Con qué insumos cuenta para iniciar la búsqueda bibliográfica de su proyecto?</span>
-          <select className="mt-1 w-full border rounded-md p-2" value={sigma} onChange={(e) => setSigma(e.target.value)}>
+          <select className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white" value={sigma} onChange={(e) => setSigma(e.target.value)}>
             <option value="">Seleccione...</option>
             {OPCIONES_INSUMOS_SIGMA.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
           </select>
@@ -176,7 +176,7 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
 
         <label className="block">
           <span className="text-sm font-medium">¿Su proyecto responde a una convocatoria o términos de referencia específicos?</span>
-          <select className="mt-1 w-full border rounded-md p-2" value={rho} onChange={(e) => setRho(e.target.value)}>
+          <select className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white" value={rho} onChange={(e) => setRho(e.target.value)}>
             <option value="">Seleccione...</option>
             {OPCIONES_CONVOCATORIA_RHO.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
           </select>

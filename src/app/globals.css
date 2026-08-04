@@ -7,12 +7,14 @@
   --foreground: #171717;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* Nota: se removió el bloque @media (prefers-color-scheme: dark) del
+   scaffold original de Next.js — hacía que el texto se volviera casi
+   blanco automáticamente si el sistema operativo del usuario estaba en
+   modo oscuro, volviendo ilegible el texto dentro de campos con fondo
+   blanco (selects, inputs). La identidad visual de FARO (fondo oscuro
+   en el landing, claro en formularios) se controla explícitamente con
+   clases de Tailwind (bg-faro-navy, etc.), no debe depender del modo
+   oscuro del sistema. */
 
 body {
   color: var(--foreground);

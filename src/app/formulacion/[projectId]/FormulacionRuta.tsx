@@ -225,7 +225,7 @@ export default function FormulacionRuta({
           <div className="space-y-2 pt-2">
             <label className="text-sm font-medium">¿Qué debería corregir el agente? (opcional, para regenerar)</label>
             <textarea
-              className="w-full border rounded-md p-2 text-sm"
+              className="w-full border rounded-md p-2 text-gray-900 bg-white text-sm"
               rows={2}
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
@@ -249,14 +249,14 @@ export default function FormulacionRuta({
               <span className="text-sm font-medium">{etiqueta}</span>
               {multilinea ? (
                 <textarea
-                  className="mt-1 w-full border rounded-md p-2 text-sm"
+                  className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white text-sm"
                   rows={3}
                   value={String(contenidoEditado[key] ?? "")}
                   onChange={(e) => setContenidoEditado({ ...contenidoEditado, [key]: e.target.value })}
                 />
               ) : (
                 <input
-                  className="mt-1 w-full border rounded-md p-2 text-sm"
+                  className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white text-sm"
                   value={String(contenidoEditado[key] ?? "")}
                   onChange={(e) => setContenidoEditado({ ...contenidoEditado, [key]: e.target.value })}
                 />

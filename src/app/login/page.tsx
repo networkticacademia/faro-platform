@@ -71,21 +71,21 @@ function LoginForm() {
 
         {modo === "registro" && (
           <input
-            className="w-full border rounded-md p-2"
+            className="w-full border rounded-md p-2 text-gray-900 bg-white"
             placeholder="Nombre completo"
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
           />
         )}
         <input
-          className="w-full border rounded-md p-2"
+          className="w-full border rounded-md p-2 text-gray-900 bg-white"
           type="email"
           placeholder="Correo"
           value={correo}
           onChange={(e) => setCorreo(e.target.value)}
         />
         <input
-          className="w-full border rounded-md p-2"
+          className="w-full border rounded-md p-2 text-gray-900 bg-white"
           type="password"
           placeholder="Contraseña"
           value={password}
