@@ -23,6 +23,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [registroPendienteConfirmacion, setRegistroPendienteConfirmacion] = useState(false);
 
   async function enviar() {
     setCargando(true);
@@ -31,20 +32,23 @@ function LoginForm() {
 
     try {
       if (modo === "registro") {
-        const { data, error: signUpError } = await supabase.auth.signUp({
+        const { error: signUpError } = await supabase.auth.signUp({
           email: correo,
           password,
+          options: {
+            data: { nombre_completo: nombre || correo },
+            emailRedirectTo: `${window.location.origin}/proyectos`,
+          },
         });
         if (signUpError) throw signUpError;
 
-        // Crear el perfil en usuarios_plataforma (RLS permite insert propio)
-        if (data.user) {
-          await supabase.from("usuarios_plataforma").insert({
-            id: data.user.id,
-            nombre_completo: nombre || correo,
-            correo,
-          });
-        }
+        // El perfil en usuarios_plataforma lo crea automáticamente el
+        // trigger on_auth_user_created (migración 0005) — no depende de
+        // que haya sesión activa en el navegador en este momento.
+
+        setRegistroPendienteConfirmacion(true);
+        setCargando(false);
+        return; // no hay sesión todavía — no redirigir
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: correo,
@@ -65,6 +69,16 @@ function LoginForm() {
   return (
     <main className="min-h-screen bg-faro-cream flex items-center justify-center px-6">
       <div className="max-w-sm w-full space-y-5 bg-white p-8 rounded-lg shadow-sm">
+        {registroPendienteConfirmacion ? (
+          <div className="text-center space-y-3">
+            <h1 className="text-xl font-semibold text-faro-navy">Revise su correo</h1>
+            <p className="text-sm text-gray-600">
+              Le enviamos un enlace de confirmación a <strong>{correo}</strong>. Ábralo para activar su cuenta — al confirmarlo quedará dentro de la plataforma automáticamente.
+            </p>
+            <p className="text-xs text-gray-400">Si el enlace abre en una pestaña nueva, puede cerrar esta.</p>
+          </div>
+        ) : (
+        <>
         <h1 className="text-xl font-semibold text-faro-navy text-center">
           {modo === "registro" ? "Crear cuenta" : "Iniciar sesión"}
         </h1>
@@ -108,6 +122,8 @@ function LoginForm() {
         >
           {modo === "registro" ? "¿Ya tiene cuenta? Inicie sesión" : "¿No tiene cuenta? Regístrese"}
         </button>
+        </>
+        )}
       </div>
     </main>
   );
