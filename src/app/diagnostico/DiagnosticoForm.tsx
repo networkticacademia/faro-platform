@@ -27,7 +27,8 @@ const CLAVE_BORRADOR = "faro_diagnostico_draft";
 interface BorradorDiagnostico {
   paso: Paso;
   nu: Nivel; tau: TipoProyecto; mu: Enfoque;
-  alphaArea: string; lambdaTrl: number; sigma: string; rho: string;
+  alphaArea: string; region: string; poblacionUsuarios: string; tecnologiaInteres: string;
+  palabrasClave: string; motivacionPersonal: string; lambdaTrl: number; sigma: string; rho: string;
   psiNu: OpcionCerteza; psiTau: OpcionCerteza; psiMu: OpcionCerteza; psiTrl: OpcionCerteza;
   respuestas: RespuestasInstrumento;
 }
@@ -66,6 +67,11 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
   const [tau, setTau] = useState<TipoProyecto>("aplicada");
   const [mu, setMu] = useState<Enfoque>("mixto");
   const [alphaArea, setAlphaArea] = useState("");
+  const [region, setRegion] = useState("");
+  const [poblacionUsuarios, setPoblacionUsuarios] = useState("");
+  const [tecnologiaInteres, setTecnologiaInteres] = useState("");
+  const [palabrasClave, setPalabrasClave] = useState("");
+  const [motivacionPersonal, setMotivacionPersonal] = useState("");
   const [lambdaTrl, setLambdaTrl] = useState<number>(3);
   const [sigma, setSigma] = useState<string>("");
   const [rho, setRho] = useState<string>("");
@@ -100,7 +106,11 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
         const d: BorradorDiagnostico = JSON.parse(guardado);
         setPaso(d.paso);
         setNu(d.nu); setTau(d.tau); setMu(d.mu);
-        setAlphaArea(d.alphaArea); setLambdaTrl(d.lambdaTrl);
+        setAlphaArea(d.alphaArea);
+        setRegion(d.region ?? ""); setPoblacionUsuarios(d.poblacionUsuarios ?? "");
+        setTecnologiaInteres(d.tecnologiaInteres ?? ""); setPalabrasClave(d.palabrasClave ?? "");
+        setMotivacionPersonal(d.motivacionPersonal ?? "");
+        setLambdaTrl(d.lambdaTrl);
         setSigma(d.sigma); setRho(d.rho);
         setPsiNu(d.psiNu); setPsiTau(d.psiTau); setPsiMu(d.psiMu); setPsiTrl(d.psiTrl);
         setRespuestas(d.respuestas);
@@ -117,11 +127,12 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
   useEffect(() => {
     if (!borradorCargado || guardadoOk) return;
     const borrador: BorradorDiagnostico = {
-      paso, nu, tau, mu, alphaArea, lambdaTrl, sigma, rho,
+      paso, nu, tau, mu, alphaArea, region, poblacionUsuarios, tecnologiaInteres,
+      palabrasClave, motivacionPersonal, lambdaTrl, sigma, rho,
       psiNu, psiTau, psiMu, psiTrl, respuestas,
     };
     sessionStorage.setItem(CLAVE_BORRADOR, JSON.stringify(borrador));
-  }, [borradorCargado, guardadoOk, paso, nu, tau, mu, alphaArea, lambdaTrl, sigma, rho, psiNu, psiTau, psiMu, psiTrl, respuestas]);
+  }, [borradorCargado, guardadoOk, paso, nu, tau, mu, alphaArea, region, poblacionUsuarios, tecnologiaInteres, palabrasClave, motivacionPersonal, lambdaTrl, sigma, rho, psiNu, psiTau, psiMu, psiTrl, respuestas]);
 
   function responder(itemId: string, valor: number | null) {
     setRespuestas((prev) => ({ ...prev, [itemId]: valor }));
@@ -137,6 +148,11 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
         body: JSON.stringify({
           nu, tau, mu,
           alpha_area: alphaArea,
+          region,
+          poblacion_usuarios: poblacionUsuarios,
+          tecnologia_interes: tecnologiaInteres || null,
+          palabras_clave: palabrasClave.split(",").map((p) => p.trim()).filter(Boolean),
+          motivacion_personal: motivacionPersonal,
           lambda_trl: lambdaTrl === 0 ? null : lambdaTrl,
           sigma,
           rho: { convocatoria: rho },
@@ -195,6 +211,68 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
           <SelectorCerteza valor={psiMu} onChange={setPsiMu} />
         </label>
 
+        <div className="border-t pt-4 mt-2">
+          <h2 className="text-sm font-semibold text-faro-navy mb-1">Punto de partida de su proyecto</h2>
+          <p className="text-xs text-gray-500 mb-3">
+            No necesita tener el proyecto resuelto — solo una dirección hacia dónde caminar. Esto es lo que RUTA (Región, Usuarios, Tema, Alcance) va a estructurar y precisar; el sistema construye sobre esto, nunca lo reemplaza por un tema distinto.
+          </p>
+        </div>
+
+        <label className="block">
+          <span className="text-sm font-medium">¿Dónde? — Región o contexto</span>
+          <input
+            className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white"
+            placeholder="Ej. Casanare, zona rural de Yopal, un municipio específico..."
+            value={region}
+            onChange={(e) => setRegion(e.target.value)}
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-medium">¿Para quién? — Población o usuarios objetivo</span>
+          <input
+            className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white"
+            placeholder="Ej. Pequeños productores de piña, estudiantes de básica secundaria..."
+            value={poblacionUsuarios}
+            onChange={(e) => setPoblacionUsuarios(e.target.value)}
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-medium">¿Alguna tecnología o enfoque le interesa? (opcional)</span>
+          <p className="text-xs text-gray-500 mb-1">Aunque no esté seguro de si aplica — es una pista, no una decisión cerrada.</p>
+          <input
+            className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white"
+            placeholder="Ej. Sensores IoT, aprendizaje automático, drones..."
+            value={tecnologiaInteres}
+            onChange={(e) => setTecnologiaInteres(e.target.value)}
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-medium">Palabras clave (3-5, separadas por comas)</span>
+          <input
+            className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white"
+            placeholder="Ej. riego automatizado, humedad del suelo, piña, Casanare"
+            value={palabrasClave}
+            onChange={(e) => setPalabrasClave(e.target.value)}
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-medium">¿Por qué le interesa este proyecto?</span>
+          <p className="text-xs text-amber-700 mb-1">
+            ⚠️ Responda esta pregunta con sus propias palabras, sin asistencia de IA — es un ejercicio de reflexión personal, no un texto que el sistema deba redactar por usted.
+          </p>
+          <textarea
+            className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white"
+            rows={3}
+            placeholder="Su motivación real, en sus propias palabras..."
+            value={motivacionPersonal}
+            onChange={(e) => setMotivacionPersonal(e.target.value)}
+          />
+        </label>
+
         <label className="block">
           <span className="text-sm font-medium">¿En qué área de conocimiento se ubica principalmente su proyecto?</span>
           <input
@@ -231,7 +309,7 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
 
         <button
           className="w-full bg-faro-navy text-white rounded-md py-3 font-medium disabled:opacity-40"
-          disabled={!alphaArea.trim() || !sigma || !rho}
+          disabled={!alphaArea.trim() || !region.trim() || !poblacionUsuarios.trim() || !palabrasClave.trim() || !motivacionPersonal.trim() || !sigma || !rho}
           onClick={() => setPaso("diagnostico")}
         >
           Continuar al diagnóstico →

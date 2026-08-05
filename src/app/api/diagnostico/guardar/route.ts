@@ -11,12 +11,13 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const {
-    nu, tau, mu, alpha_area, lambda_trl, sigma, rho, psi, alpha_pesos,
+    nu, tau, mu, alpha_area, region, poblacion_usuarios, tecnologia_interes,
+    palabras_clave, motivacion_personal, lambda_trl, sigma, rho, psi, alpha_pesos,
     u1_claridad_conceptual, u2_competencia_metodologica,
     u3_viabilidad_contextual, u4_encaje_estructural,
   } = body;
 
-  if (!nu || !tau || !mu || !alpha_area) {
+  if (!nu || !tau || !mu || !alpha_area || !region || !poblacion_usuarios || !motivacion_personal) {
     return NextResponse.json({ error: "Faltan campos obligatorios del contexto del proyecto." }, { status: 400 });
   }
 
@@ -28,6 +29,11 @@ export async function POST(request: Request) {
     .insert({
       usuario_id: user.id,
       nu, tau, mu, alpha_area,
+      region,
+      poblacion_usuarios,
+      tecnologia_interes: tecnologia_interes ?? null,
+      palabras_clave: palabras_clave ?? [],
+      motivacion_personal,
       lambda_trl: lambda_trl ?? null,
       sigma: sigma ?? null,
       rho: rho ?? {},

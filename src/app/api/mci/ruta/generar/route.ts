@@ -51,6 +51,10 @@ export async function POST(request: Request) {
     alphaArea: project.alpha_area,
     lambdaTrl: project.lambda_trl,
     u0: project.u0_initial,
+    region: project.region,
+    poblacionUsuarios: project.poblacion_usuarios,
+    tecnologiaInteres: project.tecnologia_interes,
+    palabrasClave: project.palabras_clave,
     tituloProvisional: project.titulo_provisional,
     feedbackIteracionAnterior: feedback,
   });

@@ -8,6 +8,16 @@
  * no tiene acceso a literatura real (eso es RSL, que llega en F4). Esto
  * conecta con Delta en L_FARO: cuando RSL exista, comparará esta
  * hipótesis contra evidencia real y actualizará estado_evidencia.
+ *
+ * Regla de diseño (sesión del 2026-08-04): región, usuarios, tecnología
+ * de interés y palabras clave se piden directamente al formulador (no
+ * se infieren de un párrafo libre), porque son literalmente los
+ * componentes R-U-T del operador. `motivacion_personal` se captura en
+ * el formulario pero DELIBERADAMENTE NO se pasa a este prompt — por
+ * integridad académica (ver instrumento "Selección del Tema de
+ * Proyecto de Grado"), es un registro reflexivo del formulador, no
+ * materia prima para que el modelo la reinterprete o la use como
+ * justificación generada por IA.
  */
 
 export type EstadoEvidencia = "sin_verificar" | "confirmado_por_rsl" | "contradicho_por_rsl";
@@ -45,10 +55,18 @@ export function construirPromptRuta(params: {
   alphaArea: string;
   lambdaTrl: number | null;
   u0: number;
+  region: string;
+  poblacionUsuarios: string;
+  tecnologiaInteres?: string | null;
+  palabrasClave?: string[];
   tituloProvisional?: string;
   feedbackIteracionAnterior?: string;
 }): string {
-  const { nu, tau, mu, alphaArea, lambdaTrl, u0, tituloProvisional, feedbackIteracionAnterior } = params;
+  const {
+    nu, tau, mu, alphaArea, lambdaTrl, u0,
+    region, poblacionUsuarios, tecnologiaInteres, palabrasClave,
+    tituloProvisional, feedbackIteracionAnterior,
+  } = params;
 
   const rigor =
     nu === "doctorado" ? "alto rigor académico, exigiendo justificación teórica profunda"
@@ -70,10 +88,16 @@ CONTEXTO DEL PROYECTO:
 - Área de conocimiento: ${alphaArea}
 - TRL objetivo: ${lambdaTrl ?? "no aplica"}
 - Incertidumbre inicial U0: ${u0.toFixed(3)}
-${tituloProvisional ? `- Título provisional: ${tituloProvisional}` : ""}
+
+DATOS DECLARADOS DIRECTAMENTE POR EL FORMULADOR (punto de partida real — construya sobre esto, NO invente región/usuarios/tema distintos):
+- Región/contexto: "${region}"
+- Población/usuarios objetivo: "${poblacionUsuarios}"
+${tecnologiaInteres ? `- Tecnología o enfoque de interés (pista, no decisión cerrada): "${tecnologiaInteres}"` : "- No indicó una tecnología o enfoque de interés particular."}
+${palabrasClave && palabrasClave.length > 0 ? `- Palabras clave: ${palabrasClave.join(", ")}` : ""}
+${tituloProvisional ? `- Nota adicional del formulador: "${tituloProvisional}"` : ""}
 ${feedbackIteracionAnterior ? `\nRETROALIMENTACIÓN DE LA ITERACIÓN ANTERIOR (corrige esto):\n${feedbackIteracionAnterior}` : ""}
 
-TU TAREA: producir una delimitación RUTA (Región, Usuarios, Tema, Alcance) siguiendo el operador D(θ)=(R,U,T,A).
+TU TAREA: producir una delimitación RUTA (Región, Usuarios, Tema, Alcance) siguiendo el operador D(θ)=(R,U,T,A), tomando como base real la región, población y palabras clave que el formulador ya declaró arriba — no las reemplace por otras, aunque estén formuladas de manera imprecisa; su trabajo es precisarlas y estructurarlas en un tema coherente, no sustituirlas.
 
 REGLA CRÍTICA: no tienes acceso a literatura científica real. NUNCA afirmes que "no existe investigación previa" o que "hay un vacío confirmado" como hecho. Todo vacío de conocimiento o problema práctico que identifiques debe declararse como HIPÓTESIS, con estado_evidencia="sin_verificar" — será contrastado después contra evidencia bibliográfica real por otro agente (RSL). Identifica ${vacioTipo}, pero como hipótesis, no como afirmación verificada.
 
