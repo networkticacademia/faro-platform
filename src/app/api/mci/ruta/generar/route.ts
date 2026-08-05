@@ -55,6 +55,7 @@ export async function POST(request: Request) {
     poblacionUsuarios: project.poblacion_usuarios,
     tecnologiaInteres: project.tecnologia_interes,
     palabrasClave: project.palabras_clave,
+    fuentesContextoOficial: project.fuentes_contexto_oficial,
     tituloProvisional: project.titulo_provisional,
     feedbackIteracionAnterior: feedback,
   });

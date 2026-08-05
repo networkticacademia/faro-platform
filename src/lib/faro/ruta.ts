@@ -59,12 +59,13 @@ export function construirPromptRuta(params: {
   poblacionUsuarios: string;
   tecnologiaInteres?: string | null;
   palabrasClave?: string[];
+  fuentesContextoOficial?: string | null;
   tituloProvisional?: string;
   feedbackIteracionAnterior?: string;
 }): string {
   const {
     nu, tau, mu, alphaArea, lambdaTrl, u0,
-    region, poblacionUsuarios, tecnologiaInteres, palabrasClave,
+    region, poblacionUsuarios, tecnologiaInteres, palabrasClave, fuentesContextoOficial,
     tituloProvisional, feedbackIteracionAnterior,
   } = params;
 
@@ -94,6 +95,7 @@ DATOS DECLARADOS DIRECTAMENTE POR EL FORMULADOR (punto de partida real — const
 - Población/usuarios objetivo: "${poblacionUsuarios}"
 ${tecnologiaInteres ? `- Tecnología o enfoque de interés (pista, no decisión cerrada): "${tecnologiaInteres}"` : "- No indicó una tecnología o enfoque de interés particular."}
 ${palabrasClave && palabrasClave.length > 0 ? `- Palabras clave: ${palabrasClave.join(", ")}` : ""}
+${fuentesContextoOficial ? `- Fuentes de contexto oficial que el formulador ya conoce (datos/estadísticas, no literatura científica): "${fuentesContextoOficial}" — puede mencionarlas como referencia de contexto, pero no invente cifras específicas que no le fueron dadas.` : ""}
 ${tituloProvisional ? `- Nota adicional del formulador: "${tituloProvisional}"` : ""}
 ${feedbackIteracionAnterior ? `\nRETROALIMENTACIÓN DE LA ITERACIÓN ANTERIOR (corrige esto):\n${feedbackIteracionAnterior}` : ""}
 

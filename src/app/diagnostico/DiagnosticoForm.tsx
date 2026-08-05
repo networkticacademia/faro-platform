@@ -28,7 +28,7 @@ interface BorradorDiagnostico {
   paso: Paso;
   nu: Nivel; tau: TipoProyecto; mu: Enfoque;
   alphaArea: string; region: string; poblacionUsuarios: string; tecnologiaInteres: string;
-  palabrasClave: string; motivacionPersonal: string; lambdaTrl: number; sigma: string; rho: string;
+  palabrasClave: string; motivacionPersonal: string; fuentesContextoOficial: string; lambdaTrl: number; sigma: string; rho: string;
   psiNu: OpcionCerteza; psiTau: OpcionCerteza; psiMu: OpcionCerteza; psiTrl: OpcionCerteza;
   respuestas: RespuestasInstrumento;
 }
@@ -72,6 +72,7 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
   const [tecnologiaInteres, setTecnologiaInteres] = useState("");
   const [palabrasClave, setPalabrasClave] = useState("");
   const [motivacionPersonal, setMotivacionPersonal] = useState("");
+  const [fuentesContextoOficial, setFuentesContextoOficial] = useState("");
   const [lambdaTrl, setLambdaTrl] = useState<number>(3);
   const [sigma, setSigma] = useState<string>("");
   const [rho, setRho] = useState<string>("");
@@ -110,6 +111,7 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
         setRegion(d.region ?? ""); setPoblacionUsuarios(d.poblacionUsuarios ?? "");
         setTecnologiaInteres(d.tecnologiaInteres ?? ""); setPalabrasClave(d.palabrasClave ?? "");
         setMotivacionPersonal(d.motivacionPersonal ?? "");
+        setFuentesContextoOficial(d.fuentesContextoOficial ?? "");
         setLambdaTrl(d.lambdaTrl);
         setSigma(d.sigma); setRho(d.rho);
         setPsiNu(d.psiNu); setPsiTau(d.psiTau); setPsiMu(d.psiMu); setPsiTrl(d.psiTrl);
@@ -128,11 +130,11 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
     if (!borradorCargado || guardadoOk) return;
     const borrador: BorradorDiagnostico = {
       paso, nu, tau, mu, alphaArea, region, poblacionUsuarios, tecnologiaInteres,
-      palabrasClave, motivacionPersonal, lambdaTrl, sigma, rho,
+      palabrasClave, motivacionPersonal, fuentesContextoOficial, lambdaTrl, sigma, rho,
       psiNu, psiTau, psiMu, psiTrl, respuestas,
     };
     sessionStorage.setItem(CLAVE_BORRADOR, JSON.stringify(borrador));
-  }, [borradorCargado, guardadoOk, paso, nu, tau, mu, alphaArea, region, poblacionUsuarios, tecnologiaInteres, palabrasClave, motivacionPersonal, lambdaTrl, sigma, rho, psiNu, psiTau, psiMu, psiTrl, respuestas]);
+  }, [borradorCargado, guardadoOk, paso, nu, tau, mu, alphaArea, region, poblacionUsuarios, tecnologiaInteres, palabrasClave, motivacionPersonal, fuentesContextoOficial, lambdaTrl, sigma, rho, psiNu, psiTau, psiMu, psiTrl, respuestas]);
 
   function responder(itemId: string, valor: number | null) {
     setRespuestas((prev) => ({ ...prev, [itemId]: valor }));
@@ -153,6 +155,7 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
           tecnologia_interes: tecnologiaInteres || null,
           palabras_clave: palabrasClave.split(",").map((p) => p.trim()).filter(Boolean),
           motivacion_personal: motivacionPersonal,
+          fuentes_contexto_oficial: fuentesContextoOficial || null,
           lambda_trl: lambdaTrl === 0 ? null : lambdaTrl,
           sigma,
           rho: { convocatoria: rho },
@@ -270,6 +273,18 @@ export default function DiagnosticoForm({ autenticado }: { autenticado: boolean 
             placeholder="Su motivación real, en sus propias palabras..."
             value={motivacionPersonal}
             onChange={(e) => setMotivacionPersonal(e.target.value)}
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-medium">¿Conoce cifras, datos o fuentes oficiales relevantes para su problema? (opcional)</span>
+          <p className="text-xs text-gray-500 mb-1">Ej. FAO, DANE, un Ministerio, la Gobernación, Banco Mundial, ONU, UNESCO, un Plan de Desarrollo, o datos de su propia institución. No hace falta el dato exacto — basta con que mencione la fuente.</p>
+          <textarea
+            className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white"
+            rows={2}
+            placeholder="Ej. Sé que la Gobernación de Casanare tiene cifras de producción de piña, y el ICA tiene datos de manejo fitosanitario..."
+            value={fuentesContextoOficial}
+            onChange={(e) => setFuentesContextoOficial(e.target.value)}
           />
         </label>
 
