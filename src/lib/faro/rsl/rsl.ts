@@ -178,7 +178,14 @@ export async function verificarHipotesis(
     });
   } catch (err) {
     // Fallo de OpenAlex no debe tumbar el flujo de RUTA/NOVA que invoca esto —
-    // se devuelve sin_verificar con la razón, no se propaga la excepción.
+    // se degrada a sin_verificar, PERO se deja rastro explícito en logs.
+    // Sin este log, un fallo real de red es indistinguible de "no se
+    // encontró literatura relevante" — ambos casos producen la misma
+    // salida (sin_verificar, citas:[]), y esa ambigüedad es inaceptable.
+    console.error(
+      "[rsl] Fallo al consultar OpenAlex — se degrada a sin_verificar:",
+      err instanceof Error ? err.message : String(err)
+    );
     return {
       estado_evidencia: "sin_verificar",
       citas: [],
@@ -188,6 +195,12 @@ export async function verificarHipotesis(
   }
 
   if (candidatos.length === 0) {
+    // Caso DISTINTO del catch de arriba: aquí OpenAlex respondió correctamente,
+    // solo que no hay ningún documento indexado para esta búsqueda. Es una
+    // señal legítima de vacío bibliográfico real, no un fallo técnico.
+    console.info(
+      `[rsl] OpenAlex respondió sin candidatos para: "${hipotesis.afirmacion.slice(0, 80)}..."`
+    );
     return { estado_evidencia: "sin_verificar", citas: [], contradiccion: null, modo: "reactivo" };
   }
 
