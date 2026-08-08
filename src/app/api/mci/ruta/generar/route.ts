@@ -7,6 +7,7 @@ import {
   calcularSeTauCompleto, calcularTauC, haConvergido,
   type ContradiccionDetectada,
 } from "@/lib/faro/mci";
+import { verificarHipotesis } from "@/lib/faro/rsl/rsl";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -68,17 +69,29 @@ export async function POST(request: Request) {
   } catch (e) {
     return NextResponse.json({ error: `Error del orquestador: ${(e as Error).message}` }, { status: 502 });
   }
+
+  // 4. RSL reactivo — verifica la hipótesis declarada por RUTA ANTES de persistir
+  //    el nodo, para que (a) el nodo guardado ya lleve estado_evidencia real y
+  //    (b) una eventual contradicción de RSL entre al cálculo de Δ de ESTA
+  //    iteración, no de la siguiente. No requiere nodo_id — eso solo hace
+  //    falta más abajo, para la tabla de auditoría verificaciones_rsl.
+  const resultadoRSL = await verificarHipotesis(rutaOutput.vacio_conocimiento_hipotesis);
+  rutaOutput.vacio_conocimiento_hipotesis.estado_evidencia = resultadoRSL.estado_evidencia;
+
   const tiempoMs = Date.now() - inicio;
 
-  // 4. Contradicciones estructurales (función SQL ya existente)
-  const { data: contradicciones } = await supabase.rpc("detectar_contradicciones", {
+  // 5. Contradicciones estructurales (función SQL ya existente) + la de RSL, si hay
+  const { data: contradiccionesEstructurales } = await supabase.rpc("detectar_contradicciones", {
     p_tau: project.tau,
     p_lambda_trl: project.lambda_trl,
     p_mu: project.mu,
   });
-  const contradiccionesTyped = (contradicciones ?? []) as ContradiccionDetectada[];
+  const contradiccionesTyped: ContradiccionDetectada[] = [
+    ...((contradiccionesEstructurales ?? []) as ContradiccionDetectada[]),
+    ...(resultadoRSL.contradiccion ? [resultadoRSL.contradiccion] : []),
+  ];
 
-  // 5. Matemática de la MCI reducida a un nodo
+  // 6. Matemática de la MCI reducida a un nodo — ya incluye la señal de RSL
   const deltaI = calcularDeltaI(rutaOutput);
   const omega = calcularOmega(rutaOutput);
   const deltaModulada = calcularDeltaModulada(contradiccionesTyped, project.u2_competencia_metodologica ?? 0);
@@ -87,7 +100,7 @@ export async function POST(request: Request) {
   const tauC = calcularTauC(seTau);
   const convergio = haConvergido(lFaro, tauC, contradiccionesTyped);
 
-  // 6. Persistir: nodo del grafo + traza de la sesión MCI
+  // 7. Persistir: nodo del grafo (ya con estado_evidencia actualizado por RSL)
   const { data: nodo, error: nodoError } = await supabase
     .from("grafo_nodos")
     .insert({
@@ -106,6 +119,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: nodoError.message }, { status: 500 });
   }
 
+  // 8. Traza de auditoría de RSL — ahora sí con nodo_id real, para reconstruir
+  //    después el diagrama PRISMA-ScR (identificado/cribado/incluido)
+  const { error: verificacionError } = await supabase.from("verificaciones_rsl").insert({
+    project_id,
+    nodo_id: nodo.id,
+    hipotesis_afirmacion: rutaOutput.vacio_conocimiento_hipotesis.afirmacion,
+    estado_evidencia: resultadoRSL.estado_evidencia,
+    citas: resultadoRSL.citas,
+    contradiccion: resultadoRSL.contradiccion,
+    modo: resultadoRSL.modo,
+  });
+
+  if (verificacionError) {
+    // No se aborta la respuesta por esto — el nodo ya se guardó correctamente.
+    // Se registra en consola para no perder trazabilidad silenciosamente.
+    console.error("[rsl] Fallo al persistir verificaciones_rsl:", verificacionError.message);
+  }
+
+  // 9. Traza de la sesión MCI
   await supabase.from("sesiones_mci_log").insert({
     project_id,
     modulo: "RUTA",
@@ -122,5 +154,6 @@ export async function POST(request: Request) {
   return NextResponse.json({
     nodo,
     metrica: { deltaI, omega, deltaModulada, lFaro, seTau, tauC, convergio, contradicciones: contradiccionesTyped },
+    rsl: resultadoRSL,
   });
 }
