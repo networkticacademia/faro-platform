@@ -166,14 +166,31 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional:
  */
 export async function verificarHipotesis(
   hipotesis: VacioConocimientoHipotesis,
-  opciones: { maxCandidatosOpenAlex?: number; maxCandidatosCribados?: number } = {}
+  opciones: {
+    maxCandidatosOpenAlex?: number;
+    maxCandidatosCribados?: number;
+    /**
+     * Cadena de búsqueda ya confirmada (o editada) por el formulador en
+     * la pantalla de confirmación de palabras clave. Si se provee, se usa
+     * en vez de hipotesis.afirmacion como consulta a OpenAlex — resuelve
+     * el problema detectado en producción el 2026-08-06: mandar la
+     * afirmación completa en prosa (40+ palabras) como consulta producía
+     * sistemáticamente cero candidatos.
+     */
+    cadenaBusquedaConfirmada?: string;
+  } = {}
 ): Promise<ResultadoVerificacionRSL> {
-  const { maxCandidatosOpenAlex = 15, maxCandidatosCribados = 5 } = opciones;
+  const { maxCandidatosOpenAlex = 15, maxCandidatosCribados = 5, cadenaBusquedaConfirmada } = opciones;
+
+  // Fallback de seguridad a la afirmación completa si no se provee cadena
+  // confirmada — para no romper llamadas existentes durante la transición,
+  // pero el flujo correcto en adelante SIEMPRE debe pasar cadenaBusquedaConfirmada.
+  const consultaOpenAlex = cadenaBusquedaConfirmada ?? hipotesis.afirmacion;
 
   // 1. S(hi) → D
   let candidatos: CandidatoOpenAlex[];
   try {
-    candidatos = await buscarCandidatosOpenAlex(hipotesis.afirmacion, {
+    candidatos = await buscarCandidatosOpenAlex(consultaOpenAlex, {
       limite: maxCandidatosOpenAlex,
     });
   } catch (err) {
@@ -205,7 +222,7 @@ export async function verificarHipotesis(
   }
 
   // 2. filtro(D, hi) → D'
-  const candidatosCribados = cribarCandidatos(candidatos, hipotesis.afirmacion, maxCandidatosCribados);
+  const candidatosCribados = cribarCandidatos(candidatos, consultaOpenAlex, maxCandidatosCribados);
 
   // 3. síntesis(D', hi) → {estado_evidencia, citas}
   const prompt = construirPromptSintesisRSL(hipotesis.afirmacion, candidatosCribados);
