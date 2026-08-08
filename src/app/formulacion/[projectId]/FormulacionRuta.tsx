@@ -40,13 +40,19 @@ interface CitaRSL {
   doi: string | null;
   anio: number | null;
   relevancia: "alta" | "media" | "baja";
+  resumen_hallazgo: string;
+  fuente: "openalex" | "crossref" | "semantic_scholar";
 }
 
 interface ResultadoRSL {
   estado_evidencia: "sin_verificar" | "confirmado_por_rsl" | "contradicho_por_rsl";
+  sintesis_narrativa: string;
+  vacio_detectado: boolean;
   citas: CitaRSL[];
+  citas_descartadas_no_verificadas: number;
   contradiccion: { codigo: string; nivel: string; mensaje: string; phi: number } | null;
   modo: "reactivo" | "formal";
+  fuentes_consultadas: { fuente: string; candidatos_encontrados: number; fallo: string | null }[];
 }
 
 interface ProjectRow {
@@ -289,21 +295,21 @@ export default function FormulacionRuta({
                   disabled={verificandoRSL || !cadenaEditada.trim()}
                   className="bg-faro-navy text-white rounded-md px-5 py-2.5 font-medium disabled:opacity-40"
                 >
-                  {verificandoRSL ? "Buscando en OpenAlex..." : "Confirmar y buscar literatura →"}
+                  {verificandoRSL ? "Buscando en OpenAlex, Crossref y Semantic Scholar..." : "Confirmar y buscar literatura →"}
                 </button>
                 <button
                   onClick={() => setMostrarPaqueteManual((v) => !v)}
                   className="text-sm text-faro-blue underline"
                 >
-                  {mostrarPaqueteManual ? "Ocultar" : "Ver"} instrucciones para búsqueda manual
+                  {mostrarPaqueteManual ? "Ocultar" : "Trabajar en paralelo con"} NotebookLM / Consensus →
                 </button>
               </div>
 
               {mostrarPaqueteManual && (
                 <div className="bg-gray-50 rounded-md p-3 space-y-2">
                   <p className="text-xs text-gray-500">
-                    Copie esto en NotebookLM, Consensus, Elicit o Google Scholar para revisar
-                    literatura usted mismo, en paralelo a la búsqueda automática.
+                    Copie esto y revise literatura usted mismo, en paralelo a la búsqueda automática —
+                    ambos caminos son válidos y se complementan.
                   </p>
                   <pre className="text-xs whitespace-pre-wrap text-gray-800">{propuestaBusqueda.paquete_manual}</pre>
                   <button onClick={copiarPaqueteManual} className="text-xs text-faro-blue underline">
@@ -315,28 +321,69 @@ export default function FormulacionRuta({
           )}
 
           {resultadoRSL && (
-            <div className={`rounded-lg border p-5 space-y-2 ${
+            <div className={`rounded-lg border p-5 space-y-3 ${
               resultadoRSL.estado_evidencia === "confirmado_por_rsl" ? "bg-green-50 border-green-200" :
               resultadoRSL.estado_evidencia === "contradicho_por_rsl" ? "bg-red-50 border-red-200" :
               "bg-amber-50 border-amber-200"
             }`}>
               <h3 className="text-sm font-semibold text-faro-navy">Resultado de la verificación bibliográfica</h3>
-              <p className="text-sm">
-                {resultadoRSL.estado_evidencia === "confirmado_por_rsl" && "La literatura encontrada respalda esta hipótesis."}
-                {resultadoRSL.estado_evidencia === "contradicho_por_rsl" && "La literatura encontrada contradice esta hipótesis — revise la contradicción abajo."}
-                {resultadoRSL.estado_evidencia === "sin_verificar" && "No se encontró evidencia concluyente — ni a favor ni en contra. Considere ajustar los términos y volver a intentar, o proceder con la revisión manual."}
-              </p>
-              {resultadoRSL.citas.length > 0 && (
-                <ul className="text-xs text-gray-700 list-disc list-inside">
+
+              {resultadoRSL.sintesis_narrativa && (
+                <p className="text-sm text-gray-800">{resultadoRSL.sintesis_narrativa}</p>
+              )}
+
+              {!resultadoRSL.vacio_detectado && resultadoRSL.citas.length > 0 && (
+                <ul className="text-xs text-gray-700 space-y-2">
                   {resultadoRSL.citas.map((c, i) => (
-                    <li key={i}>
-                      {c.titulo} {c.anio ? `(${c.anio})` : ""} {c.doi ? `— DOI: ${c.doi}` : ""} — relevancia {c.relevancia}
+                    <li key={i} className="border-t pt-2 first:border-t-0 first:pt-0">
+                      <p className="font-medium">
+                        {c.titulo} {c.anio ? `(${c.anio})` : ""} — <span className="uppercase text-[10px] text-gray-400">{c.fuente}</span>
+                      </p>
+                      {c.doi && <p className="text-gray-500">DOI: {c.doi}</p>}
+                      <p className="mt-0.5">{c.resumen_hallazgo}</p>
+                      <p className="text-gray-400 text-[10px]">relevancia: {c.relevancia}</p>
                     </li>
                   ))}
                 </ul>
               )}
+
               {resultadoRSL.contradiccion && (
                 <p className="text-xs text-red-700">[{resultadoRSL.contradiccion.nivel}] {resultadoRSL.contradiccion.mensaje}</p>
+              )}
+
+              <p className="text-[10px] text-gray-400">
+                Fuentes consultadas: {resultadoRSL.fuentes_consultadas.map((f) =>
+                  `${f.fuente} (${f.fallo ? "falló" : `${f.candidatos_encontrados} resultados`})`
+                ).join(" · ")}
+                {resultadoRSL.citas_descartadas_no_verificadas > 0 && (
+                  <> · {resultadoRSL.citas_descartadas_no_verificadas} cita(s) descartada(s) por no coincidir con ningún candidato real (verificación automática)</>
+                )}
+              </p>
+
+              {resultadoRSL.vacio_detectado && (
+                <div className="bg-white/60 rounded-md p-3 mt-2 border border-amber-300">
+                  <p className="text-xs font-medium text-amber-800">
+                    Ninguna fuente automática encontró literatura que combine estos conceptos directamente —
+                    esto puede ser un vacío de conocimiento real, o los términos necesitan ajuste.
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    Como último recurso, puede intentar la búsqueda manual asistida:
+                  </p>
+                  <button
+                    onClick={() => setMostrarPaqueteManual((v) => !v)}
+                    className="text-xs text-faro-blue underline mt-1"
+                  >
+                    {mostrarPaqueteManual ? "Ocultar" : "Ver"} instrucciones para NotebookLM / Consensus / Google Scholar
+                  </button>
+                  {mostrarPaqueteManual && propuestaBusqueda && (
+                    <div className="bg-gray-50 rounded-md p-3 space-y-2 mt-2">
+                      <pre className="text-xs whitespace-pre-wrap text-gray-800">{propuestaBusqueda.paquete_manual}</pre>
+                      <button onClick={copiarPaqueteManual} className="text-xs text-faro-blue underline">
+                        {copiado ? "Copiado ✓" : "Copiar instrucciones"}
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}

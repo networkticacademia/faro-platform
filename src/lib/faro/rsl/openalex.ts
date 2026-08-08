@@ -15,17 +15,7 @@
 // pero puede ser más lento o limitado en horas de alta demanda.
 // Configure OPENALEX_MAILTO en .env.local con un correo institucional.
 
-export interface CandidatoOpenAlex {
-  openalex_id: string;
-  titulo: string;
-  doi: string | null;
-  anio: number | null;
-  revista: string | null;
-  resumen: string | null; // reconstruido desde abstract_inverted_index
-  es_acceso_abierto: boolean;
-  url_texto_completo: string | null;
-  citado_por_count: number;
-}
+import type { CandidatoFuente } from "./tipos";
 
 export interface OpcionesBusquedaOpenAlex {
   limite?: number; // default 10, máximo 25 por llamada
@@ -69,7 +59,7 @@ function reconstruirResumen(
 export async function buscarCandidatosOpenAlex(
   consulta: string,
   opciones: OpcionesBusquedaOpenAlex = {}
-): Promise<CandidatoOpenAlex[]> {
+): Promise<CandidatoFuente[]> {
   const { limite = 10, anioDesde, soloAccesoAbierto } = opciones;
 
   if (!consulta || consulta.trim().length === 0) {
@@ -117,10 +107,11 @@ export async function buscarCandidatosOpenAlex(
   const datos = await respuesta.json();
   const resultados: unknown[] = Array.isArray(datos?.results) ? datos.results : [];
 
-  return resultados.map((obraRaw): CandidatoOpenAlex => {
+  return resultados.map((obraRaw): CandidatoFuente => {
     const obra = obraRaw as Record<string, any>;
     return {
-      openalex_id: obra.id ?? "",
+      fuente: "openalex",
+      id_fuente: obra.id ?? "",
       titulo: obra.title ?? obra.display_name ?? "(sin título)",
       doi: typeof obra.doi === "string" ? obra.doi.replace("https://doi.org/", "") : null,
       anio: obra.publication_year ?? null,

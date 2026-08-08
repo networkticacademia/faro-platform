@@ -88,6 +88,9 @@ export async function POST(request: Request) {
     citas: resultadoRSL.citas,
     contradiccion: resultadoRSL.contradiccion,
     modo: resultadoRSL.modo,
+    sintesis_narrativa: resultadoRSL.sintesis_narrativa,
+    vacio_detectado: resultadoRSL.vacio_detectado,
+    fuentes_consultadas: resultadoRSL.fuentes_consultadas,
   });
 
   if (verificacionError) {
