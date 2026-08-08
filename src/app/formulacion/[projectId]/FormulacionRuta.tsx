@@ -28,6 +28,27 @@ interface Metrica {
   contradicciones: { codigo: string; nivel: string; mensaje: string; phi: number }[];
 }
 
+interface PropuestaCadenaBusqueda {
+  terminos_base: string[];
+  terminos_sugeridos: string[];
+  cadena_booleana: string;
+  paquete_manual: string;
+}
+
+interface CitaRSL {
+  titulo: string;
+  doi: string | null;
+  anio: number | null;
+  relevancia: "alta" | "media" | "baja";
+}
+
+interface ResultadoRSL {
+  estado_evidencia: "sin_verificar" | "confirmado_por_rsl" | "contradicho_por_rsl";
+  citas: CitaRSL[];
+  contradiccion: { codigo: string; nivel: string; mensaje: string; phi: number } | null;
+  modo: "reactivo" | "formal";
+}
+
 interface ProjectRow {
   id: string;
   titulo_provisional: string | null;
@@ -66,6 +87,14 @@ export default function FormulacionRuta({
   const [contenidoEditado, setContenidoEditado] = useState<RutaOutput | null>(null);
   const [confirmando, setConfirmando] = useState(false);
 
+  // Pantalla de confirmación de búsqueda (RSL) — nuevo
+  const [propuestaBusqueda, setPropuestaBusqueda] = useState<PropuestaCadenaBusqueda | null>(null);
+  const [cadenaEditada, setCadenaEditada] = useState("");
+  const [mostrarPaqueteManual, setMostrarPaqueteManual] = useState(false);
+  const [verificandoRSL, setVerificandoRSL] = useState(false);
+  const [resultadoRSL, setResultadoRSL] = useState<ResultadoRSL | null>(null);
+  const [copiado, setCopiado] = useState(false);
+
   const nodoActual = nodos[0] ?? null;
 
   async function generar(conFeedback?: string) {
@@ -83,6 +112,12 @@ export default function FormulacionRuta({
       setMetrica(data.metrica);
       setFeedback("");
       setEditando(false);
+      // Nueva iteración → nueva propuesta de búsqueda, se descarta cualquier
+      // verificación RSL previa (correspondía a la iteración anterior).
+      setPropuestaBusqueda(data.propuesta_busqueda ?? null);
+      setCadenaEditada(data.propuesta_busqueda?.cadena_booleana ?? "");
+      setResultadoRSL(null);
+      setMostrarPaqueteManual(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error desconocido.");
     } finally {
@@ -118,6 +153,40 @@ export default function FormulacionRuta({
     if (!nodoActual) return;
     setContenidoEditado({ ...nodoActual.contenido });
     setEditando(true);
+  }
+
+  async function verificarBusqueda() {
+    if (!nodoActual || !cadenaEditada.trim()) return;
+    setVerificandoRSL(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/mci/rsl/verificar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_id: project.id,
+          nodo_id: nodoActual.id,
+          cadena_confirmada: cadenaEditada,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error al verificar contra literatura.");
+      setResultadoRSL(data.rsl);
+      setMetrica(data.metrica);
+      // Actualiza el nodo actual en la lista con el estado_evidencia ya real
+      setNodos((prev) => prev.map((n) => (n.id === data.nodo.id ? data.nodo : n)));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error desconocido al verificar.");
+    } finally {
+      setVerificandoRSL(false);
+    }
+  }
+
+  function copiarPaqueteManual() {
+    if (!propuestaBusqueda) return;
+    navigator.clipboard.writeText(propuestaBusqueda.paquete_manual);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
   }
 
   return (
@@ -166,8 +235,18 @@ export default function FormulacionRuta({
             <div className="border-t pt-3">
               <p className="text-xs text-gray-500 uppercase tracking-wide">Hipótesis de vacío / problema</p>
               <p className="text-sm">{nodoActual.contenido.vacio_conocimiento_hipotesis?.afirmacion}</p>
-              <p className="text-xs text-amber-600 mt-1">
-                Estado de evidencia: {nodoActual.contenido.vacio_conocimiento_hipotesis?.estado_evidencia} — sin verificar contra literatura real (RSL llega en F4)
+              <p className={`text-xs mt-1 ${
+                nodoActual.contenido.vacio_conocimiento_hipotesis?.estado_evidencia === "confirmado_por_rsl"
+                  ? "text-green-700"
+                  : nodoActual.contenido.vacio_conocimiento_hipotesis?.estado_evidencia === "contradicho_por_rsl"
+                  ? "text-red-700"
+                  : "text-amber-600"
+              }`}>
+                Estado de evidencia: {nodoActual.contenido.vacio_conocimiento_hipotesis?.estado_evidencia === "confirmado_por_rsl"
+                  ? "confirmado por RSL"
+                  : nodoActual.contenido.vacio_conocimiento_hipotesis?.estado_evidencia === "contradicho_por_rsl"
+                  ? "contradicho por RSL"
+                  : "sin verificar contra literatura — confirme la búsqueda abajo"}
               </p>
             </div>
 
@@ -182,6 +261,85 @@ export default function FormulacionRuta({
 
             <p className="text-xs text-gray-400">Confianza del agente: {nodoActual.confianza_agente}</p>
           </div>
+
+          {propuestaBusqueda && !resultadoRSL && (
+            <div className="bg-white rounded-lg border border-faro-blue/30 p-5 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-faro-navy">Confirmar búsqueda de literatura</h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Revise o edite los términos antes de buscar — esto determina qué tan útil es la
+                  evidencia que RSL va a encontrar. Términos sugeridos, combinando sus palabras
+                  clave con lo que generó RUTA: {propuestaBusqueda.terminos_sugeridos.join(", ")}
+                </p>
+              </div>
+
+              <label className="block">
+                <span className="text-sm font-medium">Cadena de búsqueda</span>
+                <textarea
+                  className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white text-sm font-mono"
+                  rows={2}
+                  value={cadenaEditada}
+                  onChange={(e) => setCadenaEditada(e.target.value)}
+                />
+              </label>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={verificarBusqueda}
+                  disabled={verificandoRSL || !cadenaEditada.trim()}
+                  className="bg-faro-navy text-white rounded-md px-5 py-2.5 font-medium disabled:opacity-40"
+                >
+                  {verificandoRSL ? "Buscando en OpenAlex..." : "Confirmar y buscar literatura →"}
+                </button>
+                <button
+                  onClick={() => setMostrarPaqueteManual((v) => !v)}
+                  className="text-sm text-faro-blue underline"
+                >
+                  {mostrarPaqueteManual ? "Ocultar" : "Ver"} instrucciones para búsqueda manual
+                </button>
+              </div>
+
+              {mostrarPaqueteManual && (
+                <div className="bg-gray-50 rounded-md p-3 space-y-2">
+                  <p className="text-xs text-gray-500">
+                    Copie esto en NotebookLM, Consensus, Elicit o Google Scholar para revisar
+                    literatura usted mismo, en paralelo a la búsqueda automática.
+                  </p>
+                  <pre className="text-xs whitespace-pre-wrap text-gray-800">{propuestaBusqueda.paquete_manual}</pre>
+                  <button onClick={copiarPaqueteManual} className="text-xs text-faro-blue underline">
+                    {copiado ? "Copiado ✓" : "Copiar instrucciones"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {resultadoRSL && (
+            <div className={`rounded-lg border p-5 space-y-2 ${
+              resultadoRSL.estado_evidencia === "confirmado_por_rsl" ? "bg-green-50 border-green-200" :
+              resultadoRSL.estado_evidencia === "contradicho_por_rsl" ? "bg-red-50 border-red-200" :
+              "bg-amber-50 border-amber-200"
+            }`}>
+              <h3 className="text-sm font-semibold text-faro-navy">Resultado de la verificación bibliográfica</h3>
+              <p className="text-sm">
+                {resultadoRSL.estado_evidencia === "confirmado_por_rsl" && "La literatura encontrada respalda esta hipótesis."}
+                {resultadoRSL.estado_evidencia === "contradicho_por_rsl" && "La literatura encontrada contradice esta hipótesis — revise la contradicción abajo."}
+                {resultadoRSL.estado_evidencia === "sin_verificar" && "No se encontró evidencia concluyente — ni a favor ni en contra. Considere ajustar los términos y volver a intentar, o proceder con la revisión manual."}
+              </p>
+              {resultadoRSL.citas.length > 0 && (
+                <ul className="text-xs text-gray-700 list-disc list-inside">
+                  {resultadoRSL.citas.map((c, i) => (
+                    <li key={i}>
+                      {c.titulo} {c.anio ? `(${c.anio})` : ""} {c.doi ? `— DOI: ${c.doi}` : ""} — relevancia {c.relevancia}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {resultadoRSL.contradiccion && (
+                <p className="text-xs text-red-700">[{resultadoRSL.contradiccion.nivel}] {resultadoRSL.contradiccion.mensaje}</p>
+              )}
+            </div>
+          )}
 
           {metrica && (
             <div className="bg-white rounded-lg border p-5 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
