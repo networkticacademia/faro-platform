@@ -1,10 +1,13 @@
 // ============================================================
 // FARO — POST /api/mci/corpus/asistida
 // Recibe texto pegado (reporte de NotebookLM/Perplexity/Elicit/etc.),
-// lo parsea vía LLM, verifica cada DOI contra Crossref, e inserta los
-// candidatos válidos en corpus_fuentes. Candidatos sin DOI se insertan
-// como estado_verificacion="sin_verificar" (requieren revisión manual
-// del formulador, no se descartan automáticamente).
+// lo parsea vía LLM, verifica cada DOI contra Crossref/DataCite, e
+// inserta los candidatos válidos en corpus_fuentes. Candidatos sin
+// DOI se insertan como estado_verificacion="sin_verificar".
+//
+// v2 (2026-08-09): se agrega el campo autores al insert — se
+// capturaba en el parseo pero no se estaba persistiendo (columna
+// agregada en 0014_corpus_fuentes_autores.sql).
 //
 // Autor: Dr. Jorge Enrique Chaparro Mesa · Unitrópico
 // ============================================================
@@ -52,7 +55,7 @@ export async function POST(request: NextRequest) {
       if (!verificacion.valido) {
         descartados.push({
           titulo: candidato.titulo,
-          motivo: `DOI "${candidato.doi}" no se pudo verificar contra Crossref`,
+          motivo: `DOI "${candidato.doi}" no se pudo verificar contra Crossref ni DataCite`,
         });
         continue;
       }
@@ -64,6 +67,7 @@ export async function POST(request: NextRequest) {
           fuente: "asistida_manual",
           doi: candidato.doi,
           titulo: verificacion.tituloReal ?? candidato.titulo,
+          autores: candidato.autores ?? null,
           anio: verificacion.anioReal ?? candidato.anio,
           revista: verificacion.revistaReal ?? candidato.revista,
           resumen_hallazgo: candidato.hallazgo,
@@ -94,6 +98,7 @@ export async function POST(request: NextRequest) {
           fuente: "asistida_manual",
           doi: null,
           titulo: candidato.titulo,
+          autores: candidato.autores ?? null,
           anio: candidato.anio,
           revista: candidato.revista,
           resumen_hallazgo: candidato.hallazgo,
