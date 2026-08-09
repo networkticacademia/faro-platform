@@ -1,5 +1,5 @@
 // ============================================================
-// FARO — Propuesta de cadena de búsqueda (v2 — pesos núcleo/contexto)
+// FARO — Propuesta de cadena de búsqueda (v3 — constructores exportados)
 // Combina palabras_clave (M0, ya capturadas del formulador) + conceptos
 // extraídos de RUTA para proponer una cadena de búsqueda — el formulador
 // la confirma o edita ANTES de que se ejecute cualquier búsqueda,
@@ -8,22 +8,20 @@
 // el recall de las construidas por expertos — AutoBool EACL 2026,
 // reproducibilidad SIGIR 2025).
 //
-// CAMBIO v2 (sesión 2026-08-08): clasificación de cada término en
-// nivel "nucleo" (tecnologías/conceptos transferibles: machine learning,
-// IoT, UAV, nitrógeno foliar) vs. "contexto" (topónimos, variedades,
-// códigos específicos: Tauramena, MD2, Piedemonte Llanero). Motivación
-// empírica confirmada: un AND obligatorio de 5-6 términos que mezcla
-// ambos niveles colapsa la búsqueda al conjunto vacío en OpenAlex,
-// incluso cuando existe literatura directamente relevante indexada
-// (caso de prueba: Chaparro Mesa et al. 2024, DOI 10.1016/j.jafr.2024.101208,
-// no recuperado con la cadena v1; sí recuperado al aislar términos núcleo).
+// v2 (2026-08-08): clasificación de cada término en nivel "nucleo"
+// (tecnologías/conceptos transferibles) vs. "contexto" (topónimos,
+// variedades, códigos específicos). Motivación empírica confirmada:
+// un AND obligatorio que mezcla ambos niveles colapsa la búsqueda al
+// conjunto vacío en OpenAlex, incluso cuando existe literatura
+// directamente relevante indexada (caso de prueba: Chaparro Mesa et al.
+// 2024, DOI 10.1016/j.jafr.2024.101208).
 //
-// Principio de diseño: relajación progresiva de consulta. La cadena
-// núcleo es la que se ejecuta por defecto contra las APIs; los términos
-// de contexto NO restringen la recuperación — se usan como señal de
-// relevancia en el cribado léxico y en la síntesis de Claude. El
-// formulador puede forzar la cadena ampliada (núcleo AND (contexto OR
-// contexto...)) si quiere acotar más, vía un botón explícito en la UI.
+// v3 (2026-08-08, misma sesión): construirCadenaNucleo y
+// construirCadenaAmpliada quedan exportadas y reciben TerminoConPeso[]
+// directamente — el frontend (FormulacionRuta.tsx) las reutiliza para
+// recalcular la cadena en vivo cuando el formulador reclasifica un
+// término (toggle núcleo↔contexto) o activa "búsqueda ampliada", sin
+// duplicar la lógica de construcción de cadena en dos lugares.
 //
 // Autor: Dr. Jorge Enrique Chaparro Mesa · Unitrópico
 // ============================================================
@@ -118,16 +116,36 @@ function extraerTerminosDeTexto(texto: string, maxTerminos = 6): TerminoConPeso[
     .map(([, { original }]) => ({ texto: original, nivel: clasificarTermino(original) }));
 }
 
-function construirCadenaNucleo(terminos: string[]): string {
-  // AND de términos individuales entre comillas — deliberadamente simple,
-  // no se agrupan en bloques OR de sinónimos automáticamente (mismo
-  // fundamento que v1: la agrupación semántica automática vía LLM es
-  // donde más falla el recall según evidencia 2025-2026).
-  return terminos.map((t) => `"${t}"`).join(" AND ");
+/**
+ * AND de términos nivel="nucleo", entre comillas — deliberadamente
+ * simple, no se agrupan en bloques OR de sinónimos automáticamente
+ * (evidencia 2025-2026: la agrupación semántica automática vía LLM es
+ * donde más falla el recall). Si no hay ningún término núcleo (caso
+ * degenerado), usa todos los términos disponibles para no generar una
+ * cadena vacía.
+ *
+ * Exportada para que el frontend recalcule la cadena en vivo cuando
+ * el formulador reclasifica un término (toggle núcleo↔contexto).
+ */
+export function construirCadenaNucleo(terminos: TerminoConPeso[]): string {
+  const nucleo = terminos.filter((t) => t.nivel === "nucleo").map((t) => normalizar(t.texto));
+  const aUsar = nucleo.length > 0 ? nucleo : terminos.map((t) => normalizar(t.texto));
+  return aUsar.map((t) => `"${t}"`).join(" AND ");
 }
 
-function construirCadenaAmpliada(nucleo: string[], contexto: string[]): string {
-  if (contexto.length === 0) return construirCadenaNucleo(nucleo);
+/**
+ * nucleo AND (contexto OR contexto OR ...) — solo se activa cuando el
+ * formulador pide explícitamente "Ampliar búsqueda". Si no hay términos
+ * de contexto, es idéntica a construirCadenaNucleo.
+ *
+ * Exportada por el mismo motivo que construirCadenaNucleo.
+ */
+export function construirCadenaAmpliada(terminos: TerminoConPeso[]): string {
+  const nucleo = terminos.filter((t) => t.nivel === "nucleo").map((t) => normalizar(t.texto));
+  const contexto = terminos.filter((t) => t.nivel === "contexto").map((t) => normalizar(t.texto));
+
+  if (contexto.length === 0) return construirCadenaNucleo(terminos);
+
   const parteNucleo = nucleo.map((t) => `"${t}"`).join(" AND ");
   const parteContexto = contexto.map((t) => `"${t}"`).join(" OR ");
   if (!parteNucleo) return `(${parteContexto})`;
@@ -182,26 +200,11 @@ export function proponerCadenaBusqueda(params: {
     terminos_clasificados.push(termino);
   }
 
-  const nucleoNormalizado = terminos_clasificados
-    .filter((t) => t.nivel === "nucleo")
-    .map((t) => normalizar(t.texto));
-  const contextoNormalizado = terminos_clasificados
-    .filter((t) => t.nivel === "contexto")
-    .map((t) => normalizar(t.texto));
-
-  // Salvaguarda: si por algún motivo TODO quedó clasificado como
-  // contexto (caso degenerado), usar todos los términos como núcleo
-  // para no generar una cadena_nucleo vacía.
-  const nucleoParaConsulta =
-    nucleoNormalizado.length > 0
-      ? nucleoNormalizado
-      : terminos_clasificados.map((t) => normalizar(t.texto));
-
   return {
     terminos_base: palabrasClaveM0,
     terminos_clasificados,
-    cadena_nucleo: construirCadenaNucleo(nucleoParaConsulta),
-    cadena_ampliada: construirCadenaAmpliada(nucleoNormalizado, contextoNormalizado),
+    cadena_nucleo: construirCadenaNucleo(terminos_clasificados),
+    cadena_ampliada: construirCadenaAmpliada(terminos_clasificados),
     paquete_manual: construirPaqueteManual(
       rutaOutput,
       terminos_clasificados.map((t) => t.texto)

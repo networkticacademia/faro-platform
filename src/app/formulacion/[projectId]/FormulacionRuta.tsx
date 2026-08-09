@@ -2,6 +2,12 @@
 
 import { useState } from "react";
 import type { RutaOutput } from "@/lib/faro/ruta";
+import {
+  construirCadenaNucleo,
+  construirCadenaAmpliada,
+  type TerminoConPeso,
+  type NivelTermino,
+} from "@/lib/faro/rsl/cadenaBusqueda";
 
 interface NodoGrafo {
   id: string;
@@ -30,8 +36,9 @@ interface Metrica {
 
 interface PropuestaCadenaBusqueda {
   terminos_base: string[];
-  terminos_sugeridos: string[];
-  cadena_booleana: string;
+  terminos_clasificados: TerminoConPeso[];
+  cadena_nucleo: string;
+  cadena_ampliada: string;
   paquete_manual: string;
 }
 
@@ -93,8 +100,10 @@ export default function FormulacionRuta({
   const [contenidoEditado, setContenidoEditado] = useState<RutaOutput | null>(null);
   const [confirmando, setConfirmando] = useState(false);
 
-  // Pantalla de confirmación de búsqueda (RSL) — nuevo
+  // Pantalla de confirmación de búsqueda (RSL)
   const [propuestaBusqueda, setPropuestaBusqueda] = useState<PropuestaCadenaBusqueda | null>(null);
+  const [terminosEditables, setTerminosEditables] = useState<TerminoConPeso[]>([]);
+  const [usarAmpliada, setUsarAmpliada] = useState(false);
   const [cadenaEditada, setCadenaEditada] = useState("");
   const [mostrarPaqueteManual, setMostrarPaqueteManual] = useState(false);
   const [verificandoRSL, setVerificandoRSL] = useState(false);
@@ -120,8 +129,11 @@ export default function FormulacionRuta({
       setEditando(false);
       // Nueva iteración → nueva propuesta de búsqueda, se descarta cualquier
       // verificación RSL previa (correspondía a la iteración anterior).
-      setPropuestaBusqueda(data.propuesta_busqueda ?? null);
-      setCadenaEditada(data.propuesta_busqueda?.cadena_booleana ?? "");
+      const propuesta: PropuestaCadenaBusqueda | null = data.propuesta_busqueda ?? null;
+      setPropuestaBusqueda(propuesta);
+      setTerminosEditables(propuesta?.terminos_clasificados ?? []);
+      setUsarAmpliada(false);
+      setCadenaEditada(propuesta?.cadena_nucleo ?? "");
       setResultadoRSL(null);
       setMostrarPaqueteManual(false);
     } catch (e) {
@@ -159,6 +171,30 @@ export default function FormulacionRuta({
     if (!nodoActual) return;
     setContenidoEditado({ ...nodoActual.contenido });
     setEditando(true);
+  }
+
+  // Reclasifica un término (núcleo↔contexto) y recalcula de inmediato
+  // la cadena que se va a enviar — reutiliza los mismos constructores
+  // que usa el backend, para que no exista divergencia entre lo que
+  // el formulador ve y lo que efectivamente se ejecuta.
+  function alternarNivelTermino(indice: number) {
+    const actualizado = terminosEditables.map((t, i): TerminoConPeso =>
+      i === indice
+        ? { ...t, nivel: (t.nivel === "nucleo" ? "contexto" : "nucleo") as NivelTermino }
+        : t
+    );
+    setTerminosEditables(actualizado);
+    setCadenaEditada(
+      usarAmpliada ? construirCadenaAmpliada(actualizado) : construirCadenaNucleo(actualizado)
+    );
+  }
+
+  function alternarAmpliada() {
+    const nuevoValor = !usarAmpliada;
+    setUsarAmpliada(nuevoValor);
+    setCadenaEditada(
+      nuevoValor ? construirCadenaAmpliada(terminosEditables) : construirCadenaNucleo(terminosEditables)
+    );
   }
 
   async function verificarBusqueda() {
@@ -273,14 +309,36 @@ export default function FormulacionRuta({
               <div>
                 <h3 className="text-sm font-semibold text-faro-navy">Confirmar búsqueda de literatura</h3>
                 <p className="text-xs text-gray-500 mt-1">
-                  Revise o edite los términos antes de buscar — esto determina qué tan útil es la
-                  evidencia que RSL va a encontrar. Términos sugeridos, combinando sus palabras
-                  clave con lo que generó RUTA: {propuestaBusqueda.terminos_sugeridos.join(", ")}
+                  Cada término se propuso como <span className="text-faro-blue font-medium">núcleo</span> (entra
+                  siempre a la búsqueda) o <span className="text-amber-700 font-medium">contexto</span> (solo
+                  ayuda a evaluar relevancia, no restringe la recuperación). Haga clic en cualquiera para
+                  cambiarlo antes de buscar.
                 </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {terminosEditables.map((t, i) => (
+                  <button
+                    key={`${t.texto}-${i}`}
+                    onClick={() => alternarNivelTermino(i)}
+                    title="Clic para cambiar entre núcleo y contexto"
+                    className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                      t.nivel === "nucleo"
+                        ? "bg-faro-blue/10 border-faro-blue text-faro-blue"
+                        : "bg-amber-50 border-amber-300 text-amber-700"
+                    }`}
+                  >
+                    {t.texto} · {t.nivel === "nucleo" ? "núcleo" : "contexto"}
+                  </button>
+                ))}
               </div>
 
               <label className="block">
                 <span className="text-sm font-medium">Cadena de búsqueda</span>
+                <p className="text-xs text-gray-400">
+                  Se recalcula automáticamente al reclasificar términos arriba — también puede editarla
+                  directamente aquí.
+                </p>
                 <textarea
                   className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white text-sm font-mono"
                   rows={2}
@@ -296,6 +354,16 @@ export default function FormulacionRuta({
                   className="bg-faro-navy text-white rounded-md px-5 py-2.5 font-medium disabled:opacity-40"
                 >
                   {verificandoRSL ? "Buscando en OpenAlex, Crossref y Semantic Scholar..." : "Confirmar y buscar literatura →"}
+                </button>
+                <button
+                  onClick={alternarAmpliada}
+                  className={`text-sm rounded-md px-4 py-2.5 border font-medium ${
+                    usarAmpliada
+                      ? "bg-faro-navy text-white border-faro-navy"
+                      : "border-faro-navy text-faro-navy"
+                  }`}
+                >
+                  {usarAmpliada ? "Búsqueda ampliada activa ✓" : "Ampliar búsqueda con contexto →"}
                 </button>
                 <button
                   onClick={() => setMostrarPaqueteManual((v) => !v)}
@@ -366,6 +434,12 @@ export default function FormulacionRuta({
                     Ninguna fuente automática encontró literatura que combine estos conceptos directamente —
                     esto puede ser un vacío de conocimiento real, o los términos necesitan ajuste.
                   </p>
+                  {!usarAmpliada && (
+                    <p className="text-xs text-gray-600 mt-1">
+                      Pruebe también con "Ampliar búsqueda con contexto" arriba, o edite qué términos son
+                      núcleo antes de reintentar.
+                    </p>
+                  )}
                   <p className="text-xs text-gray-600 mt-1">
                     Como último recurso, puede intentar la búsqueda manual asistida:
                   </p>
