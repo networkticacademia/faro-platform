@@ -8,6 +8,7 @@ import {
   type TerminoConPeso,
   type NivelTermino,
 } from "@/lib/faro/rsl/cadenaBusqueda";
+import { ParserAsistido } from "./ParserAsistido";
 
 interface NodoGrafo {
   id: string;
@@ -385,6 +386,8 @@ export default function FormulacionRuta({
                   </button>
                 </div>
               )}
+
+              <ParserAsistido projectId={project.id} nodoOrigenId={nodoActual?.id} />
             </div>
           )}
 
