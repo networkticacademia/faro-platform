@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import Link from "next/link";
 import type { RutaOutput } from "@/lib/faro/ruta";
 import {
   construirCadenaNucleo,
@@ -259,11 +260,19 @@ export default function FormulacionRuta({
             {project.tau} · {project.nu} · {project.alpha_area} · U₀={project.u0_initial?.toFixed(3)}
           </p>
         </div>
-        <span className={`text-xs px-3 py-1 rounded-full ${
-          project.estado === "en_formulacion" ? "bg-faro-blue/10 text-faro-blue" : "bg-gray-100 text-gray-500"
-        }`}>
-          {project.estado}
-        </span>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/formulacion/${project.id}/fuentes`}
+            className="text-xs px-3 py-1.5 rounded-md border border-faro-navy text-faro-navy hover:bg-faro-navy hover:text-white transition-colors font-medium flex items-center gap-1"
+          >
+            📚 Fuentes
+          </Link>
+          <span className={`text-xs px-3 py-1 rounded-full ${
+            project.estado === "en_formulacion" ? "bg-faro-blue/10 text-faro-blue" : "bg-gray-100 text-gray-500"
+          }`}>
+            {project.estado}
+          </span>
+        </div>
       </div>
 
       {error && <div className="bg-red-50 text-red-700 text-sm p-3 rounded-md">{error}</div>}
