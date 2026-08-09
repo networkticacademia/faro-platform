@@ -1,14 +1,17 @@
 // ============================================================
 // FARO — Tabla de corpus bibliográfico, estilo Elicit
-// Componente D del roadmap de RSL (vista dedicada, no la tarjeta
-// embebida en FormulacionRuta.tsx).
+// Componente D del roadmap de RSL.
+//
+// v2 (2026-08-09): agrega selección por casillas (individual,
+// "seleccionar todo", "solo verificados") para exportar a BibTeX solo
+// lo que el formulador elija, en vez de siempre todo lo verificado.
 //
 // Autor: Dr. Jorge Enrique Chaparro Mesa · Unitrópico
 // ============================================================
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export interface FuenteCorpus {
   id: string;
@@ -25,7 +28,15 @@ export interface FuenteCorpus {
 
 type FiltroEstado = "todos" | "verificado" | "sin_verificar";
 
-export function FuentesTable({ fuentes }: { fuentes: FuenteCorpus[] }) {
+export function FuentesTable({
+  fuentes,
+  seleccionadas,
+  onCambiarSeleccion,
+}: {
+  fuentes: FuenteCorpus[];
+  seleccionadas: Set<string>;
+  onCambiarSeleccion: (nuevaSeleccion: Set<string>) => void;
+}) {
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("todos");
   const [busqueda, setBusqueda] = useState("");
 
@@ -43,6 +54,25 @@ export function FuentesTable({ fuentes }: { fuentes: FuenteCorpus[] }) {
       })
       .sort((a, b) => (b.anio ?? 0) - (a.anio ?? 0));
   }, [fuentes, filtroEstado, busqueda]);
+
+  function alternar(id: string) {
+    const nueva = new Set(seleccionadas);
+    if (nueva.has(id)) nueva.delete(id);
+    else nueva.add(id);
+    onCambiarSeleccion(nueva);
+  }
+
+  function seleccionarTodo() {
+    onCambiarSeleccion(new Set(fuentes.map((f) => f.id)));
+  }
+
+  function seleccionarSoloVerificados() {
+    onCambiarSeleccion(new Set(fuentes.filter((f) => f.estado_verificacion === "verificado").map((f) => f.id)));
+  }
+
+  function limpiarSeleccion() {
+    onCambiarSeleccion(new Set());
+  }
 
   return (
     <div className="space-y-3">
@@ -73,10 +103,26 @@ export function FuentesTable({ fuentes }: { fuentes: FuenteCorpus[] }) {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-medium text-gray-600">{seleccionadas.size} seleccionadas</span>
+        <button onClick={seleccionarTodo} className="text-blue-600 hover:underline">
+          Seleccionar todo
+        </button>
+        <span className="text-gray-300">·</span>
+        <button onClick={seleccionarSoloVerificados} className="text-blue-600 hover:underline">
+          Solo verificados
+        </button>
+        <span className="text-gray-300">·</span>
+        <button onClick={limpiarSeleccion} className="text-blue-600 hover:underline">
+          Limpiar selección
+        </button>
+      </div>
+
       <div className="overflow-x-auto rounded border">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
             <tr>
+              <th className="px-3 py-2 w-8"></th>
               <th className="px-3 py-2">Título</th>
               <th className="px-3 py-2">Autores</th>
               <th className="px-3 py-2">Año</th>
@@ -89,6 +135,13 @@ export function FuentesTable({ fuentes }: { fuentes: FuenteCorpus[] }) {
           <tbody>
             {fuentesFiltradas.map((f) => (
               <tr key={f.id} className="border-t align-top hover:bg-gray-50">
+                <td className="px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={seleccionadas.has(f.id)}
+                    onChange={() => alternar(f.id)}
+                  />
+                </td>
                 <td className="px-3 py-2 font-medium">{f.titulo}</td>
                 <td className="px-3 py-2 text-gray-600">{f.autores ?? "—"}</td>
                 <td className="px-3 py-2">{f.anio ?? "—"}</td>
@@ -123,7 +176,7 @@ export function FuentesTable({ fuentes }: { fuentes: FuenteCorpus[] }) {
             ))}
             {fuentesFiltradas.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-center text-gray-400">
+                <td colSpan={8} className="px-3 py-8 text-center text-gray-400">
                   Ninguna fuente coincide con el filtro actual.
                 </td>
               </tr>
