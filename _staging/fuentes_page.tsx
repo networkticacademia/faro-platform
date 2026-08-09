@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { FuentesTable, type FuenteCorpus } from "./FuentesTable";
 import { FuentesGrafo } from "./FuentesGrafo";
 
@@ -39,30 +40,46 @@ export default function FuentesPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
-      <div>
-        <h1 className="text-xl font-semibold">Fuentes del proyecto</h1>
-        <p className="text-sm text-gray-500">
-          Corpus bibliográfico acumulado — RSL automático, carga manual y captura asistida.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">Fuentes del proyecto</h1>
+          <p className="text-sm text-gray-500">
+            Corpus bibliográfico acumulado — RSL automático, carga manual y captura asistida.
+          </p>
+        </div>
+        <Link
+          href={`/formulacion/${projectId}`}
+          className="text-xs px-3 py-1.5 rounded-md border border-faro-navy text-faro-navy hover:bg-faro-navy hover:text-white transition-colors font-medium"
+        >
+          ← Volver a Formulación
+        </Link>
       </div>
 
-      <div className="flex gap-2">
-        <button
-          onClick={() => setVista("tabla")}
-          className={`rounded px-4 py-2 text-sm font-medium ${
-            vista === "tabla" ? "bg-slate-900 text-white" : "bg-gray-100 text-gray-700"
-          }`}
+      <div className="flex items-center gap-2">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setVista("tabla")}
+            className={`rounded px-4 py-2 text-sm font-medium ${
+              vista === "tabla" ? "bg-slate-900 text-white" : "bg-gray-100 text-gray-700"
+            }`}
+          >
+            Tabla
+          </button>
+          <button
+            onClick={() => setVista("grafo")}
+            className={`rounded px-4 py-2 text-sm font-medium ${
+              vista === "grafo" ? "bg-slate-900 text-white" : "bg-gray-100 text-gray-700"
+            }`}
+          >
+            Grafo
+          </button>
+        </div>
+        <a
+          href={`/api/mci/corpus/exportar-bib?project_id=${projectId}`}
+          className="ml-auto rounded bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800"
         >
-          Tabla
-        </button>
-        <button
-          onClick={() => setVista("grafo")}
-          className={`rounded px-4 py-2 text-sm font-medium ${
-            vista === "grafo" ? "bg-slate-900 text-white" : "bg-gray-100 text-gray-700"
-          }`}
-        >
-          Grafo
-        </button>
+          Exportar a BibTeX (.bib)
+        </a>
       </div>
 
       {cargando && <p className="text-gray-500">Cargando corpus...</p>}
