@@ -10,6 +10,9 @@ import {
   type NivelTermino,
 } from "@/lib/faro/rsl/cadenaBusqueda";
 import { ParserAsistido } from "./ParserAsistido";
+import { ClasificadorSubtipoDti } from "./ClasificadorTipoProyecto";
+import type { SubtipoDti } from "@/lib/faro/tipologiaProyecto";
+import type { TipoProyecto } from "@/lib/faro/types";
 
 interface NodoGrafo {
   id: string;
@@ -69,7 +72,8 @@ interface ProjectRow {
   id: string;
   titulo_provisional: string | null;
   nu: string;
-  tau: string;
+  tau: TipoProyecto;
+  subtipo_dti?: SubtipoDti | null;
   mu: string;
   alpha_area: string;
   u0_initial: number;
@@ -274,6 +278,12 @@ export default function FormulacionRuta({
           </span>
         </div>
       </div>
+
+      <ClasificadorSubtipoDti
+        projectId={project.id}
+        tau={project.tau}
+        subtipoDtiActual={project.subtipo_dti ?? null}
+      />
 
       {error && <div className="bg-red-50 text-red-700 text-sm p-3 rounded-md">{error}</div>}
 
