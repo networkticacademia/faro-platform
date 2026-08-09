@@ -29,7 +29,13 @@ export interface ResultadoParseoCifras {
 }
 
 export function parsearCifrasContexto(textoPegado: string): ResultadoParseoCifras {
-  const bloques = textoPegado.split(/#{1,3}\s*CIFRA\s+\d+/i).slice(1); // el primer trozo, antes de "CIFRA 1", se descarta
+  // {0,3} — no {1,3} — porque en la práctica Perplexity (y otras
+  // herramientas) a veces entregan el texto SIN el marcado markdown
+  // "###" que pedimos en el prompt (texto plano "CIFRA 14", sin
+  // símbolos #). Bug real detectado 2026-08-09: con {1,3} el parser
+  // exigía al menos un "#" y no reconocía ningún bloque cuando el
+  // texto llegaba plano.
+  const bloques = textoPegado.split(/#{0,3}\s*CIFRA\s+\d+/i).slice(1);
   const cifras: CifraContexto[] = [];
   let bloquesNoReconocidos = 0;
 
