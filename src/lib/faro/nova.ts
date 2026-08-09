@@ -122,7 +122,7 @@ export function construirPromptNova(params: {
   const rigor =
     nu === "doctorado" ? "alto rigor académico, exigiendo argumentación causal profunda y evidencia robusta"
     : nu === "maestria" ? "rigor académico intermedio, con argumentación clara pero no exhaustiva"
-    : nu === "convocatoria" ? "rigor orientado a criterios de evaluación de convocatoria pública (tipo MGA), con foco en pertinencia y viabilidad"
+    : nu === "convocatoria" ? "rigor orientado a criterios de evaluación de convocatoria pública (tipo MGA), con foco en trazabilidad causa-efecto-aporte-avance"
     : "rigor apropiado para un proyecto de pregrado, priorizando claridad sobre exhaustividad";
 
   const medidaAvance = medidaAvanceParaProyecto(tau, subtipoDti);
@@ -146,7 +146,9 @@ ${vacioDetectadoRSL ? "RSL declaró un vacío de conocimiento real en este tema 
       ? `CIFRAS DE CONTEXTO APORTADAS POR EL FORMULADOR (úsalas tal cual, NO inventes cifras adicionales ni las modifiques):
 ${cifrasContextoAportadasPorFormulador
   .map((c) => `- [${c.nivel}] ${c.cifra} (fuente: ${c.fuente}${c.verificado ? ", verificada" : ", reportada por el formulador, sin verificación automática"})`)
-  .join("\n")}`
+  .join("\n")}
+
+REGLA DE CITACIÓN OBLIGATORIA: cada vez que uses una de estas cifras dentro de un párrafo (Núcleo, Onda, Valor, Avance o problema_formulado), cita la fuente EN LÍNEA, dentro de la misma oración, con formato "(Fuente, año)" — igual que en un texto académico real. NO basta con que la fuente aparezca solo en onda_cifras_contexto; si una cifra se menciona en la prosa, su cita debe ir pegada a esa mención en el mismo párrafo. Ejemplo correcto: "los rendimientos colombianos se ubican entre 41 y 60 t/ha (DANE, 2022), muy por debajo de países líderes como Costa Rica e Indonesia (83-120 t/ha)". Si la fuente aportada no incluye un año explícito, usa el nombre de la fuente tal cual entre paréntesis, sin inventar un año.`
       : `El formulador NO ha aportado cifras oficiales de contexto todavía. NO inventes estadísticas ni cifras específicas — construye onda_efectos_arbol_problema y onda_consecuencias en términos cualitativos, y agrega una pregunta_para_el_usuario pidiendo cifras si es posible obtenerlas (fuente oficial: DANE, FAOSTAT, Gobernación, gremio sectorial, etc.).`;
 
   const bloqueCadenaCausal =
