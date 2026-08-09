@@ -10,6 +10,17 @@
 // Sin llave: límite de tasa bajo pero funcional. Con llave (variable
 // SEMANTIC_SCHOLAR_API_KEY en .env.local, opcional): mayor cuota.
 // No es obligatorio configurarla — el cliente funciona sin ella.
+//
+// v2 (2026-08-09): diagnóstico confirmó que "falló" en pruebas reales
+// corresponde casi con certeza a 429 (Too Many Requests) — sin llave,
+// el límite es de 1 solicitud/segundo compartida entre TODOS los
+// usuarios no autenticados de Semantic Scholar en el mundo, no solo
+// los de esta plataforma. Se agrega reintento con backoff exponencial
+// específicamente para 429 (no para otros errores, que sí deben
+// fallar rápido y visiblemente). Recomendado: solicitar una llave
+// gratuita en https://www.semanticscholar.org/product/api#api-key-form
+// y configurarla en SEMANTIC_SCHOLAR_API_KEY — el código ya la usa si
+// existe, sin cambios adicionales.
 
 import type { CandidatoFuente } from "./tipos";
 
@@ -19,6 +30,31 @@ export interface OpcionesBusquedaSemanticScholar {
 }
 
 const SEMANTIC_SCHOLAR_BASE_URL = "https://api.semanticscholar.org/graph/v1/paper/search";
+const MAX_REINTENTOS_429 = 2;
+
+async function esperar(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchConReintento429(
+  url: string,
+  headers: Record<string, string>,
+  intento = 0
+): Promise<Response> {
+  const respuesta = await fetch(url, { headers });
+
+  if (respuesta.status === 429 && intento < MAX_REINTENTOS_429) {
+    const esperaMs = 2000 * Math.pow(2, intento); // 2s, 4s
+    console.warn(
+      `[semantic_scholar] 429 recibido (cuota compartida no-autenticada). ` +
+        `Reintentando en ${esperaMs}ms (intento ${intento + 1}/${MAX_REINTENTOS_429})...`
+    );
+    await esperar(esperaMs);
+    return fetchConReintento429(url, headers, intento + 1);
+  }
+
+  return respuesta;
+}
 
 export async function buscarCandidatosSemanticScholar(
   consulta: string,
@@ -38,13 +74,20 @@ export async function buscarCandidatosSemanticScholar(
   if (anioDesde) params.set("year", `${anioDesde}-`);
 
   const url = `${SEMANTIC_SCHOLAR_BASE_URL}?${params.toString()}`;
+
   const headers: Record<string, string> = {};
   const apiKey = process.env.SEMANTIC_SCHOLAR_API_KEY;
   if (apiKey) headers["x-api-key"] = apiKey;
+  else
+    console.warn(
+      "[semantic_scholar] SEMANTIC_SCHOLAR_API_KEY no configurado — " +
+        "usando cuota compartida no-autenticada (1 req/s global), propensa a 429. " +
+        "Solicitar llave gratuita: https://www.semanticscholar.org/product/api#api-key-form"
+    );
 
   let respuesta: Response;
   try {
-    respuesta = await fetch(url, { headers });
+    respuesta = await fetchConReintento429(url, headers);
   } catch (err) {
     throw new Error(
       `[semantic_scholar] Fallo de red al consultar Semantic Scholar: ${
@@ -55,7 +98,11 @@ export async function buscarCandidatosSemanticScholar(
 
   if (!respuesta.ok) {
     const detalle = await respuesta.text().catch(() => "");
-    throw new Error(`[semantic_scholar] Semantic Scholar respondió ${respuesta.status}: ${detalle}`);
+    const pista =
+      respuesta.status === 429
+        ? " (límite de tasa agotado incluso tras reintentos — considere configurar SEMANTIC_SCHOLAR_API_KEY)"
+        : "";
+    throw new Error(`[semantic_scholar] Semantic Scholar respondió ${respuesta.status}${pista}: ${detalle}`);
   }
 
   const datos = await respuesta.json();
