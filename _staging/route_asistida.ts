@@ -79,10 +79,31 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         if (error.code === "23505") {
-          descartados.push({
-            titulo: candidato.titulo,
-            motivo: "Ya existe en el corpus de este proyecto (DOI duplicado)",
-          });
+          // Ya existe por DOI duplicado — en vez de descartarla sin más,
+          // completa autores si la fila existente lo tiene vacío (caso
+          // real: fuentes cargadas antes de que este campo se guardara).
+          const { data: filaExistente } = await supabase
+            .from("corpus_fuentes")
+            .select("id, autores")
+            .eq("project_id", project_id)
+            .eq("doi", candidato.doi)
+            .maybeSingle();
+
+          if (filaExistente && !filaExistente.autores && candidato.autores) {
+            await supabase
+              .from("corpus_fuentes")
+              .update({ autores: candidato.autores })
+              .eq("id", filaExistente.id);
+            descartados.push({
+              titulo: candidato.titulo,
+              motivo: "Ya existía — se completó el campo autores, que estaba vacío",
+            });
+          } else {
+            descartados.push({
+              titulo: candidato.titulo,
+              motivo: "Ya existe en el corpus de este proyecto (DOI duplicado)",
+            });
+          }
         } else {
           console.error("Error insertando candidato verificado:", error);
           descartados.push({ titulo: candidato.titulo, motivo: "Error al insertar" });
