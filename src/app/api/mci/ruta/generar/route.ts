@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { construirPromptRuta, type RutaOutput } from "@/lib/faro/ruta";
 import { llamarOrquestador, parsearJsonRespuesta } from "@/lib/openrouter/client";
 import {
-  calcularDeltaI, calcularOmega, calcularDeltaModulada, calcularLFaroReducida,
+  calcularDeltaI, calcularOmega, CAMPOS_OBLIGATORIOS_RUTA, calcularDeltaModulada, calcularLFaroReducida,
   calcularSeTauCompleto, calcularTauC, haConvergido,
   type ContradiccionDetectada,
 } from "@/lib/faro/mci";
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
 
   // 5. Matemática de la MCI reducida a un nodo
   const deltaI = calcularDeltaI(rutaOutput);
-  const omega = calcularOmega(rutaOutput);
+  const omega = calcularOmega(rutaOutput, CAMPOS_OBLIGATORIOS_RUTA);
   const deltaModulada = calcularDeltaModulada(contradiccionesTyped, project.u2_competencia_metodologica ?? 0);
   const lFaro = calcularLFaroReducida({ deltaI, omega, deltaModulada });
   const seTau = calcularSeTauCompleto({ nu: project.nu, u0: project.u0_initial });

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { verificarHipotesis } from "@/lib/faro/rsl/rsl";
 import {
-  calcularDeltaI, calcularOmega, calcularDeltaModulada, calcularLFaroReducida,
+  calcularDeltaI, calcularOmega, CAMPOS_OBLIGATORIOS_RUTA, calcularDeltaModulada, calcularLFaroReducida,
   calcularSeTauCompleto, calcularTauC, haConvergido,
   type ContradiccionDetectada,
 } from "@/lib/faro/mci";
@@ -109,7 +109,7 @@ export async function POST(request: Request) {
   ];
 
   const deltaI = calcularDeltaI(rutaOutputActualizado);
-  const omega = calcularOmega(rutaOutputActualizado);
+  const omega = calcularOmega(rutaOutputActualizado, CAMPOS_OBLIGATORIOS_RUTA);
   const deltaModulada = calcularDeltaModulada(contradiccionesTyped, project.u2_competencia_metodologica ?? 0);
   const lFaro = calcularLFaroReducida({ deltaI, omega, deltaModulada });
   const seTau = calcularSeTauCompleto({ nu: project.nu, u0: project.u0_initial });
