@@ -14,6 +14,8 @@
 "use client";
 
 import { useState } from "react";
+import { construirPromptCifrasContexto } from "@/lib/faro/nova";
+import type { RutaOutput } from "@/lib/faro/ruta";
 
 export interface CifraContexto {
   nivel: "mundial" | "continental" | "nacional" | "regional" | "especifico";
@@ -33,9 +35,11 @@ const NIVELES: { valor: CifraContexto["nivel"]; etiqueta: string }[] = [
 export function CifrasContextoInput({
   projectId,
   cifrasIniciales,
+  rutaOutput,
 }: {
   projectId: string;
   cifrasIniciales: CifraContexto[];
+  rutaOutput: RutaOutput | null;
 }) {
   const [cifras, setCifras] = useState<CifraContexto[]>(cifrasIniciales);
   const [nivel, setNivel] = useState<CifraContexto["nivel"]>("regional");
@@ -43,6 +47,16 @@ export function CifrasContextoInput({
   const [fuente, setFuente] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copiado, setCopiado] = useState(false);
+
+  const promptCifras = rutaOutput ? construirPromptCifrasContexto(rutaOutput) : null;
+
+  function copiarPrompt() {
+    if (!promptCifras) return;
+    navigator.clipboard.writeText(promptCifras);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
+  }
 
   async function guardar(nuevaLista: CifraContexto[]) {
     setGuardando(true);
@@ -85,6 +99,27 @@ export function CifrasContextoInput({
           Cifras que usted ya conoce, con su fuente — nivel mundial, nacional, regional o un dato propio
           (por ejemplo, cifras institucionales no publicadas). NOVA las usa tal cual, sin reinterpretarlas.
         </p>
+
+        {promptCifras && (
+          <div className="bg-gray-50 rounded-md p-3 space-y-2">
+            <p className="text-xs font-semibold text-faro-navy">
+              ¿No tiene las cifras a mano? Búsquelas con Perplexity u otro asistente con navegación web
+            </p>
+            <p className="text-xs text-gray-500">
+              Este prompt ya viene armado con la pregunta de investigación y el alcance de este proyecto —
+              cópielo, péguelo en Perplexity, y transcriba cada resultado directamente a los campos de abajo.
+            </p>
+            <details>
+              <summary className="cursor-pointer text-xs text-faro-blue underline">Ver prompt</summary>
+              <pre className="text-xs whitespace-pre-wrap text-gray-800 mt-2 bg-white rounded p-2 border">
+                {promptCifras}
+              </pre>
+            </details>
+            <button onClick={copiarPrompt} className="text-xs text-faro-blue underline block">
+              {copiado ? "Copiado ✓" : "Copiar instrucciones"}
+            </button>
+          </div>
+        )}
 
         {cifras.length > 0 && (
           <ul className="space-y-2">

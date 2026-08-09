@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { NovaOutput } from "@/lib/faro/nova";
+import type { RutaOutput } from "@/lib/faro/ruta";
 import type { TipoProyecto } from "@/lib/faro/types";
 import type { SubtipoDti } from "@/lib/faro/tipologiaProyecto";
 import { NovaInfoPanel } from "./NovaInfoPanel";
@@ -63,9 +64,11 @@ const CAMPOS_EDITABLES: { key: keyof NovaOutput; etiqueta: string; multilinea?: 
 export default function FormulacionNova({
   project,
   nodosIniciales,
+  rutaOutputConfirmado,
 }: {
   project: ProjectRow;
   nodosIniciales: NodoGrafo[];
+  rutaOutputConfirmado?: RutaOutput | null;
 }) {
   const [nodos, setNodos] = useState<NodoGrafo[]>(nodosIniciales);
   const [metrica, setMetrica] = useState<Metrica | null>(null);
@@ -138,6 +141,7 @@ export default function FormulacionNova({
       <CifrasContextoInput
         projectId={project.id}
         cifrasIniciales={project.cifras_contexto ?? []}
+        rutaOutput={rutaOutputConfirmado ?? null}
       />
       <div className="flex items-center justify-between">
         <div>

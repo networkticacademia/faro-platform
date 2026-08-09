@@ -10,6 +10,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
+import type { RutaOutput } from "@/lib/faro/ruta";
 import FormulacionNova from "./FormulacionNova";
 
 export default async function NovaPage({
@@ -35,5 +36,23 @@ export default async function NovaPage({
     .eq("tipo", "NOVA")
     .order("iteracion", { ascending: false });
 
-  return <FormulacionNova project={project} nodosIniciales={nodos ?? []} />;
+  const { data: nodoRuta } = await supabase
+    .from("grafo_nodos")
+    .select("contenido")
+    .eq("project_id", projectId)
+    .eq("tipo", "RUTA")
+    .eq("confirmado_humano", true)
+    .order("iteracion", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const rutaOutputConfirmado = (nodoRuta?.contenido as RutaOutput) ?? null;
+
+  return (
+    <FormulacionNova
+      project={project}
+      nodosIniciales={nodos ?? []}
+      rutaOutputConfirmado={rutaOutputConfirmado}
+    />
+  );
 }
