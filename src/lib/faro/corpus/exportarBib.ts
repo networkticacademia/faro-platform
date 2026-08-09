@@ -60,8 +60,54 @@ async function obtenerRegistroCrossrefCompleto(doi: string): Promise<RegistroCro
       issn: Array.isArray(item.ISSN) ? item.ISSN[0] : null,
     };
   } catch {
-    return null; // DOI de DataCite u otro caso no cubierto por Crossref
+    return null;
   }
+}
+
+/**
+ * NUEVO. Respaldo para DOIs de DataCite (datasets: Mendeley Data,
+ * Zenodo, Figshare) — mismo caso que ya resolvimos en la verificación
+ * (verificarDOI), pero que faltaba aplicar aquí, en la exportación.
+ * Bug real detectado: el dataset propio de Jorge en Mendeley Data
+ * salía con "author = {no disponible}" en el .bib exportado, porque
+ * Crossref no lo conoce y este archivo nunca intentaba DataCite.
+ */
+async function obtenerRegistroDataCiteCompleto(doi: string): Promise<RegistroCrossrefCompleto | null> {
+  try {
+    const doiLimpio = doi.trim().replace(/^https?:\/\/(dx\.)?doi\.org\//i, "");
+    const respuesta = await fetch(`https://api.datacite.org/dois/${encodeURIComponent(doiLimpio)}`);
+    if (!respuesta.ok) return null;
+    const datos = await respuesta.json();
+    const attrs = datos?.data?.attributes;
+    if (!attrs) return null;
+
+    const autores: AutorCrossref[] = Array.isArray(attrs.creators)
+      ? attrs.creators.map((c: any) => ({
+          given: c.givenName ?? undefined,
+          family: c.familyName ?? c.name ?? undefined,
+        }))
+      : [];
+
+    return {
+      autores,
+      tipo: "dataset",
+      volumen: attrs.version ?? null,
+      numero: null,
+      paginas: null,
+      mes: null,
+      editorial: attrs.publisher ?? null,
+      url: attrs.url ?? null,
+      issn: null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function obtenerRegistroCompleto(doi: string): Promise<RegistroCrossrefCompleto | null> {
+  const porCrossref = await obtenerRegistroCrossrefCompleto(doi);
+  if (porCrossref && porCrossref.autores.length > 0) return porCrossref;
+  return obtenerRegistroDataCiteCompleto(doi);
 }
 
 function formatearAutoresBibtex(autores: AutorCrossref[]): string {
@@ -129,7 +175,7 @@ export async function generarBibtex(fuentes: FuenteParaExportar[]): Promise<stri
     let registro: RegistroCrossrefCompleto | null = null;
 
     if (fuente.doi) {
-      registro = await obtenerRegistroCrossrefCompleto(fuente.doi);
+      registro = await obtenerRegistroCompleto(fuente.doi);
       if (registro && registro.autores.length > 0) {
         autoresBibtex = formatearAutoresBibtex(registro.autores);
         tipo = tipoBibtex(registro.tipo);
