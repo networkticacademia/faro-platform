@@ -386,8 +386,6 @@ export default function FormulacionRuta({
                   </button>
                 </div>
               )}
-
-              <ParserAsistido projectId={project.id} nodoOrigenId={nodoActual?.id} />
             </div>
           )}
 
@@ -463,6 +461,10 @@ export default function FormulacionRuta({
                 </div>
               )}
             </div>
+          )}
+
+          {propuestaBusqueda && (
+            <ParserAsistido projectId={project.id} nodoOrigenId={nodoActual?.id} />
           )}
 
           {metrica && (
