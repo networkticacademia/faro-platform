@@ -123,3 +123,50 @@ export async function verificarDOIContraCrossref(
     return { valido: false };
   }
 }
+
+/**
+ * NUEVO. Respaldo para DOIs registrados vía DataCite en vez de
+ * Crossref — típico de datasets (Mendeley Data, Zenodo, Figshare) y
+ * repositorios institucionales. Caso real detectado en sesión
+ * 2026-08-09: un dataset propio de Jorge en Mendeley Data
+ * (10.17632/...) es un DOI válido pero Crossref lo reporta como no
+ * encontrado, porque su agencia de registro es DataCite, no Crossref.
+ */
+export async function verificarDOIContraDataCite(
+  doi: string
+): Promise<ResultadoVerificacionDOI> {
+  try {
+    const doiLimpio = doi.trim().replace(/^https?:\/\/(dx\.)?doi\.org\//i, "");
+    const respuesta = await fetch(
+      `https://api.datacite.org/dois/${encodeURIComponent(doiLimpio)}`
+    );
+    if (!respuesta.ok) return { valido: false };
+
+    const datos = await respuesta.json();
+    const attrs = datos?.data?.attributes;
+    if (!attrs) return { valido: false };
+
+    return {
+      valido: true,
+      tituloReal: attrs.titles?.[0]?.title,
+      revistaReal: attrs.publisher,
+      anioReal: attrs.publicationYear,
+    };
+  } catch (error) {
+    console.warn("Fallo verificación DOI contra DataCite:", doi, error);
+    return { valido: false };
+  }
+}
+
+/**
+ * NUEVO. Intenta Crossref primero (cubre la mayoría de artículos y
+ * revistas); si no resuelve, intenta DataCite antes de descartar —
+ * cubre datasets y repositorios que Crossref no conoce. Esta es la
+ * función que debe usar la ruta API (/api/mci/corpus/asistida), no
+ * verificarDOIContraCrossref directamente.
+ */
+export async function verificarDOI(doi: string): Promise<ResultadoVerificacionDOI> {
+  const porCrossref = await verificarDOIContraCrossref(doi);
+  if (porCrossref.valido) return porCrossref;
+  return verificarDOIContraDataCite(doi);
+}

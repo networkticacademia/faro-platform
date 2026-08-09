@@ -44,7 +44,8 @@ export interface PropuestaCadenaBusqueda {
   terminos_clasificados: TerminoConPeso[];
   cadena_nucleo: string;
   cadena_ampliada: string;
-  paquete_manual: string;
+  paquete_manual: string; // instrucciones para BUSCAR desde cero (NotebookLM/Consensus/etc. sin fuentes cargadas)
+  paquete_manual_filtrado: string; // NUEVO v7 — instrucciones para FILTRAR fuentes ya cargadas en el cuaderno, priorizando DOI verificable
 }
 
 const STOPWORDS_ES = new Set([
@@ -255,6 +256,41 @@ Instrucciones para el asistente (NotebookLM, Consensus, Elicit, Google Scholar, 
 Nota metodológica obligatoria: esta es una exploración automatizada preliminar, no una revisión sistemática. Toda fuente que traigas debe ser verificada manualmente antes de incorporarla al proyecto de investigación.`;
 }
 
+/**
+ * NUEVO v7. Variante de construirPaqueteManual para cuando el
+ * formulador YA tiene fuentes cargadas en NotebookLM/Perplexity/
+ * Elicit/SciSpace (típicamente decenas, cargadas por su cuenta) y
+ * necesita filtrarlas y priorizarlas, en vez de pedirle a la
+ * herramienta que busque desde cero. Prioriza DOI verificable porque
+ * eso es justamente lo que ParserAsistido.tsx necesita para poder
+ * confirmar cada fuente contra Crossref antes de aceptarla — fuentes
+ * sin DOI quedan como "sin_verificar" y exigen revisión manual.
+ */
+function construirPaqueteManualFiltrado(rutaOutput: RutaOutput): string {
+  return `Tengo varias fuentes ya cargadas en este cuaderno/herramienta. Necesito que las filtres y me entregues SOLO las que sean relevantes para esta pregunta de investigación:
+
+"${rutaOutput.pregunta_investigacion}"
+
+CRITERIOS DE FILTRO:
+1. Prioriza fuentes que tengan DOI identificable o verificable — si una fuente NO tiene DOI ni forma de verificarse (por ejemplo, un video, una página institucional, o contenido sin metadatos bibliográficos claros), inclúyela solo si es genuinamente relevante y márcala explícitamente como "sin DOI".
+2. Descarta fuentes que no tengan relación temática real con la pregunta (contenido de otro dominio, resultados genéricos sin sustento académico).
+3. No inventes ni completes datos que la fuente no tenga — si un campo no está disponible, escribe "no disponible".
+
+Para cada fuente relevante, entrega la información EXACTAMENTE en este formato, una fuente tras otra, sin texto adicional entre ellas:
+
+### FUENTE [número]
+Título: [título completo]
+Autores: [autores, o "no disponible"]
+Año: [año, o "no disponible"]
+Revista/Venue: [nombre de la revista, conferencia o repositorio, o "no disponible"]
+DOI: [DOI si existe, o "no disponible"]
+Hallazgo: [2-3 líneas describiendo el hallazgo principal en relación directa con la pregunta de investigación]
+Relevancia: [directa / parcial]
+Tiene DOI: [sí / no]
+
+Al final, indica cuántas fuentes totales resultaron relevantes, cuántas tienen DOI verificable, y cuántas se descartaron por no tener relación con el tema.`;
+}
+
 export function proponerCadenaBusqueda(params: {
   palabrasClaveM0: string[];
   rutaOutput: RutaOutput;
@@ -287,6 +323,7 @@ export function proponerCadenaBusqueda(params: {
       rutaOutput,
       terminos_clasificados.map((t) => t.texto)
     ),
+    paquete_manual_filtrado: construirPaqueteManualFiltrado(rutaOutput),
   };
 }
 

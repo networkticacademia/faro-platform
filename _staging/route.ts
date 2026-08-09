@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
   parsearCandidatosDesdeTexto,
-  verificarDOIContraCrossref,
+  verificarDOI,
 } from "@/lib/faro/corpus/parserAsistido";
 
 export async function POST(request: NextRequest) {
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     if (!candidato.titulo) continue;
 
     if (candidato.doi) {
-      const verificacion = await verificarDOIContraCrossref(candidato.doi);
+      const verificacion = await verificarDOI(candidato.doi);
       if (!verificacion.valido) {
         descartados.push({
           titulo: candidato.titulo,
