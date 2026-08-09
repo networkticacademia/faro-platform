@@ -317,7 +317,7 @@ export default function FormulacionNova({
             <button
               onClick={() => generar(feedback || undefined)}
               disabled={generando}
-              className="text-sm text-faro-blue underline disabled:opacity-40"
+              className="border border-faro-navy text-faro-navy rounded-md px-5 py-2.5 font-medium hover:bg-faro-navy hover:text-white transition-colors disabled:opacity-40"
             >
               {generando ? "Generando nueva iteración..." : "Regenerar propuesta →"}
             </button>
