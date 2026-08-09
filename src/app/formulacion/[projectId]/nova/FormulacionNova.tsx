@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { NovaOutput } from "@/lib/faro/nova";
 import type { TipoProyecto } from "@/lib/faro/types";
 import type { SubtipoDti } from "@/lib/faro/tipologiaProyecto";
+import { NovaInfoPanel } from "./NovaInfoPanel";
 
 interface NodoGrafo {
   id: string;
@@ -131,6 +132,7 @@ export default function FormulacionNova({
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      <NovaInfoPanel />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-faro-navy">
