@@ -5,6 +5,12 @@
 // automatización vía FAOSTAT/World Bank/DANE sigue pendiente, con su
 // propia ficha de diseño.
 //
+// v2 (2026-08-09): agrega bloque de "pegar en lote" — el prompt de
+// construirPromptCifrasContexto() pide un formato fijo a Perplexity;
+// cargar el resultado de a una cifra por vez no era viable con
+// respuestas reales de 10+ cifras. parsearCifrasContexto() interpreta
+// ese formato de forma determinística, sin llamada a LLM.
+//
 // Se muestra en la pantalla de NOVA, antes de generar — las cifras
 // quedan guardadas a nivel de proyecto (persisten entre iteraciones).
 //
@@ -16,11 +22,13 @@
 import { useState } from "react";
 import { construirPromptCifrasContexto } from "@/lib/faro/nova";
 import type { RutaOutput } from "@/lib/faro/ruta";
+import { parsearCifrasContexto } from "./parsearCifrasContexto";
 
 export interface CifraContexto {
   nivel: "mundial" | "continental" | "nacional" | "regional" | "especifico";
   cifra: string;
   fuente: string;
+  url?: string;
   verificado: boolean;
 }
 
@@ -48,6 +56,10 @@ export function CifrasContextoInput({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
+
+  const [textoLote, setTextoLote] = useState("");
+  const [procesandoLote, setProcesandoLote] = useState(false);
+  const [resultadoLote, setResultadoLote] = useState<{ agregadas: number; noReconocidas: number } | null>(null);
 
   const promptCifras = construirPromptCifrasContexto(rutaOutput);
 
@@ -84,6 +96,22 @@ export function CifrasContextoInput({
     setFuente("");
   }
 
+  function procesarLote() {
+    if (!textoLote.trim()) return;
+    setProcesandoLote(true);
+    setResultadoLote(null);
+    try {
+      const { cifras: cifrasNuevas, bloquesNoReconocidos } = parsearCifrasContexto(textoLote);
+      if (cifrasNuevas.length > 0) {
+        guardar([...cifras, ...cifrasNuevas]);
+      }
+      setResultadoLote({ agregadas: cifrasNuevas.length, noReconocidas: bloquesNoReconocidos });
+      setTextoLote("");
+    } finally {
+      setProcesandoLote(false);
+    }
+  }
+
   function eliminar(indice: number) {
     guardar(cifras.filter((_, i) => i !== indice));
   }
@@ -105,7 +133,7 @@ export function CifrasContextoInput({
           </p>
           <p className="text-xs text-gray-500">
             Este prompt ya viene armado con la pregunta de investigación y el alcance de este proyecto —
-            cópielo, péguelo en Perplexity, y transcriba cada resultado directamente a los campos de abajo.
+            cópielo, péguelo en Perplexity, y pegue la respuesta completa abajo para cargarla en un solo paso.
           </p>
           <details>
             <summary className="cursor-pointer text-xs text-faro-blue underline">Ver prompt</summary>
@@ -118,6 +146,32 @@ export function CifrasContextoInput({
           </button>
         </div>
 
+        <div className="bg-amber-50 border border-amber-200 rounded-md p-3 space-y-2">
+          <p className="text-xs font-semibold text-amber-800">
+            Pegar respuesta completa de Perplexity (carga todas las cifras de una vez)
+          </p>
+          <textarea
+            value={textoLote}
+            onChange={(e) => setTextoLote(e.target.value)}
+            rows={5}
+            placeholder="Pegue aquí la respuesta completa, tal como se la devolvió Perplexity..."
+            className="w-full border rounded-md p-2 text-sm"
+          />
+          <button
+            onClick={procesarLote}
+            disabled={procesandoLote || !textoLote.trim()}
+            className="text-sm bg-amber-700 text-white rounded-md px-4 py-1.5 disabled:opacity-40"
+          >
+            {procesandoLote ? "Procesando..." : "Procesar y agregar todas"}
+          </button>
+          {resultadoLote && (
+            <p className="text-xs text-amber-800">
+              {resultadoLote.agregadas} cifra(s) agregada(s)
+              {resultadoLote.noReconocidas > 0 && ` · ${resultadoLote.noReconocidas} bloque(s) no reconocido(s) — revise que sigan el formato del prompt`}
+            </p>
+          )}
+        </div>
+
         {cifras.length > 0 && (
           <ul className="space-y-2">
             {cifras.map((c, i) => (
@@ -125,7 +179,17 @@ export function CifrasContextoInput({
                 <div>
                   <span className="text-xs font-medium text-faro-blue uppercase">{c.nivel}</span>
                   <p>{c.cifra}</p>
-                  <p className="text-xs text-gray-500">Fuente: {c.fuente}</p>
+                  <p className="text-xs text-gray-500">
+                    Fuente: {c.fuente}
+                    {c.url && (
+                      <>
+                        {" — "}
+                        <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-faro-blue underline">
+                          enlace
+                        </a>
+                      </>
+                    )}
+                  </p>
                 </div>
                 <button
                   onClick={() => eliminar(i)}

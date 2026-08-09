@@ -97,6 +97,7 @@ export interface CifraContexto {
   nivel: "mundial" | "continental" | "nacional" | "regional" | "especifico";
   cifra: string;
   fuente: string;
+  url?: string; // NUEVO — trazabilidad directa al informe/página original
   // true SOLO si vino de una fuente automatizada verificada (Componente
   // Contexto, pendiente de construir). Mientras no exista, todo lo que
   // el formulador aporte manualmente queda en false — honestidad sobre
