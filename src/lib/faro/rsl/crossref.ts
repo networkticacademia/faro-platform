@@ -9,6 +9,21 @@
 // Mismo principio de "polite pool" que OpenAlex: incluir mailto da
 // prioridad. Reutiliza OPENALEX_MAILTO — es el mismo correo de contacto,
 // no hace falta una variable de entorno separada.
+//
+// v2 (2026-08-09): Crossref confirma en su propia documentación que su
+// API NO soporta búsqueda booleana ni de frase exacta — el parámetro
+// `query` (y `query.bibliographic`) hace ranking de relevancia difuso
+// sobre texto libre, tratando comillas y "AND" como caracteres
+// literales, no como operadores. Mandarle la cadena booleana completa
+// (la misma que sí funciona en OpenAlex) producía coincidencias
+// parciales de una sola palabra genérica contra CUALQUIER disciplina
+// indexada por Crossref — de ahí resultados de fiscalidad, minería o
+// seguros para una hipótesis de agricultura de precisión. Se agrega
+// limpiarCadenaParaCrossref() para despojar la cadena de su sintaxis
+// booleana antes de enviarla, y se cambia de `query` a
+// `query.bibliographic` (más acotado a título/autor/año/ISSN). El
+// filtrado real de precisión para estos candidatos recae en el
+// cribado léxico local de rsl.ts (cribarCandidatos), no en esta API.
 
 import type { CandidatoFuente } from "./tipos";
 
@@ -28,6 +43,22 @@ function limpiarAbstractJats(abstract: string | undefined | null): string | null
   return abstract.replace(/<[^>]+>/g, "").trim() || null;
 }
 
+/**
+ * NUEVO en v2. Crossref no entiende booleanos — quita AND/OR/NOT y
+ * comillas de la cadena, dejando solo las palabras/frases clave
+ * separadas por espacios. La precisión que se pierde aquí (Crossref
+ * no puede exigir que TODOS los términos aparezcan) se recupera
+ * después en rsl.ts vía cribarCandidatos(), que sí reevalúa por
+ * solapamiento léxico contra la consulta completa.
+ */
+function limpiarCadenaParaCrossref(consulta: string): string {
+  return consulta
+    .replace(/\bAND\b|\bOR\b|\bNOT\b/g, " ")
+    .replace(/["()]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export async function buscarCandidatosCrossref(
   consulta: string,
   opciones: OpcionesBusquedaCrossref = {}
@@ -39,9 +70,10 @@ export async function buscarCandidatosCrossref(
   }
 
   const mailtoContacto = process.env.OPENALEX_MAILTO; // mismo correo, reutilizado
+  const consultaLimpia = limpiarCadenaParaCrossref(consulta);
 
   const params = new URLSearchParams({
-    query: consulta,
+    "query.bibliographic": consultaLimpia,
     rows: String(Math.min(Math.max(limite, 1), 20)),
     sort: "relevance",
   });
@@ -76,7 +108,6 @@ export async function buscarCandidatosCrossref(
       item["published-online"]?.["date-parts"]?.[0]?.[0] ??
       item.issued?.["date-parts"]?.[0]?.[0] ??
       null;
-
     return {
       fuente: "crossref",
       id_fuente: item.DOI ?? "",
