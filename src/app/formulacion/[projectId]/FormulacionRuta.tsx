@@ -523,59 +523,8 @@ export default function FormulacionRuta({
                     Ajustar términos y reintentar ↑
                   </button>
                   <p className="text-xs text-gray-600 pt-1">
-                    Como último recurso, puede intentar la búsqueda manual asistida:
+                    Como último recurso, puede intentar la búsqueda manual asistida con el botón de instrucciones arriba.
                   </p>
-                  <button
-                    onClick={() => setMostrarPaqueteManual((v) => !v)}
-                    className="text-xs text-faro-blue underline mt-1"
-                  >
-                    {mostrarPaqueteManual ? "Ocultar" : "Ver"} instrucciones para NotebookLM / Consensus / Google Scholar
-                  </button>
-                  {mostrarPaqueteManual && propuestaBusqueda && (
-                    <div className="bg-gray-50 rounded-md p-3 space-y-3 mt-2">
-                      <div className="flex items-center gap-2 border-b pb-2">
-                        <button
-                          onClick={() => setTabPaqueteManual("buscar")}
-                          className={`text-xs px-3 py-1 rounded font-medium ${
-                            tabPaqueteManual === "buscar"
-                              ? "bg-faro-navy text-white"
-                              : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                          }`}
-                        >
-                          Buscar desde cero
-                        </button>
-                        <button
-                          onClick={() => setTabPaqueteManual("filtrar")}
-                          className={`text-xs px-3 py-1 rounded font-medium ${
-                            tabPaqueteManual === "filtrar"
-                              ? "bg-faro-navy text-white"
-                              : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                          }`}
-                        >
-                          Filtrar lo ya cargado
-                        </button>
-                      </div>
-
-                      {tabPaqueteManual === "buscar" ? (
-                        <div className="space-y-2">
-                          <pre className="text-xs whitespace-pre-wrap text-gray-800">{propuestaBusqueda.paquete_manual}</pre>
-                          <button onClick={copiarPaqueteManual} className="text-xs text-faro-blue underline">
-                            {copiado ? "Copiado ✓" : "Copiar instrucciones"}
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <p className="text-xs font-semibold text-faro-navy">
-                            Filtrar fuentes ya cargadas (prioriza DOI verificable)
-                          </p>
-                          <pre className="text-xs whitespace-pre-wrap text-gray-800">{propuestaBusqueda.paquete_manual_filtrado}</pre>
-                          <button onClick={copiarPaqueteManualFiltrado} className="text-xs text-faro-blue underline">
-                            {copiadoFiltrado ? "Copiado ✓" : "Copiar instrucciones"}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
               )}
             </div>
