@@ -52,6 +52,15 @@ function similitud(a: Set<string>, b: Set<string>): number {
   return comunes / Math.min(a.size, b.size); // solapamiento normalizado por el conjunto más pequeño
 }
 
+function primerApellido(autores: string | null, titulo: string): string {
+  if (autores) {
+    const primero = autores.split(/[,;]| and /i)[0].trim();
+    const partes = primero.split(" ");
+    return partes[partes.length - 1] || primero;
+  }
+  return titulo.split(" ").slice(0, 3).join(" ") + "…";
+}
+
 const UMBRAL_ARISTA = 0.25; // mínimo de solapamiento para dibujar una conexión
 
 export function FuentesGrafo({ fuentes }: { fuentes: FuenteCorpus[] }) {
@@ -59,6 +68,7 @@ export function FuentesGrafo({ fuentes }: { fuentes: FuenteCorpus[] }) {
     const nodos = fuentes.map((f) => ({
       id: f.id,
       name: f.titulo,
+      etiqueta: `${primerApellido(f.autores, f.titulo)}${f.anio ? `, ${f.anio}` : ""}`,
       anio: f.anio,
       val: f.estado_verificacion === "verificado" ? 4 : 2, // nodos verificados un poco más grandes
       color: f.estado_verificacion === "verificado" ? "#1B4965" : "#C9A66B",
@@ -104,6 +114,27 @@ export function FuentesGrafo({ fuentes }: { fuentes: FuenteCorpus[] }) {
           linkWidth={(link: any) => link.value * 3}
           linkColor={() => "rgba(150,150,150,0.4)"}
           backgroundColor="#ffffff"
+          nodeCanvasObject={(node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+            const radio = 3 + node.val;
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, radio, 0, 2 * Math.PI);
+            ctx.fillStyle = node.color;
+            ctx.fill();
+
+            const tamanoFuente = 11 / globalScale;
+            ctx.font = `${tamanoFuente}px sans-serif`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "top";
+            ctx.fillStyle = "#1a1a1a";
+            ctx.fillText(node.etiqueta, node.x, node.y + radio + 2);
+          }}
+          nodePointerAreaPaint={(node: any, color: string, ctx: CanvasRenderingContext2D) => {
+            const radio = 3 + node.val;
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, radio, 0, 2 * Math.PI);
+            ctx.fill();
+          }}
         />
       </div>
     </div>
