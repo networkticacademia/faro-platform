@@ -42,6 +42,7 @@ export async function PATCH(request: NextRequest) {
     nivel: c.nivel,
     cifra: c.cifra,
     fuente: c.fuente,
+    url: c.url && c.url.trim() ? c.url.trim() : undefined,
     verificado: false,
   }));
 

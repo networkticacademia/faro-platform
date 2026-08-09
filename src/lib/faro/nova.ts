@@ -97,6 +97,7 @@ export interface CifraContexto {
   nivel: "mundial" | "continental" | "nacional" | "regional" | "especifico";
   cifra: string;
   fuente: string;
+  url?: string; // NUEVO — trazabilidad directa al informe/página original
   // true SOLO si vino de una fuente automatizada verificada (Componente
   // Contexto, pendiente de construir). Mientras no exista, todo lo que
   // el formulador aporte manualmente queda en false — honestidad sobre
@@ -273,5 +274,6 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, con esta f
   "estado_evidencia": "sin_verificar" | "confirmado_por_rsl" | "contradicho_por_rsl",
   "nivel_confianza_agente": "alta" | "media" | "baja",
   "preguntas_para_el_usuario": ["string"]
-}`;
+}
+`;
 }
