@@ -55,23 +55,31 @@ export default function FuentesPage() {
         </Link>
       </div>
 
-      <div className="flex gap-2">
-        <button
-          onClick={() => setVista("tabla")}
-          className={`rounded px-4 py-2 text-sm font-medium ${
-            vista === "tabla" ? "bg-slate-900 text-white" : "bg-gray-100 text-gray-700"
-          }`}
+      <div className="flex items-center gap-2">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setVista("tabla")}
+            className={`rounded px-4 py-2 text-sm font-medium ${
+              vista === "tabla" ? "bg-slate-900 text-white" : "bg-gray-100 text-gray-700"
+            }`}
+          >
+            Tabla
+          </button>
+          <button
+            onClick={() => setVista("grafo")}
+            className={`rounded px-4 py-2 text-sm font-medium ${
+              vista === "grafo" ? "bg-slate-900 text-white" : "bg-gray-100 text-gray-700"
+            }`}
+          >
+            Grafo
+          </button>
+        </div>
+        <a
+          href={`/api/mci/corpus/exportar-bib?project_id=${projectId}`}
+          className="ml-auto rounded bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800"
         >
-          Tabla
-        </button>
-        <button
-          onClick={() => setVista("grafo")}
-          className={`rounded px-4 py-2 text-sm font-medium ${
-            vista === "grafo" ? "bg-slate-900 text-white" : "bg-gray-100 text-gray-700"
-          }`}
-        >
-          Grafo
-        </button>
+          Exportar a BibTeX (.bib)
+        </a>
       </div>
 
       {cargando && <p className="text-gray-500">Cargando corpus...</p>}
