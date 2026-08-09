@@ -265,6 +265,14 @@ export default function FormulacionRuta({
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {nodoActual?.confirmado_humano && (
+            <Link
+              href={`/formulacion/${project.id}/nova`}
+              className="text-xs px-3 py-1.5 rounded-md border border-faro-navy text-faro-navy hover:bg-faro-navy hover:text-white transition-colors font-medium flex items-center gap-1"
+            >
+              NOVA →
+            </Link>
+          )}
           <Link
             href={`/formulacion/${project.id}/fuentes`}
             className="text-xs px-3 py-1.5 rounded-md border border-faro-navy text-faro-navy hover:bg-faro-navy hover:text-white transition-colors font-medium flex items-center gap-1"
