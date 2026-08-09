@@ -1,7 +1,8 @@
 // ============================================================
 // FARO — Vista dedicada del corpus bibliográfico del proyecto
-// Componente D del roadmap de RSL: reemplaza mirar el corpus solo
-// desde Supabase. Ruta: /formulacion/[projectId]/fuentes
+// Componente D del roadmap de RSL.
+// Ruta: /formulacion/[projectId]/fuentes
+// v2: Exportación a BibTeX acotada a la selección de casillas.
 //
 // Autor: Dr. Jorge Enrique Chaparro Mesa · Unitrópico
 // ============================================================
@@ -24,6 +25,8 @@ export default function FuentesPage() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [vista, setVista] = useState<Vista>("tabla");
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
+  const [exportando, setExportando] = useState(false);
 
   useEffect(() => {
     if (!projectId) return;
@@ -33,10 +36,72 @@ export default function FuentesPage() {
         if (!r.ok) throw new Error("Error al cargar el corpus");
         return r.json();
       })
-      .then((data) => setFuentes(data.fuentes ?? []))
+      .then((data) => {
+        const lista: FuenteCorpus[] = data.fuentes ?? [];
+        setFuentes(lista);
+        // Por defecto, selecciona las fuentes verificadas
+        const idsVerificados = new Set(
+          lista.filter((f) => f.estado_verificacion === "verificado").map((f) => f.id)
+        );
+        setSeleccionados(idsVerificados);
+      })
       .catch((e) => setError(e instanceof Error ? e.message : "Error desconocido"))
       .finally(() => setCargando(false));
   }, [projectId]);
+
+  function alternarSeleccion(id: string) {
+    setSeleccionados((prev) => {
+      const prox = new Set(prev);
+      if (prox.has(id)) prox.delete(id);
+      else prox.add(id);
+      return prox;
+    });
+  }
+
+  function seleccionarTodos() {
+    if (seleccionados.size === fuentes.length) {
+      setSeleccionados(new Set());
+    } else {
+      setSeleccionados(new Set(fuentes.map((f) => f.id)));
+    }
+  }
+
+  function seleccionarSoloVerificados() {
+    setSeleccionados(
+      new Set(fuentes.filter((f) => f.estado_verificacion === "verificado").map((f) => f.id))
+    );
+  }
+
+  async function exportarBibtex() {
+    if (!projectId) return;
+    setExportando(true);
+    try {
+      const res = await fetch("/api/mci/corpus/exportar-bib", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_id: projectId,
+          ids: Array.from(seleccionados),
+        }),
+      });
+
+      if (!res.ok) throw new Error("Error al generar BibTeX");
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `faro_corpus_${projectId.slice(0, 8)}.bib`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Error al exportar BibTeX");
+    } finally {
+      setExportando(false);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
@@ -74,12 +139,15 @@ export default function FuentesPage() {
             Grafo
           </button>
         </div>
-        <a
-          href={`/api/mci/corpus/exportar-bib?project_id=${projectId}`}
-          className="ml-auto rounded bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800"
+        <button
+          onClick={exportarBibtex}
+          disabled={exportando || seleccionados.size === 0}
+          className="ml-auto rounded bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Exportar a BibTeX (.bib)
-        </a>
+          {exportando
+            ? "Generando .bib..."
+            : `Exportar a BibTeX (${seleccionados.size} seleccionadas)`}
+        </button>
       </div>
 
       {cargando && <p className="text-gray-500">Cargando corpus...</p>}
@@ -87,7 +155,17 @@ export default function FuentesPage() {
 
       {!cargando && !error && (
         <>
-          {vista === "tabla" ? <FuentesTable fuentes={fuentes} /> : <FuentesGrafo fuentes={fuentes} />}
+          {vista === "tabla" ? (
+            <FuentesTable
+              fuentes={fuentes}
+              seleccionados={seleccionados}
+              onAlternarSeleccion={alternarSeleccion}
+              onSeleccionarTodos={seleccionarTodos}
+              onSeleccionarSoloVerificados={seleccionarSoloVerificados}
+            />
+          ) : (
+            <FuentesGrafo fuentes={fuentes} />
+          )}
         </>
       )}
     </div>
