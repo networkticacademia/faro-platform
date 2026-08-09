@@ -79,6 +79,18 @@ const NUCLEO_HINTS = new Set([
   "pina", "pineapple", "ananas",
 ]);
 
+// NUEVO en v6. Subconjunto de NUCLEO_HINTS que representa el objeto de
+// estudio (cultivo/especie), no la tecnología. Prueba real reveló que
+// dar el mismo puntaje a "piña" y a "machine learning" deja el cupo del
+// AND obligatorio a merced del orden de la lista — "piña" perdía el
+// desempate y quedaba fuera, aunque estuviera correctamente clasificada
+// como núcleo. EDITAR/AMPLIAR AQUÍ según el cultivo/especie de cada
+// proyecto — es el único ajuste que debería requerir la próxima vez
+// que cambie el dominio.
+const NUCLEO_DOMINIO_HINTS = new Set([
+  "pina", "pineapple", "ananas",
+]);
+
 function limpiarToken(token: string): string {
   return token.replace(/[^a-zA-Z0-9À-ÿ]/g, "");
 }
@@ -159,6 +171,10 @@ function extraerTerminosDeTexto(texto: string, maxTerminos = 6): TerminoConPeso[
  * más informativo = se conserva primero.
  */
 function puntajeEspecificidad(textoNormalizado: string): number {
+  // v6: el objeto de estudio (cultivo/especie) SIEMPRE va primero —
+  // nunca debería perder un cupo del AND frente a vocabulario
+  // tecnológico genérico, sin importar el orden en que se extrajo.
+  if (NUCLEO_DOMINIO_HINTS.has(textoNormalizado)) return 3;
   if (NUCLEO_HINTS.has(textoNormalizado)) return 2;
   if (textoNormalizado.includes(" ")) return 1;
   return 0;
@@ -175,7 +191,12 @@ function quitarSubsumidos(terminos: string[]): string[] {
   });
 }
 
-const MAX_NUCLEO_AND = 4;
+// v6: subí de 4 a 5 — con la nueva prioridad de dominio, "piña" ya
+// tiene garantizado su cupo, pero hipótesis interdisciplinarias reales
+// (cultivo + 1-2 técnicas de IA + sensor/plataforma + variable medida)
+// suelen tener 5 conceptos genuinamente distintos, no 4. Si en pruebas
+// futuras 5 términos vuelve a colapsar la búsqueda, bájelo de nuevo.
+const MAX_NUCLEO_AND = 5;
 
 /**
  * Separa los términos núcleo en los que entran al AND obligatorio
@@ -231,7 +252,7 @@ Instrucciones para el asistente (NotebookLM, Consensus, Elicit, Google Scholar, 
 2. Para cada artículo relevante, entrega: título completo, autores, año, revista/venue, DOI si existe, y un resumen de 2-3 líneas de su hallazgo principal en relación con mi pregunta de investigación.
 3. Señala explícitamente si NO encuentras literatura que combine estos conceptos directamente — esa ausencia también es información valiosa (posible vacío de conocimiento real).
 
-Nota metodológica obligatoria: esta es una exploración automatizada preliminar, no una revisión systematic. Toda fuente que traigas debe ser verificada manualmente antes de incorporarla al proyecto de investigación.`;
+Nota metodológica obligatoria: esta es una exploración automatizada preliminar, no una revisión sistemática. Toda fuente que traigas debe ser verificada manualmente antes de incorporarla al proyecto de investigación.`;
 }
 
 export function proponerCadenaBusqueda(params: {
