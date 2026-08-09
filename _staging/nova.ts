@@ -37,6 +37,57 @@ import type { EstadoEvidencia, NivelConfianza, RutaOutput } from "./ruta";
 import type { TipoProyecto } from "./types";
 import { medidaAvanceParaProyecto, type SubtipoDti, type MedidaAvance } from "./tipologiaProyecto";
 
+/**
+ * NUEVO — genera el prompt de búsqueda de cifras oficiales de contexto
+ * (para Perplexity u otro asistente con navegación web) a partir de
+ * los datos reales del proyecto. Plantilla determinística, sin llamada
+ * a LLM — mismo principio que construirPaqueteManual/Filtrado de
+ * cadenaBusqueda.ts: la plataforma lo genera sola, no depende de que
+ * alguien lo escriba a mano cada vez. Solo necesita RUTA confirmado,
+ * no espera a que exista NOVA todavía.
+ */
+export function construirPromptCifrasContexto(rutaOutput: RutaOutput): string {
+  return `Estoy formulando un proyecto de investigación con esta pregunta:
+
+"${rutaOutput.pregunta_investigacion}"
+
+Contexto del proyecto: ${rutaOutput.tema}
+Población/actores: ${rutaOutput.poblacion_contexto}
+Alcance espacial: ${rutaOutput.alcance_espacial}
+
+Necesito cifras y datos OFICIALES de contexto (no literatura científica — eso ya lo tengo cubierto por otro lado) para justificar la magnitud y relevancia del problema. Busca específicamente en estas fuentes institucionales, en este orden de prioridad:
+
+1. DANE (Departamento Administrativo Nacional de Estadística) — estadísticas nacionales del sector/tema relevante para este proyecto.
+2. Agronet (Ministerio de Agricultura) u otro ministerio sectorial correspondiente al tema — estadísticas por departamento y municipio.
+3. Gobernación y Secretaría sectorial correspondiente a "${rutaOutput.alcance_espacial}" — planes de desarrollo, cadenas productivas o diagnósticos territoriales relacionados con el tema.
+4. Cámara de Comercio de la región de "${rutaOutput.alcance_espacial}" — informes de contexto económico u observatorios socioeconómicos.
+5. Gremios o asociaciones sectoriales específicas del tema (identifica cuáles aplican según "${rutaOutput.tema}").
+6. Entidades técnicas nacionales relevantes al sector (ej. ICA para temas agropecuarios, INS para salud, MinTIC para tecnología — la que aplique).
+7. FAO/FAOSTAT, Banco Mundial, o el organismo internacional correspondiente — si hay comparativos internacionales útiles como referencia frente a Colombia.
+
+Para cada dato que encuentres, entrégalo EXACTAMENTE en este formato, uno tras otro, sin texto adicional entre ellos:
+
+### CIFRA [número]
+Nivel: [mundial / nacional / regional / especifico]
+Cifra: [el dato concreto, con su unidad — cifra exacta, no aproximada si el original la da exacta]
+Fuente: [nombre de la institución, informe y año — el más preciso posible, ej. "DANE, Encuesta Nacional Agropecuaria 2023" en vez de solo "DANE"]
+URL: [enlace directo si lo tienes, o "no disponible"]
+
+Si no encuentras dato reciente para algún nivel o tema, dilo explícitamente en vez de omitirlo o aproximar sin fuente ("No se encontró cifra reciente de X — el dato más reciente disponible es de [año], de [fuente]").
+
+Prioriza datos de 2020 en adelante. Si el único dato disponible es más antiguo, indícalo, no lo presentes como actual.`;
+}
+
+export interface CausaProblema {
+  texto: string;
+  tipo: "primaria" | "secundaria";
+}
+
+export interface EfectoProblema {
+  texto: string;
+  tipo: "directo" | "indirecto";
+}
+
 export interface PreguntaRespuesta {
   pregunta: string;
   respuesta: string;
@@ -56,12 +107,14 @@ export interface CifraContexto {
 export interface NovaOutput {
   // N — Núcleo
   nucleo_brecha_conocimiento: string; // lectura científica
-  nucleo_causa_raiz: string; // lectura MGA — resultado de la cadena causal
+  nucleo_causa_raiz: string; // lectura MGA — resultado de la cadena causal, en prosa
+  nucleo_causas_estructuradas: CausaProblema[]; // NUEVO — para el árbol de problemas visual
   nucleo_cadena_causal: PreguntaRespuesta[]; // registro de la técnica de los 5 porqués
 
   // O — Onda
   onda_consecuencias: string; // científica
-  onda_efectos_arbol_problema: string; // MGA
+  onda_efectos_arbol_problema: string; // MGA, en prosa
+  onda_efectos_estructurados: EfectoProblema[]; // NUEVO — para el árbol de problemas visual
   onda_cifras_contexto: CifraContexto[];
 
   // V — Valor
@@ -192,6 +245,12 @@ TU TAREA: construir los cuatro componentes de NOVA, cada uno con DOBLE LECTURA (
 
 Cierra con problema_formulado: la síntesis completa en prosa, integrando N-O-V-A en un párrafo coherente tipo planteamiento de problema (contexto → problema central → estado idealizado), siguiendo el patrón: "Las tecnologías/enfoques [X] se han utilizado en [contexto] para [Y]. Esto permitirá mejorar [Z]. La ejecución del proyecto permitirá avanzar hacia [estado ideal], contribuyendo a [impacto]."
 
+ÁRBOL DE PROBLEMAS — ESTRUCTURA ADICIONAL OBLIGATORIA (para convocatorias tipo MGA/Minciencias, que exigen el árbol visual, no solo prosa):
+Además de nucleo_causa_raiz y onda_efectos_arbol_problema en prosa, debes descomponer esas mismas ideas en dos listas estructuradas:
+- nucleo_causas_estructuradas: entre 2 y 5 causas, cada una clasificada como "primaria" (impacto directo en el origen del problema) o "secundaria" (factor indirecto que agrava o mantiene el problema). La causa raíz que ya identificaste en prosa debe aparecer aquí como la causa "primaria" más importante.
+- onda_efectos_estructurados: entre 2 y 5 efectos, cada uno clasificado como "directo" (consecuencia inmediata y evidente) o "indirecto" (repercusión de más largo plazo o efecto colateral). Sigue la misma lógica que ya usaste en onda_efectos_arbol_problema, solo que ahora como lista clasificada, no como párrafo.
+No inventes causas o efectos que no se deriven de lo que ya construiste en prosa — es la misma información, reorganizada para el diagrama.
+
 REGLA CRÍTICA — misma honestidad epistémica que RUTA: no inventes cifras, no afirmes brechas de conocimiento como hechos sin evidencia, no inventes una cadena causal completa sin el formulador. Si te falta información en cualquier componente, decláralo en preguntas_para_el_usuario en vez de rellenar con suposiciones.
 ${feedbackIteracionAnterior ? `\nRETROALIMENTACIÓN DE LA ITERACIÓN ANTERIOR (corrige esto):\n${feedbackIteracionAnterior}` : ""}
 
@@ -199,9 +258,11 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, con esta f
 {
   "nucleo_brecha_conocimiento": "string",
   "nucleo_causa_raiz": "string",
+  "nucleo_causas_estructuradas": [{"texto": "string", "tipo": "primaria"|"secundaria"}],
   "nucleo_cadena_causal": [{"pregunta": "string", "respuesta": "string"}],
   "onda_consecuencias": "string",
   "onda_efectos_arbol_problema": "string",
+  "onda_efectos_estructurados": [{"texto": "string", "tipo": "directo"|"indirecto"}],
   "onda_cifras_contexto": [{"nivel": "mundial"|"continental"|"nacional"|"regional"|"especifico", "cifra": "string", "fuente": "string", "verificado": boolean}],
   "valor_contribucion": "string",
   "valor_justificacion_social": "string",
