@@ -41,6 +41,7 @@ interface PropuestaCadenaBusqueda {
   cadena_nucleo: string;
   cadena_ampliada: string;
   paquete_manual: string;
+  paquete_manual_filtrado: string;
 }
 
 interface CitaRSL {
@@ -107,9 +108,11 @@ export default function FormulacionRuta({
   const [usarAmpliada, setUsarAmpliada] = useState(false);
   const [cadenaEditada, setCadenaEditada] = useState("");
   const [mostrarPaqueteManual, setMostrarPaqueteManual] = useState(false);
+  const [tabPaqueteManual, setTabPaqueteManual] = useState<"buscar" | "filtrar">("buscar");
   const [verificandoRSL, setVerificandoRSL] = useState(false);
   const [resultadoRSL, setResultadoRSL] = useState<ResultadoRSL | null>(null);
   const [copiado, setCopiado] = useState(false);
+  const [copiadoFiltrado, setCopiadoFiltrado] = useState(false);
 
   const nodoActual = nodos[0] ?? null;
 
@@ -230,6 +233,13 @@ export default function FormulacionRuta({
     navigator.clipboard.writeText(propuestaBusqueda.paquete_manual);
     setCopiado(true);
     setTimeout(() => setCopiado(false), 2000);
+  }
+
+  function copiarPaqueteManualFiltrado() {
+    if (!propuestaBusqueda) return;
+    navigator.clipboard.writeText(propuestaBusqueda.paquete_manual_filtrado);
+    setCopiadoFiltrado(true);
+    setTimeout(() => setCopiadoFiltrado(false), 2000);
   }
 
   return (
@@ -374,16 +384,57 @@ export default function FormulacionRuta({
                 </button>
               </div>
 
-              {mostrarPaqueteManual && (
-                <div className="bg-gray-50 rounded-md p-3 space-y-2">
-                  <p className="text-xs text-gray-500">
-                    Copie esto y revise literatura usted mismo, en paralelo a la búsqueda automática —
-                    ambos caminos son válidos y se complementan.
-                  </p>
-                  <pre className="text-xs whitespace-pre-wrap text-gray-800">{propuestaBusqueda.paquete_manual}</pre>
-                  <button onClick={copiarPaqueteManual} className="text-xs text-faro-blue underline">
-                    {copiado ? "Copiado ✓" : "Copiar instrucciones"}
-                  </button>
+              {mostrarPaqueteManual && propuestaBusqueda && (
+                <div className="bg-gray-50 rounded-md p-3 space-y-3">
+                  <div className="flex items-center gap-2 border-b pb-2">
+                    <button
+                      onClick={() => setTabPaqueteManual("buscar")}
+                      className={`text-xs px-3 py-1 rounded font-medium ${
+                        tabPaqueteManual === "buscar"
+                          ? "bg-faro-navy text-white"
+                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      }`}
+                    >
+                      Buscar desde cero
+                    </button>
+                    <button
+                      onClick={() => setTabPaqueteManual("filtrar")}
+                      className={`text-xs px-3 py-1 rounded font-medium ${
+                        tabPaqueteManual === "filtrar"
+                          ? "bg-faro-navy text-white"
+                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      }`}
+                    >
+                      Filtrar lo ya cargado
+                    </button>
+                  </div>
+
+                  {tabPaqueteManual === "buscar" ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-500">
+                        Copie esto y revise literatura usted mismo, en paralelo a la búsqueda automática —
+                        ambos caminos son válidos y se complementan.
+                      </p>
+                      <pre className="text-xs whitespace-pre-wrap text-gray-800">{propuestaBusqueda.paquete_manual}</pre>
+                      <button onClick={copiarPaqueteManual} className="text-xs text-faro-blue underline">
+                        {copiado ? "Copiado ✓" : "Copiar instrucciones"}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-faro-navy">
+                        Filtrar fuentes ya cargadas (prioriza DOI verificable)
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Copie estas instrucciones en su cuaderno o asistente si ya tiene decenas de fuentes cargadas.
+                        Le devolverá el formato listo para pegar en el parser asistido.
+                      </p>
+                      <pre className="text-xs whitespace-pre-wrap text-gray-800">{propuestaBusqueda.paquete_manual_filtrado}</pre>
+                      <button onClick={copiarPaqueteManualFiltrado} className="text-xs text-faro-blue underline">
+                        {copiadoFiltrado ? "Copiado ✓" : "Copiar instrucciones"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -451,11 +502,48 @@ export default function FormulacionRuta({
                     {mostrarPaqueteManual ? "Ocultar" : "Ver"} instrucciones para NotebookLM / Consensus / Google Scholar
                   </button>
                   {mostrarPaqueteManual && propuestaBusqueda && (
-                    <div className="bg-gray-50 rounded-md p-3 space-y-2 mt-2">
-                      <pre className="text-xs whitespace-pre-wrap text-gray-800">{propuestaBusqueda.paquete_manual}</pre>
-                      <button onClick={copiarPaqueteManual} className="text-xs text-faro-blue underline">
-                        {copiado ? "Copiado ✓" : "Copiar instrucciones"}
-                      </button>
+                    <div className="bg-gray-50 rounded-md p-3 space-y-3 mt-2">
+                      <div className="flex items-center gap-2 border-b pb-2">
+                        <button
+                          onClick={() => setTabPaqueteManual("buscar")}
+                          className={`text-xs px-3 py-1 rounded font-medium ${
+                            tabPaqueteManual === "buscar"
+                              ? "bg-faro-navy text-white"
+                              : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                          }`}
+                        >
+                          Buscar desde cero
+                        </button>
+                        <button
+                          onClick={() => setTabPaqueteManual("filtrar")}
+                          className={`text-xs px-3 py-1 rounded font-medium ${
+                            tabPaqueteManual === "filtrar"
+                              ? "bg-faro-navy text-white"
+                              : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                          }`}
+                        >
+                          Filtrar lo ya cargado
+                        </button>
+                      </div>
+
+                      {tabPaqueteManual === "buscar" ? (
+                        <div className="space-y-2">
+                          <pre className="text-xs whitespace-pre-wrap text-gray-800">{propuestaBusqueda.paquete_manual}</pre>
+                          <button onClick={copiarPaqueteManual} className="text-xs text-faro-blue underline">
+                            {copiado ? "Copiado ✓" : "Copiar instrucciones"}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-faro-navy">
+                            Filtrar fuentes ya cargadas (prioriza DOI verificable)
+                          </p>
+                          <pre className="text-xs whitespace-pre-wrap text-gray-800">{propuestaBusqueda.paquete_manual_filtrado}</pre>
+                          <button onClick={copiarPaqueteManualFiltrado} className="text-xs text-faro-blue underline">
+                            {copiadoFiltrado ? "Copiado ✓" : "Copiar instrucciones"}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
