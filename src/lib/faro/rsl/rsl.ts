@@ -12,6 +12,16 @@
 // — posible vacío real). El paquete manual queda como ÚLTIMO RECURSO,
 // no como camino principal.
 //
+// v2 (2026-08-09): prueba real end-to-end confirmó que la cadena de
+// búsqueda confirmada por el usuario llega en español a las APIs, que
+// indexan mayoritariamente en inglés (ver cadenaBusqueda.ts v5/v6 y
+// diagnóstico de sesión). Se agrega traducirCadenaParaBusqueda() —
+// UNA sola llamada LLM, del lado del servidor, justo antes de
+// consultar las fuentes — para no afectar el idioma en que el
+// formulador ve y edita la cadena (eso sigue en español en la UI).
+// Si la traducción falla, se usa la cadena original en español; nunca
+// bloquea la búsqueda.
+//
 // Autor: Dr. Jorge Enrique Chaparro Mesa · Unitrópico
 // ============================================================
 //
@@ -54,9 +64,42 @@ export interface ResultadoVerificacionRSL {
   contradiccion: ContradiccionRSL | null;
   modo: "reactivo";
   fuentes_consultadas: { fuente: FuenteBibliografica; candidatos_encontrados: number; fallo: string | null }[];
+  cadena_traducida?: string; // NUEVO v2 — para depuración: qué se envió realmente a las APIs
 }
 
 const PHI_XI_RSL_PENDIENTE_CALIBRACION = 0.5;
+
+// ------------------------------------------------------------
+// NUEVO v2: traducción de la cadena confirmada, una sola vez, antes
+// de consultar cualquier fuente. La UI sigue mostrando y editando la
+// cadena en español (cadenaBusqueda.ts no cambia) — esto solo afecta
+// lo que se envía a las APIs.
+// ------------------------------------------------------------
+
+async function traducirCadenaParaBusqueda(cadenaEs: string): Promise<string> {
+  try {
+    const prompt = `Traduce al inglés los términos entre comillas de esta cadena de búsqueda booleana, conservando EXACTAMENTE la estructura AND/OR/paréntesis y las comillas dobles. No traduzcas los operadores AND/OR ni los paréntesis, solo el contenido entre comillas. Responde ÚNICAMENTE con la cadena traducida, sin explicación, sin markdown:
+
+${cadenaEs}`;
+
+    const respuesta = await llamarOrquestador(prompt);
+    const traducida = respuesta.trim();
+
+    // Salvaguarda mínima: si la respuesta no conserva al menos un AND/OR
+    // o quedó vacía, algo salió mal en el LLM — mejor usar el original
+    // que arriesgarse a mandar basura a las APIs.
+    if (!traducida || (!traducida.includes("AND") && !traducida.includes("OR") && cadenaEs.includes("AND"))) {
+      console.warn("[rsl] Traducción sospechosa, se descarta y se usa cadena original ES:", traducida);
+      return cadenaEs;
+    }
+
+    console.info(`[rsl] Cadena traducida para búsqueda: "${cadenaEs}" → "${traducida}"`);
+    return traducida;
+  } catch (error) {
+    console.warn("[rsl] Fallo traducción de cadena, se usa original ES:", error);
+    return cadenaEs; // nunca bloquea la búsqueda por fallo de traducción
+  }
+}
 
 // ------------------------------------------------------------
 // Nivel 0: búsqueda en paralelo sobre todas las fuentes conectadas
@@ -275,7 +318,15 @@ export async function verificarHipotesis(
 ): Promise<ResultadoVerificacionRSL> {
   const { maxCandidatosPorFuente = 10, maxCandidatosCribados = 8, cadenaBusquedaConfirmada } = opciones;
 
-  const consulta = cadenaBusquedaConfirmada ?? hipotesis.afirmacion;
+  const consultaOriginal = cadenaBusquedaConfirmada ?? hipotesis.afirmacion;
+
+  // NUEVO v2: traducir SOLO si viene de una cadena confirmada por el
+  // formulador (estructura AND/OR conocida) — no traducimos el
+  // fallback de la afirmación completa en prosa, caso ya degradado
+  // que no debería depender de este ajuste.
+  const consulta = cadenaBusquedaConfirmada
+    ? await traducirCadenaParaBusqueda(cadenaBusquedaConfirmada)
+    : consultaOriginal;
 
   // 1. S(hi) → D, en paralelo sobre todas las fuentes
   const { candidatos, reporte } = await buscarEnTodasLasFuentes(consulta, maxCandidatosPorFuente);
@@ -283,7 +334,7 @@ export async function verificarHipotesis(
   if (candidatos.length === 0) {
     console.info(
       `[rsl] Ninguna fuente devolvió candidatos para: "${consulta}"` +
-        (cadenaBusquedaConfirmada ? " (cadena confirmada)" : " (⚠️ fallback a afirmación completa)")
+        (cadenaBusquedaConfirmada ? " (cadena confirmada, traducida)" : " (⚠️ fallback a afirmación completa)")
     );
     return {
       estado_evidencia: "sin_verificar",
@@ -294,6 +345,7 @@ export async function verificarHipotesis(
       contradiccion: null,
       modo: "reactivo",
       fuentes_consultadas: reporte,
+      cadena_traducida: consulta,
     };
   }
 
@@ -335,5 +387,6 @@ export async function verificarHipotesis(
     contradiccion,
     modo: "reactivo",
     fuentes_consultadas: reporte,
+    cadena_traducida: consulta,
   };
 }
