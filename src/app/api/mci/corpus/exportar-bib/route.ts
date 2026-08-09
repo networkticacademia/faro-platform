@@ -1,7 +1,9 @@
 // ============================================================
 // FARO — POST /api/mci/corpus/exportar-bib
-// Recibe { project_id, ids } y genera el archivo .bib únicamente
-// para las fuentes seleccionadas (o todas si ids está vacío).
+// Genera y descarga el .bib de las fuentes SELECCIONADAS por el
+// formulador (no siempre "todo lo verificado" — puede elegir un
+// subconjunto). v2: cambia de GET a POST porque la selección de IDs
+// no cabe cómodamente en query string para corpus grandes.
 //
 // Autor: Dr. Jorge Enrique Chaparro Mesa · Unitrópico
 // ============================================================
@@ -14,36 +16,37 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   const { project_id, ids } = body ?? {};
 
-  if (!project_id) {
-    return NextResponse.json({ error: "project_id es obligatorio" }, { status: 400 });
+  if (!project_id || !Array.isArray(ids) || ids.length === 0) {
+    return NextResponse.json(
+      { error: "project_id y una lista de ids (no vacía) son obligatorios" },
+      { status: 400 }
+    );
   }
 
   const supabase = await createClient();
 
-  let query = supabase
+  const { data, error } = await supabase
     .from("corpus_fuentes")
     .select("titulo, autores, doi, anio, revista")
     .eq("project_id", project_id)
-    .eq("estado_verificacion", "verificado");
-
-  if (Array.isArray(ids) && ids.length > 0) {
-    query = query.in("id", ids);
-  }
-
-  const { data, error } = await query;
+    .in("id", ids)
+    .order("anio", { ascending: false });
 
   if (error) {
-    console.error("[exportar-bib] Error consultando fuentes para BibTeX:", error);
-    return NextResponse.json({ error: "Error al consultar las fuentes" }, { status: 500 });
+    console.error("[corpus] Error consultando fuentes seleccionadas:", error);
+    return NextResponse.json({ error: "Error al consultar el corpus" }, { status: 500 });
   }
 
-  const contenidoBib = await generarBibtex(data ?? []);
+  if (!data || data.length === 0) {
+    return NextResponse.json({ error: "Ninguna de las fuentes seleccionadas existe" }, { status: 404 });
+  }
 
-  return new NextResponse(contenidoBib, {
-    status: 200,
+  const bibtex = await generarBibtex(data);
+
+  return new NextResponse(bibtex, {
     headers: {
       "Content-Type": "application/x-bibtex; charset=utf-8",
-      "Content-Disposition": `attachment; filename="faro_corpus_${project_id.slice(0, 8)}.bib"`,
+      "Content-Disposition": `attachment; filename="faro_corpus_${project_id}.bib"`,
     },
   });
 }

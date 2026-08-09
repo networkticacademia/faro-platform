@@ -1,14 +1,17 @@
 // ============================================================
 // FARO — Tabla de corpus bibliográfico, estilo Elicit
-// Componente D del roadmap de RSL (vista dedicada).
-// v2: incluye casillas de selección para exportación BibTeX acotada.
+// Componente D del roadmap de RSL.
+//
+// v2 (2026-08-09): agrega selección por casillas (individual,
+// "seleccionar todo", "solo verificados") para exportar a BibTeX solo
+// lo que el formulador elija, en vez de siempre todo lo verificado.
 //
 // Autor: Dr. Jorge Enrique Chaparro Mesa · Unitrópico
 // ============================================================
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export interface FuenteCorpus {
   id: string;
@@ -27,16 +30,12 @@ type FiltroEstado = "todos" | "verificado" | "sin_verificar";
 
 export function FuentesTable({
   fuentes,
-  seleccionados,
-  onAlternarSeleccion,
-  onSeleccionarTodos,
-  onSeleccionarSoloVerificados,
+  seleccionadas,
+  onCambiarSeleccion,
 }: {
   fuentes: FuenteCorpus[];
-  seleccionados?: Set<string>;
-  onAlternarSeleccion?: (id: string) => void;
-  onSeleccionarTodos?: () => void;
-  onSeleccionarSoloVerificados?: () => void;
+  seleccionadas: Set<string>;
+  onCambiarSeleccion: (nuevaSeleccion: Set<string>) => void;
 }) {
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("todos");
   const [busqueda, setBusqueda] = useState("");
@@ -56,22 +55,36 @@ export function FuentesTable({
       .sort((a, b) => (b.anio ?? 0) - (a.anio ?? 0));
   }, [fuentes, filtroEstado, busqueda]);
 
-  const todosFiltradosSeleccionados = useMemo(() => {
-    if (!seleccionados || fuentesFiltradas.length === 0) return false;
-    return fuentesFiltradas.every((f) => seleccionados.has(f.id));
-  }, [fuentesFiltradas, seleccionados]);
+  function alternar(id: string) {
+    const nueva = new Set(seleccionadas);
+    if (nueva.has(id)) nueva.delete(id);
+    else nueva.add(id);
+    onCambiarSeleccion(nueva);
+  }
+
+  function seleccionarTodo() {
+    onCambiarSeleccion(new Set(fuentes.map((f) => f.id)));
+  }
+
+  function seleccionarSoloVerificados() {
+    onCambiarSeleccion(new Set(fuentes.filter((f) => f.estado_verificacion === "verificado").map((f) => f.id)));
+  }
+
+  function limpiarSeleccion() {
+    onCambiarSeleccion(new Set());
+  }
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <input
           type="text"
           placeholder="Buscar por título, autor o revista..."
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          className="flex-1 min-w-[220px] rounded border px-3 py-1.5 text-sm text-gray-900 bg-white"
+          className="flex-1 min-w-[220px] rounded border px-3 py-1.5 text-sm"
         />
-        <div className="flex gap-1 items-center">
+        <div className="flex gap-1">
           {(["todos", "verificado", "sin_verificar"] as FiltroEstado[]).map((estado) => (
             <button
               key={estado}
@@ -90,41 +103,26 @@ export function FuentesTable({
         </div>
       </div>
 
-      {onSeleccionarTodos && onSeleccionarSoloVerificados && (
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          <span>Seleccionar:</span>
-          <button
-            onClick={onSeleccionarTodos}
-            className="text-faro-blue underline hover:text-blue-800 font-medium"
-          >
-            Todos ({fuentes.length})
-          </button>
-          <span>·</span>
-          <button
-            onClick={onSeleccionarSoloVerificados}
-            className="text-faro-blue underline hover:text-blue-800 font-medium"
-          >
-            Solo verificados ({fuentes.filter((f) => f.estado_verificacion === "verificado").length})
-          </button>
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-medium text-gray-600">{seleccionadas.size} seleccionadas</span>
+        <button onClick={seleccionarTodo} className="text-blue-600 hover:underline">
+          Seleccionar todo
+        </button>
+        <span className="text-gray-300">·</span>
+        <button onClick={seleccionarSoloVerificados} className="text-blue-600 hover:underline">
+          Solo verificados
+        </button>
+        <span className="text-gray-300">·</span>
+        <button onClick={limpiarSeleccion} className="text-blue-600 hover:underline">
+          Limpiar selección
+        </button>
+      </div>
 
-      <div className="overflow-x-auto rounded border bg-white">
+      <div className="overflow-x-auto rounded border">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
             <tr>
-              {onAlternarSeleccion && (
-                <th className="px-3 py-2 w-10 text-center">
-                  <input
-                    type="checkbox"
-                    checked={todosFiltradosSeleccionados}
-                    onChange={() => {
-                      if (onSeleccionarTodos) onSeleccionarTodos();
-                    }}
-                    className="rounded text-faro-navy focus:ring-faro-blue"
-                  />
-                </th>
-              )}
+              <th className="px-3 py-2 w-8"></th>
               <th className="px-3 py-2">Título</th>
               <th className="px-3 py-2">Autores</th>
               <th className="px-3 py-2">Año</th>
@@ -137,19 +135,16 @@ export function FuentesTable({
           <tbody>
             {fuentesFiltradas.map((f) => (
               <tr key={f.id} className="border-t align-top hover:bg-gray-50">
-                {onAlternarSeleccion && (
-                  <td className="px-3 py-2 text-center">
-                    <input
-                      type="checkbox"
-                      checked={seleccionados?.has(f.id) ?? false}
-                      onChange={() => onAlternarSeleccion(f.id)}
-                      className="rounded text-faro-navy focus:ring-faro-blue mt-1"
-                    />
-                  </td>
-                )}
-                <td className="px-3 py-2 font-medium text-gray-900">{f.titulo}</td>
+                <td className="px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={seleccionadas.has(f.id)}
+                    onChange={() => alternar(f.id)}
+                  />
+                </td>
+                <td className="px-3 py-2 font-medium">{f.titulo}</td>
                 <td className="px-3 py-2 text-gray-600">{f.autores ?? "—"}</td>
-                <td className="px-3 py-2 text-gray-700">{f.anio ?? "—"}</td>
+                <td className="px-3 py-2">{f.anio ?? "—"}</td>
                 <td className="px-3 py-2 text-gray-600">{f.revista ?? "—"}</td>
                 <td className="px-3 py-2">
                   {f.doi ? (
@@ -181,7 +176,7 @@ export function FuentesTable({
             ))}
             {fuentesFiltradas.length === 0 && (
               <tr>
-                <td colSpan={onAlternarSeleccion ? 8 : 7} className="px-3 py-8 text-center text-gray-400">
+                <td colSpan={8} className="px-3 py-8 text-center text-gray-400">
                   Ninguna fuente coincide con el filtro actual.
                 </td>
               </tr>

@@ -1,8 +1,12 @@
 // ============================================================
 // FARO — Vista dedicada del corpus bibliográfico del proyecto
-// Componente D del roadmap de RSL.
-// Ruta: /formulacion/[projectId]/fuentes
-// v2: Exportación a BibTeX acotada a la selección de casillas.
+// Componente D del roadmap de RSL. Ruta: /formulacion/[projectId]/fuentes
+//
+// v3 (2026-08-09): exportar a BibTeX ahora respeta la selección de
+// filas (checkboxes en FuentesTable) en vez de exportar siempre todo
+// lo verificado. La descarga pasa de <a href> a fetch+blob porque el
+// endpoint cambió de GET a POST (la lista de ids no cabe bien en
+// query string).
 //
 // Autor: Dr. Jorge Enrique Chaparro Mesa · Unitrópico
 // ============================================================
@@ -25,8 +29,9 @@ export default function FuentesPage() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [vista, setVista] = useState<Vista>("tabla");
-  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
+  const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set());
   const [exportando, setExportando] = useState(false);
+  const [errorExportar, setErrorExportar] = useState<string | null>(null);
 
   useEffect(() => {
     if (!projectId) return;
@@ -39,65 +44,44 @@ export default function FuentesPage() {
       .then((data) => {
         const lista: FuenteCorpus[] = data.fuentes ?? [];
         setFuentes(lista);
-        // Por defecto, selecciona las fuentes verificadas
-        const idsVerificados = new Set(
-          lista.filter((f) => f.estado_verificacion === "verificado").map((f) => f.id)
+        // Selección inicial por defecto: solo lo verificado, para que
+        // el botón de exportar funcione de inmediato sin pasos extra.
+        setSeleccionadas(
+          new Set(lista.filter((f) => f.estado_verificacion === "verificado").map((f) => f.id))
         );
-        setSeleccionados(idsVerificados);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Error desconocido"))
       .finally(() => setCargando(false));
   }, [projectId]);
 
-  function alternarSeleccion(id: string) {
-    setSeleccionados((prev) => {
-      const prox = new Set(prev);
-      if (prox.has(id)) prox.delete(id);
-      else prox.add(id);
-      return prox;
-    });
-  }
-
-  function seleccionarTodos() {
-    if (seleccionados.size === fuentes.length) {
-      setSeleccionados(new Set());
-    } else {
-      setSeleccionados(new Set(fuentes.map((f) => f.id)));
-    }
-  }
-
-  function seleccionarSoloVerificados() {
-    setSeleccionados(
-      new Set(fuentes.filter((f) => f.estado_verificacion === "verificado").map((f) => f.id))
-    );
-  }
-
   async function exportarBibtex() {
-    if (!projectId) return;
+    if (seleccionadas.size === 0) {
+      setErrorExportar("Seleccione al menos una fuente para exportar.");
+      return;
+    }
     setExportando(true);
+    setErrorExportar(null);
     try {
-      const res = await fetch("/api/mci/corpus/exportar-bib", {
+      const respuesta = await fetch("/api/mci/corpus/exportar-bib", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          project_id: projectId,
-          ids: Array.from(seleccionados),
-        }),
+        body: JSON.stringify({ project_id: projectId, ids: Array.from(seleccionadas) }),
       });
-
-      if (!res.ok) throw new Error("Error al generar BibTeX");
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
+      if (!respuesta.ok) {
+        const data = await respuesta.json().catch(() => ({}));
+        throw new Error(data.error ?? "Error al exportar");
+      }
+      const blob = await respuesta.blob();
+      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `faro_corpus_${projectId.slice(0, 8)}.bib`;
+      a.download = `faro_corpus_${projectId}.bib`;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      window.URL.revokeObjectURL(url);
+      URL.revokeObjectURL(url);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Error al exportar BibTeX");
+      setErrorExportar(e instanceof Error ? e.message : "Error desconocido al exportar");
     } finally {
       setExportando(false);
     }
@@ -141,15 +125,14 @@ export default function FuentesPage() {
         </div>
         <button
           onClick={exportarBibtex}
-          disabled={exportando || seleccionados.size === 0}
-          className="ml-auto rounded bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={exportando}
+          className="ml-auto rounded bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
         >
-          {exportando
-            ? "Generando .bib..."
-            : `Exportar a BibTeX (${seleccionados.size} seleccionadas)`}
+          {exportando ? "Generando..." : `Exportar seleccionadas a BibTeX (${seleccionadas.size})`}
         </button>
       </div>
 
+      {errorExportar && <p className="text-sm text-red-600">{errorExportar}</p>}
       {cargando && <p className="text-gray-500">Cargando corpus...</p>}
       {error && <p className="text-red-600">{error}</p>}
 
@@ -158,10 +141,8 @@ export default function FuentesPage() {
           {vista === "tabla" ? (
             <FuentesTable
               fuentes={fuentes}
-              seleccionados={seleccionados}
-              onAlternarSeleccion={alternarSeleccion}
-              onSeleccionarTodos={seleccionarTodos}
-              onSeleccionarSoloVerificados={seleccionarSoloVerificados}
+              seleccionadas={seleccionadas}
+              onCambiarSeleccion={setSeleccionadas}
             />
           ) : (
             <FuentesGrafo fuentes={fuentes} />
