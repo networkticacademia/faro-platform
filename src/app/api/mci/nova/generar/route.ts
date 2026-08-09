@@ -86,10 +86,11 @@ export async function POST(request: Request) {
   const iteracion = (nodosPrevios?.[0]?.iteracion ?? -1) + 1;
 
   // 5. Construir prompt y llamar al orquestador
-  //    cifrasContextoAportadasPorFormulador y cadenaCausalAportada quedan
-  //    vacías por ahora — no existe todavía la UI para capturarlas (5
-  //    porqués, cifras de contexto oficial). El prompt maneja este caso
-  //    pidiéndole al agente que pregunte, no que invente.
+  //    cifrasContextoAportadasPorFormulador ahora se lee de
+  //    project.cifras_contexto (captura estructurada — ver
+  //    CifrasContextoInput.tsx), no de un arreglo vacío. Sigue sin
+  //    existir la UI para cadenaCausalAportada (5 porqués); el prompt
+  //    maneja ese caso pidiéndole al agente que pregunte, no que invente.
   const prompt = construirPromptNova({
     nu: project.nu,
     tau: project.tau,
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
     rutaOutput,
     sintesisRSL: verificacionRSL?.sintesis_narrativa ?? null,
     vacioDetectadoRSL: verificacionRSL?.vacio_detectado ?? null,
-    cifrasContextoAportadasPorFormulador: [],
+    cifrasContextoAportadasPorFormulador: project.cifras_contexto ?? [],
     cadenaCausalAportada: [],
     feedbackIteracionAnterior: feedback,
   });

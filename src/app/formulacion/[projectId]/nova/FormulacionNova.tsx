@@ -6,6 +6,7 @@ import type { NovaOutput } from "@/lib/faro/nova";
 import type { TipoProyecto } from "@/lib/faro/types";
 import type { SubtipoDti } from "@/lib/faro/tipologiaProyecto";
 import { NovaInfoPanel } from "./NovaInfoPanel";
+import { CifrasContextoInput, type CifraContexto } from "./CifrasContextoInput";
 
 interface NodoGrafo {
   id: string;
@@ -38,6 +39,7 @@ interface ProjectRow {
   nu: string;
   tau: TipoProyecto;
   subtipo_dti?: SubtipoDti | null;
+  cifras_contexto?: CifraContexto[] | null;
   mu: string;
   alpha_area: string;
   u0_initial: number;
@@ -133,6 +135,10 @@ export default function FormulacionNova({
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <NovaInfoPanel />
+      <CifrasContextoInput
+        projectId={project.id}
+        cifrasIniciales={project.cifras_contexto ?? []}
+      />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-faro-navy">
