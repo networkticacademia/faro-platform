@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import type { RutaOutput } from "@/lib/faro/ruta";
 import {
   construirCadenaNucleo,
@@ -113,6 +113,12 @@ export default function FormulacionRuta({
   const [resultadoRSL, setResultadoRSL] = useState<ResultadoRSL | null>(null);
   const [copiado, setCopiado] = useState(false);
   const [copiadoFiltrado, setCopiadoFiltrado] = useState(false);
+
+  const editorCadenaRef = useRef<HTMLDivElement>(null);
+
+  function irAEditorCadena() {
+    editorCadenaRef.current?.scrollIntoView({ behavior: "smooth" });
+  }
 
   const nodoActual = nodos[0] ?? null;
 
@@ -315,8 +321,8 @@ export default function FormulacionRuta({
             <p className="text-xs text-gray-400">Confianza del agente: {nodoActual.confianza_agente}</p>
           </div>
 
-          {propuestaBusqueda && !resultadoRSL && (
-            <div className="bg-white rounded-lg border border-faro-blue/30 p-5 space-y-4">
+          {propuestaBusqueda && (
+            <div ref={editorCadenaRef} className="bg-white rounded-lg border border-faro-blue/30 p-5 space-y-4">
               <div>
                 <h3 className="text-sm font-semibold text-faro-navy">Confirmar búsqueda de literatura</h3>
                 <p className="text-xs text-gray-500 mt-1">
@@ -375,6 +381,12 @@ export default function FormulacionRuta({
                   }`}
                 >
                   {usarAmpliada ? "Búsqueda ampliada activa ✓" : "Ampliar búsqueda con contexto →"}
+                </button>
+                <button
+                  onClick={irAEditorCadena}
+                  className="text-sm rounded-md px-4 py-2.5 border border-gray-300 text-gray-700 font-medium hover:bg-gray-50"
+                >
+                  Ajustar términos y reintentar ↑
                 </button>
                 <button
                   onClick={() => setMostrarPaqueteManual((v) => !v)}
@@ -481,18 +493,27 @@ export default function FormulacionRuta({
               </p>
 
               {resultadoRSL.vacio_detectado && (
-                <div className="bg-white/60 rounded-md p-3 mt-2 border border-amber-300">
+                <div className="bg-white/60 rounded-md p-3 mt-2 border border-amber-300 space-y-2">
                   <p className="text-xs font-medium text-amber-800">
                     Ninguna fuente automática encontró literatura que combine estos conceptos directamente —
                     esto puede ser un vacío de conocimiento real, o los términos necesitan ajuste.
                   </p>
+                  <p className="text-xs text-amber-900 bg-amber-100/60 p-2.5 rounded border border-amber-200/60 leading-relaxed">
+                    Puede ajustar los términos arriba: combínelos con <strong>AND</strong> (todas las palabras deben aparecer — más preciso, menos resultados) o con <strong>OR</strong> (basta que aparezca una — más resultados, menos preciso). Mantenga cada término entre comillas dobles, por ejemplo: <code className="bg-white px-1 py-0.5 rounded text-amber-950 font-mono text-[11px]">&quot;sensores&quot; OR &quot;drones&quot;</code>. Para combinar ambos operadores, use paréntesis que indiquen el orden, por ejemplo: <code className="bg-white px-1 py-0.5 rounded text-amber-950 font-mono text-[11px]">(&quot;piña&quot;) AND (&quot;sensores&quot; OR &quot;drones&quot;)</code>.
+                  </p>
                   {!usarAmpliada && (
-                    <p className="text-xs text-gray-600 mt-1">
-                      Pruebe también con "Ampliar búsqueda con contexto" arriba, o edite qué términos son
+                    <p className="text-xs text-gray-600">
+                      Pruebe también con &quot;Ampliar búsqueda con contexto&quot; arriba, o edite qué términos son
                       núcleo antes de reintentar.
                     </p>
                   )}
-                  <p className="text-xs text-gray-600 mt-1">
+                  <button
+                    onClick={irAEditorCadena}
+                    className="text-xs font-semibold text-faro-blue underline block"
+                  >
+                    Ajustar términos y reintentar ↑
+                  </button>
+                  <p className="text-xs text-gray-600 pt-1">
                     Como último recurso, puede intentar la búsqueda manual asistida:
                   </p>
                   <button
