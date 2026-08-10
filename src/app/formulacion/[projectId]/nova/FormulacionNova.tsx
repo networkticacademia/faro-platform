@@ -8,6 +8,7 @@ import type { TipoProyecto } from "@/lib/faro/types";
 import type { SubtipoDti } from "@/lib/faro/tipologiaProyecto";
 import { NovaInfoPanel } from "./NovaInfoPanel";
 import { CifrasContextoInput, type CifraContexto } from "./CifrasContextoInput";
+import ArbolProblemas from "@/components/faro/ArbolProblemas";
 
 interface NodoGrafo {
   id: string;
@@ -265,6 +266,12 @@ export default function FormulacionNova({
 
             <p className="text-xs text-gray-400">Confianza del agente: {nodoActual.confianza_agente}</p>
           </div>
+
+          <ArbolProblemas
+            problemaCentral={rutaOutputConfirmado?.problema ?? nodoActual.contenido.problema_formulado}
+            causas={nodoActual.contenido.nucleo_causas_estructuradas}
+            efectos={nodoActual.contenido.onda_efectos_estructurados}
+          />
 
           {metrica && (
             <div className="bg-white rounded-lg border p-5 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
