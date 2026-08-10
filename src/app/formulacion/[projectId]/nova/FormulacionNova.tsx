@@ -359,6 +359,124 @@ export default function FormulacionNova({
               )}
             </label>
           ))}
+
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">Causas (árbol de problemas)</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setContenidoEditado({
+                    ...contenidoEditado,
+                    nucleo_causas_estructuradas: [
+                      ...(contenidoEditado.nucleo_causas_estructuradas ?? []),
+                      { texto: "", tipo: "secundaria" },
+                    ],
+                  })
+                }
+                className="text-xs text-faro-navy border border-faro-navy rounded px-2 py-1"
+              >
+                + Agregar causa
+              </button>
+            </div>
+            <div className="space-y-2">
+              {(contenidoEditado.nucleo_causas_estructuradas ?? []).map((causa, i) => (
+                <div key={i} className="flex gap-2 items-start bg-amber-50/50 border border-amber-200 rounded-md p-2">
+                  <select
+                    value={causa.tipo}
+                    onChange={(e) => {
+                      const nuevas = [...(contenidoEditado.nucleo_causas_estructuradas ?? [])];
+                      nuevas[i] = { ...nuevas[i], tipo: e.target.value as "primaria" | "secundaria" };
+                      setContenidoEditado({ ...contenidoEditado, nucleo_causas_estructuradas: nuevas });
+                    }}
+                    className="text-xs border rounded px-1 py-1 bg-white text-gray-900"
+                  >
+                    <option value="primaria">Primaria</option>
+                    <option value="secundaria">Secundaria</option>
+                  </select>
+                  <textarea
+                    value={causa.texto}
+                    onChange={(e) => {
+                      const nuevas = [...(contenidoEditado.nucleo_causas_estructuradas ?? [])];
+                      nuevas[i] = { ...nuevas[i], texto: e.target.value };
+                      setContenidoEditado({ ...contenidoEditado, nucleo_causas_estructuradas: nuevas });
+                    }}
+                    rows={2}
+                    className="flex-1 text-sm border rounded-md p-2 text-gray-900 bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nuevas = (contenidoEditado.nucleo_causas_estructuradas ?? []).filter((_, idx) => idx !== i);
+                      setContenidoEditado({ ...contenidoEditado, nucleo_causas_estructuradas: nuevas });
+                    }}
+                    className="text-xs text-red-600 px-2"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">Efectos (árbol de problemas)</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setContenidoEditado({
+                    ...contenidoEditado,
+                    onda_efectos_estructurados: [
+                      ...(contenidoEditado.onda_efectos_estructurados ?? []),
+                      { texto: "", tipo: "indirecto" },
+                    ],
+                  })
+                }
+                className="text-xs text-faro-navy border border-faro-navy rounded px-2 py-1"
+              >
+                + Agregar efecto
+              </button>
+            </div>
+            <div className="space-y-2">
+              {(contenidoEditado.onda_efectos_estructurados ?? []).map((efecto, i) => (
+                <div key={i} className="flex gap-2 items-start bg-rose-50/50 border border-rose-200 rounded-md p-2">
+                  <select
+                    value={efecto.tipo}
+                    onChange={(e) => {
+                      const nuevos = [...(contenidoEditado.onda_efectos_estructurados ?? [])];
+                      nuevos[i] = { ...nuevos[i], tipo: e.target.value as "directo" | "indirecto" };
+                      setContenidoEditado({ ...contenidoEditado, onda_efectos_estructurados: nuevos });
+                    }}
+                    className="text-xs border rounded px-1 py-1 bg-white text-gray-900"
+                  >
+                    <option value="directo">Directo</option>
+                    <option value="indirecto">Indirecto</option>
+                  </select>
+                  <textarea
+                    value={efecto.texto}
+                    onChange={(e) => {
+                      const nuevos = [...(contenidoEditado.onda_efectos_estructurados ?? [])];
+                      nuevos[i] = { ...nuevos[i], texto: e.target.value };
+                      setContenidoEditado({ ...contenidoEditado, onda_efectos_estructurados: nuevos });
+                    }}
+                    rows={2}
+                    className="flex-1 text-sm border rounded-md p-2 text-gray-900 bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nuevos = (contenidoEditado.onda_efectos_estructurados ?? []).filter((_, idx) => idx !== i);
+                      setContenidoEditado({ ...contenidoEditado, onda_efectos_estructurados: nuevos });
+                    }}
+                    className="text-xs text-red-600 px-2"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
           <div className="flex gap-3">
             <button
               onClick={() => confirmar(true)}
