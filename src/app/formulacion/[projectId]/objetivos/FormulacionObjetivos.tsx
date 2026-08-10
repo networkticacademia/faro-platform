@@ -151,6 +151,12 @@ export default function FormulacionObjetivos({
           >
             ← NOVA
           </Link>
+          <Link
+            href={`/formulacion/${project.id}/metodologia`}
+            className="text-xs px-3 py-1.5 rounded-md border border-faro-navy text-faro-navy hover:bg-faro-navy hover:text-white transition-colors font-medium"
+          >
+            Metodología →
+          </Link>
         </div>
       </div>
 
