@@ -2,20 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import type { NovaOutput } from "@/lib/faro/nova";
-import type { RutaOutput } from "@/lib/faro/ruta";
+import type { ObjetivosOutput, FilaMatrizConsistencia } from "@/lib/faro/objetivos";
 import type { TipoProyecto } from "@/lib/faro/types";
 import type { SubtipoDti } from "@/lib/faro/tipologiaProyecto";
-import { NovaInfoPanel } from "./NovaInfoPanel";
-import { CifrasContextoInput, type CifraContexto } from "./CifrasContextoInput";
-import ArbolProblemas from "@/components/faro/ArbolProblemas";
 
 interface NodoGrafo {
   id: string;
   project_id: string;
   tipo: string;
   iteracion: number;
-  contenido: NovaOutput;
+  contenido: ObjetivosOutput & { matriz_consistencia?: FilaMatrizConsistencia[] };
   confianza_agente: string | null;
   preguntas_pendientes: string[];
   confirmado_humano: boolean;
@@ -41,35 +37,27 @@ interface ProjectRow {
   nu: string;
   tau: TipoProyecto;
   subtipo_dti?: SubtipoDti | null;
-  cifras_contexto?: CifraContexto[] | null;
   mu: string;
   alpha_area: string;
   u0_initial: number;
   estado: string;
 }
 
-// Campos de texto plano — los compuestos (cadena causal, cifras de
-// contexto) se muestran aparte, no en esta lista simple.
-const CAMPOS_EDITABLES: { key: keyof NovaOutput; etiqueta: string; multilinea?: boolean }[] = [
-  { key: "nucleo_brecha_conocimiento", etiqueta: "Núcleo — Brecha de conocimiento (científica)", multilinea: true },
-  { key: "nucleo_causa_raiz", etiqueta: "Núcleo — Causa raíz (MGA)", multilinea: true },
-  { key: "onda_consecuencias", etiqueta: "Onda — Consecuencias (científica)", multilinea: true },
-  { key: "onda_efectos_arbol_problema", etiqueta: "Onda — Efectos, árbol de problemas (MGA)", multilinea: true },
-  { key: "valor_contribucion", etiqueta: "Valor — Contribución (científica)", multilinea: true },
-  { key: "valor_justificacion_social", etiqueta: "Valor — Justificación social (MGA)", multilinea: true },
-  { key: "avance_novedad_estado_arte", etiqueta: "Avance — Novedad frente al estado del arte (científica)", multilinea: true },
-  { key: "avance_detalle", etiqueta: "Avance — Detalle (TRL o cualitativo, MGA)", multilinea: true },
-  { key: "problema_formulado", etiqueta: "Problema formulado (síntesis completa)", multilinea: true },
-];
+const NIVEL_BLOOM_LABEL: Record<string, string> = {
+  recordar: "Recordar",
+  comprender: "Comprender",
+  aplicar: "Aplicar",
+  analizar: "Analizar",
+  evaluar: "Evaluar",
+  crear: "Crear",
+};
 
-export default function FormulacionNova({
+export default function FormulacionObjetivos({
   project,
   nodosIniciales,
-  rutaOutputConfirmado,
 }: {
   project: ProjectRow;
   nodosIniciales: NodoGrafo[];
-  rutaOutputConfirmado?: RutaOutput | null;
 }) {
   const [nodos, setNodos] = useState<NodoGrafo[]>(nodosIniciales);
   const [metrica, setMetrica] = useState<Metrica | null>(null);
@@ -77,7 +65,7 @@ export default function FormulacionNova({
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
   const [editando, setEditando] = useState(false);
-  const [contenidoEditado, setContenidoEditado] = useState<NovaOutput | null>(null);
+  const [objetivoGeneralEditado, setObjetivoGeneralEditado] = useState("");
   const [confirmando, setConfirmando] = useState(false);
 
   const nodoActual = nodos[0] ?? null;
@@ -86,7 +74,7 @@ export default function FormulacionNova({
     setGenerando(true);
     setError(null);
     try {
-      const res = await fetch("/api/mci/nova/generar", {
+      const res = await fetch("/api/mci/objetivos/generar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ project_id: project.id, feedback: conFeedback }),
@@ -104,20 +92,22 @@ export default function FormulacionNova({
     }
   }
 
-  // Reutiliza /api/mci/ruta/confirmar tal cual — ya es genérico por
-  // nodo_id, no existe (ni hace falta) /api/mci/nova/confirmar aparte.
+  // Reutiliza /api/mci/ruta/confirmar tal cual — ya es genérico por nodo_id.
+  // NOTA: solo objetivo_general es editable inline por ahora — objetivos_especificos,
+  // hipotesis, variables y categorias_analisis son estructuras (arrays de objetos),
+  // no texto plano; editarlas inline queda pendiente como una pieza de UI aparte.
   async function confirmar(editado: boolean) {
     if (!nodoActual) return;
     setConfirmando(true);
     setError(null);
     try {
+      const contenidoEditado = editado
+        ? { ...nodoActual.contenido, objetivo_general: objetivoGeneralEditado }
+        : undefined;
       const res = await fetch("/api/mci/ruta/confirmar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nodo_id: nodoActual.id,
-          contenido_editado: editado ? contenidoEditado : undefined,
-        }),
+        body: JSON.stringify({ nodo_id: nodoActual.id, contenido_editado: contenidoEditado }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al confirmar.");
@@ -132,45 +122,30 @@ export default function FormulacionNova({
 
   function iniciarEdicion() {
     if (!nodoActual) return;
-    setContenidoEditado({ ...nodoActual.contenido });
+    setObjetivoGeneralEditado(nodoActual.contenido.objetivo_general);
     setEditando(true);
   }
 
+  const c = nodoActual?.contenido;
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <NovaInfoPanel />
-      <CifrasContextoInput
-        projectId={project.id}
-        cifrasIniciales={project.cifras_contexto ?? []}
-        rutaOutput={rutaOutputConfirmado ?? null}
-      />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-faro-navy">
-            Formulación — NOVA {nodoActual ? `(iteración ${nodoActual.iteracion})` : ""}
+            Formulación — OBJETIVOS {nodoActual ? `(iteración ${nodoActual.iteracion})` : ""}
           </h1>
           <p className="text-sm text-gray-600">
             {project.tau}{project.subtipo_dti ? ` · ${project.subtipo_dti}` : ""} · {project.nu} · {project.alpha_area}
+            {c ? ` · enfoque ${c.enfoque_metodologico}` : ""}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Link
-            href={`/formulacion/${project.id}`}
+            href={`/formulacion/${project.id}/nova`}
             className="text-xs px-3 py-1.5 rounded-md border border-faro-navy text-faro-navy hover:bg-faro-navy hover:text-white transition-colors font-medium"
           >
-            ← RUTA
-          </Link>
-          <Link
-            href={`/formulacion/${project.id}/fuentes`}
-            className="text-xs px-3 py-1.5 rounded-md border border-faro-navy text-faro-navy hover:bg-faro-navy hover:text-white transition-colors font-medium flex items-center gap-1"
-          >
-            📚 Fuentes
-          </Link>
-          <Link
-            href={`/formulacion/${project.id}/objetivos`}
-            className="text-xs px-3 py-1.5 rounded-md border border-faro-navy text-faro-navy hover:bg-faro-navy hover:text-white transition-colors font-medium"
-          >
-            Objetivos →
+            ← NOVA
           </Link>
         </div>
       </div>
@@ -180,68 +155,96 @@ export default function FormulacionNova({
       {!nodoActual && (
         <div className="text-center py-12 space-y-4">
           <p className="text-gray-600">
-            Todavía no hay una propuesta de NOVA para este proyecto — se construye a partir del nodo RUTA
-            ya confirmado y, si existe, la síntesis bibliográfica de RSL.
+            Todavía no hay una propuesta de Objetivos para este proyecto — se construye a
+            partir del problema delimitado en RUTA y el árbol de causas ya confirmado en NOVA.
           </p>
           <button
             onClick={() => generar()}
             disabled={generando}
             className="bg-faro-navy text-white rounded-md px-6 py-3 font-medium disabled:opacity-40"
           >
-            {generando ? "Generando..." : "Generar propuesta NOVA →"}
+            {generando ? "Generando..." : "Generar propuesta de Objetivos →"}
           </button>
         </div>
       )}
 
-      {nodoActual && !editando && (
+      {nodoActual && c && !editando && (
         <div className="space-y-4">
-          <div className="bg-white rounded-lg border p-5 space-y-3">
-            {CAMPOS_EDITABLES.map(({ key, etiqueta }) => (
-              <div key={key}>
-                <p className="text-xs text-gray-500 uppercase tracking-wide">{etiqueta}</p>
-                <p className="text-sm">{String(nodoActual.contenido[key] ?? "")}</p>
-              </div>
-            ))}
-
-            <div className="border-t pt-3">
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Avance — medida aplicada</p>
-              <p className="text-sm">
-                {nodoActual.contenido.avance_medida === "conocimiento" && "Contribución al conocimiento (sin TRL)"}
-                {nodoActual.contenido.avance_medida === "trl" && "Escala TRL"}
-                {nodoActual.contenido.avance_medida === "trl_mercado" && "TRL + potencial de mercado/adopción"}
-                {nodoActual.contenido.avance_medida === null && (
-                  <span className="text-amber-700">
-                    Sin clasificar — complete el subtipo DTI en la pantalla de RUTA
-                  </span>
-                )}
+          <div className="bg-white rounded-lg border p-5 space-y-4">
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Objetivo general</p>
+              <p className="text-sm font-medium">{c.objetivo_general}</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                Verbo Bloom: {c.verbo_bloom_general}
               </p>
             </div>
 
-            {nodoActual.contenido.nucleo_cadena_causal?.length > 0 && (
+            <div className="border-t pt-3">
+              <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Objetivos específicos</p>
+              <ol className="space-y-2">
+                {c.objetivos_especificos.map((oe, i) => (
+                  <li key={i} className="text-sm border-l-2 border-faro-navy/30 pl-3">
+                    <p>{oe.texto}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      Bloom: {NIVEL_BLOOM_LABEL[oe.nivel_bloom] ?? oe.nivel_bloom} ({oe.verbo_bloom})
+                      {oe.causa_asociada ? ` · Invierte la causa: "${oe.causa_asociada}"` : " · Sin causa asociada (transversal/apropiación social)"}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            {c.hipotesis?.length > 0 && (
               <div className="border-t pt-3">
-                <p className="text-xs text-gray-500 uppercase tracking-wide">Cadena causal (5 porqués)</p>
-                <ol className="text-sm list-decimal list-inside space-y-1">
-                  {nodoActual.contenido.nucleo_cadena_causal.map((p, i) => (
-                    <li key={i}>
-                      <span className="text-gray-600">{p.pregunta}</span> → {p.respuesta}
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Hipótesis (enfoque cuantitativo)</p>
+                <ul className="space-y-2 text-sm">
+                  {c.hipotesis.map((h, i) => (
+                    <li key={i} className="border-l-2 border-emerald-300 pl-3">
+                      <p><span className="text-emerald-700 font-medium">H1:</span> {h.h1}</p>
+                      <p><span className="text-gray-500 font-medium">H0:</span> {h.h0}</p>
                     </li>
                   ))}
-                </ol>
+                </ul>
               </div>
             )}
 
-            {nodoActual.contenido.onda_cifras_contexto?.length > 0 && (
+            {c.variables?.length > 0 && (
               <div className="border-t pt-3">
-                <p className="text-xs text-gray-500 uppercase tracking-wide">Cifras de contexto</p>
-                <ul className="text-sm space-y-1">
-                  {nodoActual.contenido.onda_cifras_contexto.map((c, i) => (
-                    <li key={i}>
-                      [{c.nivel}] {c.cifra} — {c.fuente}{" "}
-                      {c.verificado ? (
-                        <span className="text-green-700 text-xs">(verificada)</span>
-                      ) : (
-                        <span className="text-amber-600 text-xs">(reportada, sin verificación automática)</span>
-                      )}
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Variables</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-gray-500 border-b">
+                        <th className="pr-2 py-1">Nombre</th>
+                        <th className="pr-2 py-1">Tipo</th>
+                        <th className="pr-2 py-1">Nivel medición</th>
+                        <th className="pr-2 py-1">Indicadores</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {c.variables.map((v, i) => (
+                        <tr key={i} className="border-b last:border-0 align-top">
+                          <td className="pr-2 py-1 font-medium">{v.nombre}</td>
+                          <td className="pr-2 py-1">{v.tipo}</td>
+                          <td className="pr-2 py-1">{v.nivel_medicion}</td>
+                          <td className="pr-2 py-1">{v.indicadores?.join("; ")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {c.categorias_analisis?.length > 0 && (
+              <div className="border-t pt-3">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Categorías de análisis (enfoque cualitativo)</p>
+                <ul className="space-y-2 text-sm">
+                  {c.categorias_analisis.map((cat, i) => (
+                    <li key={i} className="border-l-2 border-purple-300 pl-3">
+                      <p className="font-medium">{cat.nombre}</p>
+                      <p className="text-gray-600">{cat.definicion}</p>
+                      <p className="text-[11px] text-gray-400">Pregunta orientadora: {cat.pregunta_orientadora}</p>
                     </li>
                   ))}
                 </ul>
@@ -249,14 +252,14 @@ export default function FormulacionNova({
             )}
 
             <div className="border-t pt-3">
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Estado de evidencia (Núcleo)</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Estado de evidencia</p>
               <p className={`text-xs mt-1 ${
-                nodoActual.contenido.estado_evidencia === "confirmado_por_rsl" ? "text-green-700" :
-                nodoActual.contenido.estado_evidencia === "contradicho_por_rsl" ? "text-red-700" :
+                c.estado_evidencia === "confirmado_por_rsl" ? "text-green-700" :
+                c.estado_evidencia === "contradicho_por_rsl" ? "text-red-700" :
                 "text-amber-600"
               }`}>
-                {nodoActual.contenido.estado_evidencia === "confirmado_por_rsl" ? "confirmado por RSL" :
-                 nodoActual.contenido.estado_evidencia === "contradicho_por_rsl" ? "contradicho por RSL" :
+                {c.estado_evidencia === "confirmado_por_rsl" ? "confirmado por RSL" :
+                 c.estado_evidencia === "contradicho_por_rsl" ? "contradicho por RSL" :
                  "sin verificar contra literatura"}
               </p>
             </div>
@@ -273,15 +276,41 @@ export default function FormulacionNova({
             <p className="text-xs text-gray-400">Confianza del agente: {nodoActual.confianza_agente}</p>
           </div>
 
-          <ArbolProblemas
-            problemaCentral={rutaOutputConfirmado?.problema ?? nodoActual.contenido.problema_formulado}
-            causas={nodoActual.contenido.nucleo_causas_estructuradas}
-            efectos={nodoActual.contenido.onda_efectos_estructurados}
-          />
+          {nodoActual.contenido.matriz_consistencia && nodoActual.contenido.matriz_consistencia.length > 0 && (
+            <div className="bg-white rounded-lg border p-5">
+              <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">
+                Matriz de consistencia (ensamblada automáticamente, no editable)
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-gray-500 border-b">
+                      <th className="pr-2 py-1">Objetivo específico</th>
+                      <th className="pr-2 py-1">Causa asociada</th>
+                      <th className="pr-2 py-1">Hipótesis</th>
+                      <th className="pr-2 py-1">Variable/Categoría</th>
+                      <th className="pr-2 py-1">Indicador</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {nodoActual.contenido.matriz_consistencia.map((fila, i) => (
+                      <tr key={i} className="border-b last:border-0 align-top">
+                        <td className="pr-2 py-1">{fila.objetivo_especifico}</td>
+                        <td className="pr-2 py-1 text-gray-500">{fila.causa_asociada ?? "—"}</td>
+                        <td className="pr-2 py-1 text-gray-500">{fila.hipotesis ?? "—"}</td>
+                        <td className="pr-2 py-1 text-gray-500">{fila.variable_o_categoria ?? "—"}</td>
+                        <td className="pr-2 py-1 text-gray-500">{fila.indicador ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {metrica && (
             <div className="bg-white rounded-lg border p-5 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-              <div><p className="text-gray-500 text-xs">δ_NOVA</p><p className="font-semibold">{metrica.deltaI}</p></div>
+              <div><p className="text-gray-500 text-xs">δ_OBJETIVOS</p><p className="font-semibold">{metrica.deltaI}</p></div>
               <div><p className="text-gray-500 text-xs">Ω</p><p className="font-semibold">{metrica.omega}</p></div>
               <div><p className="text-gray-500 text-xs">L_FARO</p><p className="font-semibold">{metrica.lFaro}</p></div>
               <div><p className="text-gray-500 text-xs">τc</p><p className="font-semibold">{metrica.tauC}</p></div>
@@ -292,8 +321,8 @@ export default function FormulacionNova({
               </div>
               {metrica.contradicciones.length > 0 && (
                 <div className="col-span-2 md:col-span-4 text-xs text-red-600">
-                  {metrica.contradicciones.map((c, i) => (
-                    <p key={i}>[{c.nivel}] {c.mensaje}</p>
+                  {metrica.contradicciones.map((cc, i) => (
+                    <p key={i}>[{cc.nivel}] {cc.mensaje}</p>
                   ))}
                 </div>
               )}
@@ -313,7 +342,7 @@ export default function FormulacionNova({
                 onClick={iniciarEdicion}
                 className="border border-faro-navy text-faro-navy rounded-md px-5 py-2.5 font-medium"
               >
-                Editar antes de aceptar
+                Editar objetivo general antes de aceptar
               </button>
             </div>
           )}
@@ -325,7 +354,7 @@ export default function FormulacionNova({
               rows={2}
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
-              placeholder="Ej. La causa raíz no coincide con lo que documenté en la cadena de porqués..."
+              placeholder="Ej. El objetivo específico 2 no invierte ninguna causa real del árbol..."
             />
             <button
               onClick={() => generar(feedback || undefined)}
@@ -338,27 +367,22 @@ export default function FormulacionNova({
         </div>
       )}
 
-      {editando && contenidoEditado && (
+      {editando && (
         <div className="bg-white rounded-lg border p-5 space-y-4">
-          {CAMPOS_EDITABLES.map(({ key, etiqueta, multilinea }) => (
-            <label key={key} className="block">
-              <span className="text-sm font-medium">{etiqueta}</span>
-              {multilinea ? (
-                <textarea
-                  className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white text-sm"
-                  rows={3}
-                  value={String(contenidoEditado[key] ?? "")}
-                  onChange={(e) => setContenidoEditado({ ...contenidoEditado, [key]: e.target.value })}
-                />
-              ) : (
-                <input
-                  className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white text-sm"
-                  value={String(contenidoEditado[key] ?? "")}
-                  onChange={(e) => setContenidoEditado({ ...contenidoEditado, [key]: e.target.value })}
-                />
-              )}
-            </label>
-          ))}
+          <label className="block">
+            <span className="text-sm font-medium">Objetivo general</span>
+            <textarea
+              className="mt-1 w-full border rounded-md p-2 text-gray-900 bg-white text-sm"
+              rows={3}
+              value={objetivoGeneralEditado}
+              onChange={(e) => setObjetivoGeneralEditado(e.target.value)}
+            />
+          </label>
+          <p className="text-xs text-gray-400">
+            Los objetivos específicos, hipótesis/variables y categorías de análisis no son
+            editables inline todavía — si necesitan ajuste, use &quot;Regenerar propuesta&quot;
+            con feedback en vez de editar aquí.
+          </p>
           <div className="flex gap-3">
             <button
               onClick={() => confirmar(true)}
