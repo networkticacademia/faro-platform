@@ -151,12 +151,6 @@ export default function FormulacionObjetivos({
           >
             ← NOVA
           </Link>
-          <Link
-            href={`/formulacion/${project.id}/metodologia`}
-            className="text-xs px-3 py-1.5 rounded-md border border-faro-navy text-faro-navy hover:bg-faro-navy hover:text-white transition-colors font-medium"
-          >
-            Metodología →
-          </Link>
         </div>
       </div>
 
@@ -227,6 +221,7 @@ export default function FormulacionObjetivos({
                         <th className="pr-2 py-1">Tipo</th>
                         <th className="pr-2 py-1">Nivel medición</th>
                         <th className="pr-2 py-1">Indicadores</th>
+                        <th className="pr-2 py-1">Objetivo asociado</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -236,10 +231,12 @@ export default function FormulacionObjetivos({
                           <td className="pr-2 py-1">{v.tipo}</td>
                           <td className="pr-2 py-1">{v.nivel_medicion}</td>
                           <td className="pr-2 py-1">{v.indicadores?.join("; ")}</td>
+                          <td className="pr-2 py-1 text-gray-500">{v.objetivo_especifico_asociado}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+
                 </div>
               </div>
             )}
@@ -550,6 +547,7 @@ export default function FormulacionObjetivos({
                         {
                           nombre: "", tipo: "independiente", definicion_conceptual: "",
                           definicion_operacional: "", nivel_medicion: "razon", indicadores: [],
+                          objetivo_especifico_asociado: "",
                         },
                       ],
                     })
@@ -641,6 +639,16 @@ export default function FormulacionObjetivos({
                         setEd({ ...ed, variables: nuevas });
                       }}
                       placeholder="Indicadores, separados por coma"
+                      className="w-full text-xs border rounded px-1.5 py-1 bg-white text-gray-900"
+                    />
+                    <input
+                      value={v.objetivo_especifico_asociado}
+                      onChange={(e) => {
+                        const nuevas = [...ed.variables];
+                        nuevas[i] = { ...nuevas[i], objetivo_especifico_asociado: e.target.value };
+                        setEd({ ...ed, variables: nuevas });
+                      }}
+                      placeholder="Objetivo específico que mide (texto exacto)"
                       className="w-full text-xs border rounded px-1.5 py-1 bg-white text-gray-900"
                     />
                   </div>
