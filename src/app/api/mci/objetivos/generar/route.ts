@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { llamarOrquestador, parsearJsonRespuesta } from "@/lib/openrouter/client";
 import {
@@ -8,25 +8,34 @@ import {
   estructuraSegunEnfoque,
   type ObjetivosOutput,
 } from "@/lib/faro/objetivos";
-import { calcularDeltaI, calcularOmega } from "@/lib/faro/mci";
+import {
+  calcularDeltaI, calcularOmega, calcularDeltaModulada, calcularLFaroReducida,
+  calcularSeTauCompleto, calcularTauC, haConvergido,
+  type ContradiccionDetectada,
+} from "@/lib/faro/mci";
 
-export async function POST(req: NextRequest) {
+export async function POST(request: Request) {
   const supabase = await createClient();
-  const { project_id } = await req.json();
-
-  if (!project_id) {
-    return NextResponse.json({ error: "project_id requerido" }, { status: 400 });
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Debe iniciar sesión." }, { status: 401 });
   }
 
-  // 1. Traer el proyecto (para nu, mu, y demás campos de z0*)
-  const { data: project, error: errProject } = await supabase
+  const body = await request.json();
+  const { project_id, feedback } = body;
+  if (!project_id) {
+    return NextResponse.json({ error: "Falta project_id." }, { status: 400 });
+  }
+
+  // 1. Cargar el proyecto (RLS garantiza que solo se acceda a los propios)
+  const { data: project, error: projectError } = await supabase
     .from("projects")
     .select("*")
     .eq("id", project_id)
     .single();
 
-  if (errProject || !project) {
-    return NextResponse.json({ error: "Proyecto no encontrado" }, { status: 404 });
+  if (projectError || !project) {
+    return NextResponse.json({ error: "Proyecto no encontrado." }, { status: 404 });
   }
 
   // 2. Traer el último nodo RUTA confirmado del proyecto (D(θ) es obligatorio)
@@ -35,7 +44,7 @@ export async function POST(req: NextRequest) {
     .select("*")
     .eq("project_id", project_id)
     .eq("tipo", "RUTA")
-    .eq("confirmado", true)
+    .eq("confirmado_humano", true)
     .order("iteracion", { ascending: false })
     .limit(1)
     .single();
@@ -53,7 +62,7 @@ export async function POST(req: NextRequest) {
     .select("*")
     .eq("project_id", project_id)
     .eq("tipo", "NOVA")
-    .eq("confirmado", true)
+    .eq("confirmado_humano", true)
     .order("iteracion", { ascending: false })
     .limit(1)
     .single();
@@ -68,65 +77,96 @@ export async function POST(req: NextRequest) {
   const rutaOutput = nodoRuta.contenido;
   const novaOutput = nodoNova.contenido;
 
-  // 4. Construir el prompt y llamar al orquestador
+  // 4. Calcular iteración actual para este nodo (mismo patrón que RUTA)
+  const { data: nodosPrevios } = await supabase
+    .from("grafo_nodos")
+    .select("iteracion")
+    .eq("project_id", project_id)
+    .eq("tipo", "OBJETIVOS")
+    .order("iteracion", { ascending: false })
+    .limit(1);
+
+  const iteracion = (nodosPrevios?.[0]?.iteracion ?? -1) + 1;
+
+  // 5. Construir el prompt y llamar al orquestador
   const prompt = construirPromptObjetivos({
     nu: project.nu,
     mu: project.mu,
     rutaOutput,
     novaOutput,
+    feedbackIteracionAnterior: feedback,
   });
 
-  const respuestaRaw = await llamarOrquestador(prompt);
-  const objetivosOutput = parsearJsonRespuesta<ObjetivosOutput>(respuestaRaw);
+  const inicio = Date.now();
+  let objetivosOutput: ObjetivosOutput;
+  try {
+    const respuestaCruda = await llamarOrquestador(prompt);
+    objetivosOutput = parsearJsonRespuesta<ObjetivosOutput>(respuestaCruda);
+  } catch (e) {
+    return NextResponse.json({ error: `Error del orquestador: ${(e as Error).message}` }, { status: 502 });
+  }
+  const tiempoMs = Date.now() - inicio;
 
-  // 5. Validar campos obligatorios según el enfoque ya resuelto
+  // 6. Validar campos obligatorios según el enfoque ya resuelto
   const enfoque = estructuraSegunEnfoque(project.mu);
   const camposObligatorios = camposObligatoriosParaEnfoque(enfoque);
 
-  // 6. Ensamblar la matriz de consistencia de forma determinística (no la generó el LLM)
+  // 7. Ensamblar la matriz de consistencia de forma determinística (no la generó el LLM)
   const matrizConsistencia = ensamblarMatrizConsistencia(objetivosOutput);
 
-  // 7. Calcular δ y Ω con las funciones ya generalizadas de mci.ts
-  const deltaI = calcularDeltaI({
-    nivel_confianza_agente: objetivosOutput.nivel_confianza_agente,
-    preguntas_para_el_usuario: objetivosOutput.preguntas_para_el_usuario,
+  // 8. Contradicciones estructurales (misma función SQL que usa RUTA)
+  const { data: contradiccionesEstructurales } = await supabase.rpc("detectar_contradicciones", {
+    p_tau: project.tau,
+    p_lambda_trl: project.lambda_trl,
+    p_mu: project.mu,
   });
-  const omega = calcularOmega(objetivosOutput, camposObligatorios);
+  const contradiccionesTyped = (contradiccionesEstructurales ?? []) as ContradiccionDetectada[];
 
-  // 8. Insertar el nodo en grafo_nodos
-  const { data: nuevoNodo, error: errInsert } = await supabase
+  // 9. Matemática de la MCI (mismo patrón que ruta/generar)
+  const deltaI = calcularDeltaI(objetivosOutput);
+  const omega = calcularOmega(objetivosOutput, camposObligatorios);
+  const deltaModulada = calcularDeltaModulada(contradiccionesTyped, project.u2_competencia_metodologica ?? 0);
+  const lFaro = calcularLFaroReducida({ deltaI, omega, deltaModulada });
+  const seTau = calcularSeTauCompleto({ nu: project.nu, u0: project.u0_initial });
+  const tauC = calcularTauC(seTau);
+  const convergio = haConvergido(lFaro, tauC, contradiccionesTyped);
+
+  // 10. Persistir: nodo del grafo (contenido incluye la matriz de consistencia ensamblada)
+  const { data: nodo, error: nodoError } = await supabase
     .from("grafo_nodos")
     .insert({
       project_id,
       tipo: "OBJETIVOS",
+      iteracion,
       contenido: { ...objetivosOutput, matriz_consistencia: matrizConsistencia },
-      delta_i: deltaI,
-      omega,
-      confirmado: false,
-      iteracion: 1, // TODO: calcular iteración real igual que en ruta/generar si hay reintentos
+      confianza_agente: objetivosOutput.nivel_confianza_agente,
+      preguntas_pendientes: objetivosOutput.preguntas_para_el_usuario,
+      delta_nodal: deltaI,
     })
     .select()
     .single();
 
-  if (errInsert || !nuevoNodo) {
-    return NextResponse.json(
-      { error: "Error al guardar el nodo Objetivos", detalle: errInsert?.message },
-      { status: 500 }
-    );
+  if (nodoError) {
+    return NextResponse.json({ error: nodoError.message }, { status: 500 });
   }
 
-  // 9. Registrar en sesiones_mci_log
+  // 11. Traza de la sesión MCI
   await supabase.from("sesiones_mci_log").insert({
     project_id,
     modulo: "OBJETIVOS",
-    nodo_id: nuevoNodo.id,
-    delta_i: deltaI,
+    iteracion,
+    l_faro: lFaro,
+    delta_nodal: { OBJETIVOS: deltaI },
     omega,
+    contradicciones: contradiccionesTyped,
+    convergio,
+    tiempo_ms: tiempoMs,
+    modelo_usado: process.env.OPENROUTER_MODEL ?? "anthropic/claude-sonnet-4.6",
   });
 
   return NextResponse.json({
-    nodo: nuevoNodo,
-    objetivos: objetivosOutput,
+    nodo,
+    metrica: { deltaI, omega, deltaModulada, lFaro, seTau, tauC, convergio, contradicciones: contradiccionesTyped },
     matriz_consistencia: matrizConsistencia,
   });
 }
