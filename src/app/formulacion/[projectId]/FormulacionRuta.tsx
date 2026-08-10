@@ -11,6 +11,7 @@ import {
 } from "@/lib/faro/rsl/cadenaBusqueda";
 import { ParserAsistido } from "./ParserAsistido";
 import { ClasificadorSubtipoDti } from "./ClasificadorTipoProyecto";
+import PanelHerramientasReferencia from "@/components/faro/PanelHerramientasReferencia";
 import type { SubtipoDti } from "@/lib/faro/tipologiaProyecto";
 import type { TipoProyecto } from "@/lib/faro/types";
 
@@ -547,6 +548,8 @@ export default function FormulacionRuta({
               )}
             </div>
           )}
+
+          <PanelHerramientasReferencia faseId="antecedentes_estado_arte" />
 
           {propuestaBusqueda && (
             <ParserAsistido projectId={project.id} nodoOrigenId={nodoActual?.id} />
