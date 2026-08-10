@@ -1,6 +1,5 @@
 import type { NovaOutput, CausaProblema } from "./nova";
-import type { RutaOutput } from "./ruta";
-import type { EstadoEvidencia, NivelConfianza } from "./types";
+import type { RutaOutput, EstadoEvidencia, NivelConfianza } from "./ruta";
 
 // ============================================================
 // Tipos
