@@ -82,7 +82,7 @@ export interface ActividadProducto {
   producto: string; // entregable verificable, ej. "Base de datos de mediciones foliares (n=10 parcelas)"
   indicador_gestion: string; // indicador de avance/cumplimiento MGA, distinto del indicador científico de Objetivos
   tiempo_estimado: string; // ej. "Mes 1-2", "Semana 3"
-  presupuesto: ItemPresupuesto[]; // SIEMPRE vacío al generar — lo llena el formulador
+  presupuesto?: ItemPresupuesto[]; // opcional para compatibilidad con nodos antiguos
 }
 
 export function valorTotalItem(item: ItemPresupuesto): number {
@@ -90,7 +90,7 @@ export function valorTotalItem(item: ItemPresupuesto): number {
 }
 
 export function totalPresupuestoActividad(actividad: ActividadProducto): number {
-  return actividad.presupuesto.reduce((acc, item) => acc + valorTotalItem(item), 0);
+  return (actividad.presupuesto ?? []).reduce((acc, item) => acc + valorTotalItem(item), 0);
 }
 
 export function totalPresupuestoObjetivo(plan: PlanPorObjetivo): number {
@@ -111,7 +111,7 @@ export function resumenPorRubro(
   }
   for (const plan of planPorObjetivo) {
     for (const actividad of plan.actividades) {
-      for (const item of actividad.presupuesto) {
+      for (const item of actividad.presupuesto ?? []) {
         resumen[item.rubro] += valorTotalItem(item);
       }
     }
@@ -129,7 +129,7 @@ export function resumenPorFuente(
   } as Record<FuentePresupuesto, number>;
   for (const plan of planPorObjetivo) {
     for (const actividad of plan.actividades) {
-      for (const item of actividad.presupuesto) {
+      for (const item of actividad.presupuesto ?? []) {
         resumen[item.fuente] += valorTotalItem(item);
       }
     }

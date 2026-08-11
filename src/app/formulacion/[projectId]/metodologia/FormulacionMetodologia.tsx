@@ -267,7 +267,7 @@ export default function FormulacionMetodologia({
                               <td className="pr-2 py-1 text-gray-600">{a.indicador_gestion}</td>
                               <td className="pr-2 py-1 text-gray-500">{a.tiempo_estimado}</td>
                               <td className="pr-2 py-1 text-gray-500">
-                                {a.presupuesto?.length > 0
+                                {(a.presupuesto?.length ?? 0) > 0
                                   ? formatoCOP(totalPresupuestoActividad(a))
                                   : <span className="text-amber-600">sin definir</span>}
                               </td>
@@ -661,7 +661,10 @@ export default function FormulacionMetodologia({
                                   valor_unitario: 0,
                                   fuente: "financiador_efectivo",
                                 };
-                                nuevasAct[j] = { ...nuevasAct[j], presupuesto: [...nuevasAct[j].presupuesto, nuevoItem] };
+                                nuevasAct[j] = {
+                                  ...nuevasAct[j],
+                                  presupuesto: [...(nuevasAct[j].presupuesto ?? []), nuevoItem],
+                                };
                                 nuevos[i] = { ...nuevos[i], actividades: nuevasAct };
                                 setEd({ ...ed, plan_por_objetivo: nuevos });
                               }}
@@ -670,14 +673,14 @@ export default function FormulacionMetodologia({
                               + Ítem
                             </button>
                           </div>
-                          {act.presupuesto.map((item: ItemPresupuesto, k: number) => (
+                          {(act.presupuesto ?? []).map((item: ItemPresupuesto, k: number) => (
                             <div key={k} className="flex flex-wrap gap-1 items-center bg-emerald-50/50 rounded p-1">
                               <select
                                 value={item.rubro}
                                 onChange={(e) => {
                                   const nuevos = [...ed.plan_por_objetivo];
                                   const nuevasAct = [...nuevos[i].actividades];
-                                  const nuevosItems = [...nuevasAct[j].presupuesto];
+                                  const nuevosItems = [...(nuevasAct[j].presupuesto ?? [])];
                                   nuevosItems[k] = { ...nuevosItems[k], rubro: e.target.value as RubroPresupuesto };
                                   nuevasAct[j] = { ...nuevasAct[j], presupuesto: nuevosItems };
                                   nuevos[i] = { ...nuevos[i], actividades: nuevasAct };
@@ -694,7 +697,7 @@ export default function FormulacionMetodologia({
                                 onChange={(e) => {
                                   const nuevos = [...ed.plan_por_objetivo];
                                   const nuevasAct = [...nuevos[i].actividades];
-                                  const nuevosItems = [...nuevasAct[j].presupuesto];
+                                  const nuevosItems = [...(nuevasAct[j].presupuesto ?? [])];
                                   nuevosItems[k] = { ...nuevosItems[k], descripcion: e.target.value };
                                   nuevasAct[j] = { ...nuevasAct[j], presupuesto: nuevosItems };
                                   nuevos[i] = { ...nuevos[i], actividades: nuevasAct };
@@ -709,7 +712,7 @@ export default function FormulacionMetodologia({
                                 onChange={(e) => {
                                   const nuevos = [...ed.plan_por_objetivo];
                                   const nuevasAct = [...nuevos[i].actividades];
-                                  const nuevosItems = [...nuevasAct[j].presupuesto];
+                                  const nuevosItems = [...(nuevasAct[j].presupuesto ?? [])];
                                   nuevosItems[k] = { ...nuevosItems[k], cantidad: Number(e.target.value) };
                                   nuevasAct[j] = { ...nuevasAct[j], presupuesto: nuevosItems };
                                   nuevos[i] = { ...nuevos[i], actividades: nuevasAct };
@@ -724,7 +727,7 @@ export default function FormulacionMetodologia({
                                 onChange={(e) => {
                                   const nuevos = [...ed.plan_por_objetivo];
                                   const nuevasAct = [...nuevos[i].actividades];
-                                  const nuevosItems = [...nuevasAct[j].presupuesto];
+                                  const nuevosItems = [...(nuevasAct[j].presupuesto ?? [])];
                                   nuevosItems[k] = { ...nuevosItems[k], valor_unitario: Number(e.target.value) };
                                   nuevasAct[j] = { ...nuevasAct[j], presupuesto: nuevosItems };
                                   nuevos[i] = { ...nuevos[i], actividades: nuevasAct };
@@ -738,7 +741,7 @@ export default function FormulacionMetodologia({
                                 onChange={(e) => {
                                   const nuevos = [...ed.plan_por_objetivo];
                                   const nuevasAct = [...nuevos[i].actividades];
-                                  const nuevosItems = [...nuevasAct[j].presupuesto];
+                                  const nuevosItems = [...(nuevasAct[j].presupuesto ?? [])];
                                   nuevosItems[k] = { ...nuevosItems[k], fuente: e.target.value as FuentePresupuesto };
                                   nuevasAct[j] = { ...nuevasAct[j], presupuesto: nuevosItems };
                                   nuevos[i] = { ...nuevos[i], actividades: nuevasAct };
@@ -760,7 +763,7 @@ export default function FormulacionMetodologia({
                                   const nuevasAct = [...nuevos[i].actividades];
                                   nuevasAct[j] = {
                                     ...nuevasAct[j],
-                                    presupuesto: nuevasAct[j].presupuesto.filter((_, idx) => idx !== k),
+                                    presupuesto: (nuevasAct[j].presupuesto ?? []).filter((_, idx) => idx !== k),
                                   };
                                   nuevos[i] = { ...nuevos[i], actividades: nuevasAct };
                                   setEd({ ...ed, plan_por_objetivo: nuevos });
