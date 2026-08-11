@@ -1,0 +1,169 @@
+"use client";
+
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, ReferenceLine,
+} from "recharts";
+import NavegacionNodos from "@/components/faro/NavegacionNodos";
+
+interface SesionMci {
+  id: string;
+  project_id: string;
+  modulo: string;
+  iteracion: number;
+  l_faro: number;
+  omega: number;
+  convergio: boolean;
+  created_at: string;
+}
+
+interface NodoConfirmado {
+  tipo: string;
+  confirmado_humano: boolean;
+  delta_nodal: number | null;
+  created_at: string;
+}
+
+interface ProjectRow {
+  id: string;
+  titulo_provisional: string | null;
+  nu: string;
+  tau: string;
+  alpha_area: string;
+}
+
+const NODOS_ORDEN = ["RUTA", "NOVA", "OBJETIVOS", "METODOLOGIA"] as const;
+const NODO_LABEL: Record<string, string> = {
+  RUTA: "RUTA",
+  NOVA: "NOVA",
+  OBJETIVOS: "Objetivos",
+  METODOLOGIA: "Metodología",
+};
+const NODO_COLOR: Record<string, string> = {
+  RUTA: "#9B4A2E",
+  NOVA: "#2B6CB0",
+  OBJETIVOS: "#5B6D7A",
+  METODOLOGIA: "#0F6E56",
+};
+
+export default function DashboardProyecto({
+  project,
+  sesiones,
+  nodosConfirmados,
+}: {
+  project: ProjectRow;
+  sesiones: SesionMci[];
+  nodosConfirmados: NodoConfirmado[];
+}) {
+  const ultimaPorModulo: Record<string, SesionMci | undefined> = {};
+  for (const s of sesiones) {
+    ultimaPorModulo[s.modulo] = s;
+  }
+
+  const confirmadoPorTipo: Record<string, boolean> = {};
+  for (const n of nodosConfirmados) {
+    if (n.confirmado_humano && !(n.tipo in confirmadoPorTipo)) {
+      confirmadoPorTipo[n.tipo] = true;
+    }
+  }
+
+  const datosGrafica = sesiones.map((s, i) => ({
+    orden: i + 1,
+    modulo: NODO_LABEL[s.modulo] ?? s.modulo,
+    l_faro: s.l_faro,
+    fecha: new Date(s.created_at).toLocaleDateString("es-CO", { day: "2-digit", month: "short" }),
+  }));
+
+  const nodosCompletados = NODOS_ORDEN.filter((n) => confirmadoPorTipo[n]).length;
+  const progresoPct = Math.round((nodosCompletados / NODOS_ORDEN.length) * 100);
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <NavegacionNodos projectId={project.id} />
+
+      <div>
+        <h1 className="text-2xl font-semibold text-faro-navy">Dashboard del proyecto</h1>
+        <p className="text-sm text-gray-600">
+          {project.titulo_provisional ?? "Sin título provisional"} — {project.tau} · {project.nu} · {project.alpha_area}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+        <div className="sm:col-span-1 rounded-2xl bg-faro-navy text-white p-6 flex flex-col items-center justify-center">
+          <span className="text-4xl font-black">{progresoPct}%</span>
+          <span className="text-[11px] uppercase tracking-widest opacity-70 mt-1">Progreso</span>
+          <span className="text-[11px] opacity-70">{nodosCompletados}/{NODOS_ORDEN.length} nodos confirmados</span>
+        </div>
+
+        {NODOS_ORDEN.map((tipo) => {
+          const sesion = ultimaPorModulo[tipo];
+          const confirmado = confirmadoPorTipo[tipo] ?? false;
+          return (
+            <div key={tipo} className="rounded-2xl border bg-white p-4 flex flex-col">
+              <span className="text-xs font-semibold" style={{ color: NODO_COLOR[tipo] }}>
+                {NODO_LABEL[tipo]}
+              </span>
+              {sesion ? (
+                <>
+                  <span className="text-2xl font-bold text-faro-navy mt-1">
+                    {sesion.l_faro.toFixed(2)}
+                  </span>
+                  <span className="text-[10px] text-gray-400">L_FARO (iteración {sesion.iteracion})</span>
+                  <span
+                    className={`mt-2 text-[10px] px-2 py-0.5 rounded-full self-start ${
+                      confirmado
+                        ? "bg-green-100 text-green-700"
+                        : sesion.convergio
+                        ? "bg-blue-100 text-blue-700"
+                        : "bg-amber-100 text-amber-700"
+                    }`}
+                  >
+                    {confirmado ? "Confirmado" : sesion.convergio ? "Converge, sin confirmar" : "En proceso"}
+                  </span>
+                </>
+              ) : (
+                <span className="text-xs text-gray-400 mt-2">Sin generar todavía</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="rounded-2xl border bg-white p-6">
+        <h3 className="text-sm font-semibold text-faro-navy mb-1">
+          Trayectoria de L_FARO — todas las iteraciones del proyecto
+        </h3>
+        <p className="text-xs text-gray-400 mb-4">
+          Cada punto es una generación real de un nodo, en el orden en que ocurrió. Más bajo es mejor —
+          el objetivo es que baje hasta τc conforme se corrige y confirma cada nodo.
+        </p>
+        {datosGrafica.length > 0 ? (
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={datosGrafica} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+              <XAxis dataKey="orden" tick={{ fontSize: 11 }} label={{ value: "Iteración global", position: "insideBottom", offset: -5, fontSize: 11 }} />
+              <YAxis domain={[0, 1]} tick={{ fontSize: 11 }} />
+              <Tooltip
+                formatter={(value) => (typeof value === "number" ? value.toFixed(3) : String(value ?? ""))}
+                labelFormatter={(label, payload) =>
+                  payload?.[0]?.payload ? `${payload[0].payload.modulo} — ${payload[0].payload.fecha}` : label
+                }
+              />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <ReferenceLine y={0.3} stroke="#0F6E56" strokeDasharray="4 3" label={{ value: "τc referencia", fontSize: 10, fill: "#0F6E56" }} />
+              <Line type="monotone" dataKey="l_faro" name="L_FARO" stroke="#2B6CB0" strokeWidth={2} dot={{ r: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="text-sm text-gray-400 py-12 text-center">
+            Todavía no hay sesiones registradas — genere al menos un nodo para ver la trayectoria.
+          </p>
+        )}
+        <p className="text-[10px] text-gray-400 mt-2">
+          Nota: τc no es un umbral fijo — se calcula por proyecto (nivel, tipo, U₀). La línea de
+          referencia es orientativa, no el valor exacto de este proyecto.
+        </p>
+      </div>
+    </div>
+  );
+}

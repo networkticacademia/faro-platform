@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const NODOS = [
+  { slug: "/dashboard", label: "📊 Dashboard" },
   { slug: "", label: "RUTA" },
   { slug: "/nova", label: "NOVA" },
   { slug: "/fuentes", label: "Fuentes" },
