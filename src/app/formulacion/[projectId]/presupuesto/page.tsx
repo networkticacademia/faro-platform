@@ -24,15 +24,13 @@ export default async function PresupuestoPage({
     redirect("/proyectos");
   }
 
-  // Toma el nodo Metodología CONFIRMADO más reciente — el presupuesto de un
-  // borrador sin confirmar no debería tratarse como el presupuesto oficial
-  // del proyecto todavía.
+  // Toma el nodo Metodología más reciente, SIN filtrar por confirmado —
+  // si acaba de reabrirlo para editar presupuesto, debe seguir viéndolo aquí.
   const { data: nodoMetodologia } = await supabase
     .from("grafo_nodos")
     .select("*")
     .eq("project_id", projectId)
     .eq("tipo", "METODOLOGIA")
-    .eq("confirmado_humano", true)
     .order("iteracion", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -44,6 +42,7 @@ export default async function PresupuestoPage({
       project={project}
       metodologia={metodologia}
       nodoId={nodoMetodologia?.id ?? null}
+      confirmado={nodoMetodologia?.confirmado_humano ?? false}
     />
   );
 }

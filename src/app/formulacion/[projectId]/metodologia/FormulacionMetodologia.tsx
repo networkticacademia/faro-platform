@@ -8,23 +8,16 @@ import type {
   TecnicaInstrumento,
   PlanPorObjetivo,
   ActividadProducto,
-  ItemPresupuesto,
   RubroPresupuesto,
-  FuentePresupuesto,
 } from "@/lib/faro/metodologia";
 import {
   RUBRO_PRESUPUESTO_LABEL,
-  FUENTE_PRESUPUESTO_LABEL,
-  valorTotalItem,
   totalPresupuestoActividad,
   totalPresupuestoProyecto,
   resumenPorRubro,
 } from "@/lib/faro/metodologia";
 import type { TipoProyecto } from "@/lib/faro/types";
 import type { SubtipoDti } from "@/lib/faro/tipologiaProyecto";
-
-const RUBROS_ORDENADOS = Object.keys(RUBRO_PRESUPUESTO_LABEL) as RubroPresupuesto[];
-const FUENTES_ORDENADAS = Object.keys(FUENTE_PRESUPUESTO_LABEL) as FuentePresupuesto[];
 
 function formatoCOP(valor: number): string {
   return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(valor);
@@ -681,134 +674,17 @@ export default function FormulacionMetodologia({
                           />
                         </div>
 
-                        {/* Presupuesto de la actividad */}
-                        <div className="pl-2 border-l-2 border-emerald-200 space-y-1 pt-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] text-gray-500 uppercase">
-                              Presupuesto — {formatoCOP(totalPresupuestoActividad(act))}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const nuevos = [...ed.plan_por_objetivo];
-                                const nuevasAct = [...nuevos[i].actividades];
-                                const nuevoItem: ItemPresupuesto = {
-                                  rubro: "materiales_insumos",
-                                  descripcion: "",
-                                  cantidad: 1,
-                                  valor_unitario: 0,
-                                  fuente: "financiador_efectivo",
-                                };
-                                nuevasAct[j] = { ...nuevasAct[j], presupuesto: [...(nuevasAct[j].presupuesto ?? []), nuevoItem] };
-                                nuevos[i] = { ...nuevos[i], actividades: nuevasAct };
-                                setEd({ ...ed, plan_por_objetivo: nuevos });
-                              }}
-                              className="text-[10px] text-emerald-700 border border-emerald-300 rounded px-1.5 py-0.5"
-                            >
-                              + Ítem
-                            </button>
-                          </div>
-                          {(act.presupuesto ?? []).map((item: ItemPresupuesto, k: number) => (
-                            <div key={k} className="flex flex-wrap gap-1 items-center bg-emerald-50/50 rounded p-1">
-                              <select
-                                value={item.rubro}
-                                onChange={(e) => {
-                                  const nuevos = [...ed.plan_por_objetivo];
-                                  const nuevasAct = [...nuevos[i].actividades];
-                                  const nuevosItems = [...(nuevasAct[j].presupuesto ?? [])];
-                                  nuevosItems[k] = { ...nuevosItems[k], rubro: e.target.value as RubroPresupuesto };
-                                  nuevasAct[j] = { ...nuevasAct[j], presupuesto: nuevosItems };
-                                  nuevos[i] = { ...nuevos[i], actividades: nuevasAct };
-                                  setEd({ ...ed, plan_por_objetivo: nuevos });
-                                }}
-                                className="text-[10px] border rounded px-1 py-0.5 bg-white text-gray-900"
-                              >
-                                {RUBROS_ORDENADOS.map((r) => (
-                                  <option key={r} value={r}>{RUBRO_PRESUPUESTO_LABEL[r]}</option>
-                                ))}
-                              </select>
-                              <input
-                                value={item.descripcion}
-                                onChange={(e) => {
-                                  const nuevos = [...ed.plan_por_objetivo];
-                                  const nuevasAct = [...nuevos[i].actividades];
-                                  const nuevosItems = [...(nuevasAct[j].presupuesto ?? [])];
-                                  nuevosItems[k] = { ...nuevosItems[k], descripcion: e.target.value };
-                                  nuevasAct[j] = { ...nuevasAct[j], presupuesto: nuevosItems };
-                                  nuevos[i] = { ...nuevos[i], actividades: nuevasAct };
-                                  setEd({ ...ed, plan_por_objetivo: nuevos });
-                                }}
-                                placeholder="Descripción / insumo"
-                                className="flex-1 min-w-[100px] text-[10px] border rounded px-1 py-0.5 bg-white text-gray-900"
-                              />
-                              <input
-                                type="number"
-                                value={item.cantidad}
-                                onChange={(e) => {
-                                  const nuevos = [...ed.plan_por_objetivo];
-                                  const nuevasAct = [...nuevos[i].actividades];
-                                  const nuevosItems = [...(nuevasAct[j].presupuesto ?? [])];
-                                  nuevosItems[k] = { ...nuevosItems[k], cantidad: Number(e.target.value) };
-                                  nuevasAct[j] = { ...nuevasAct[j], presupuesto: nuevosItems };
-                                  nuevos[i] = { ...nuevos[i], actividades: nuevasAct };
-                                  setEd({ ...ed, plan_por_objetivo: nuevos });
-                                }}
-                                placeholder="Cant."
-                                className="w-12 text-[10px] border rounded px-1 py-0.5 bg-white text-gray-900"
-                              />
-                              <input
-                                type="number"
-                                value={item.valor_unitario}
-                                onChange={(e) => {
-                                  const nuevos = [...ed.plan_por_objetivo];
-                                  const nuevasAct = [...nuevos[i].actividades];
-                                  const nuevosItems = [...(nuevasAct[j].presupuesto ?? [])];
-                                  nuevosItems[k] = { ...nuevosItems[k], valor_unitario: Number(e.target.value) };
-                                  nuevasAct[j] = { ...nuevasAct[j], presupuesto: nuevosItems };
-                                  nuevos[i] = { ...nuevos[i], actividades: nuevasAct };
-                                  setEd({ ...ed, plan_por_objetivo: nuevos });
-                                }}
-                                placeholder="Vr. unitario"
-                                className="w-24 text-[10px] border rounded px-1 py-0.5 bg-white text-gray-900"
-                              />
-                              <select
-                                value={item.fuente}
-                                onChange={(e) => {
-                                  const nuevos = [...ed.plan_por_objetivo];
-                                  const nuevasAct = [...nuevos[i].actividades];
-                                  const nuevosItems = [...(nuevasAct[j].presupuesto ?? [])];
-                                  nuevosItems[k] = { ...nuevosItems[k], fuente: e.target.value as FuentePresupuesto };
-                                  nuevasAct[j] = { ...nuevasAct[j], presupuesto: nuevosItems };
-                                  nuevos[i] = { ...nuevos[i], actividades: nuevasAct };
-                                  setEd({ ...ed, plan_por_objetivo: nuevos });
-                                }}
-                                className="text-[10px] border rounded px-1 py-0.5 bg-white text-gray-900"
-                              >
-                                {FUENTES_ORDENADAS.map((f) => (
-                                  <option key={f} value={f}>{FUENTE_PRESUPUESTO_LABEL[f]}</option>
-                                ))}
-                              </select>
-                              <span className="text-[10px] text-gray-500 w-20 text-right">
-                                {formatoCOP(valorTotalItem(item))}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const nuevos = [...ed.plan_por_objetivo];
-                                  const nuevasAct = [...nuevos[i].actividades];
-                                  nuevasAct[j] = {
-                                    ...nuevasAct[j],
-                                    presupuesto: (nuevasAct[j].presupuesto ?? []).filter((_, idx) => idx !== k),
-                                  };
-                                  nuevos[i] = { ...nuevos[i], actividades: nuevasAct };
-                                  setEd({ ...ed, plan_por_objetivo: nuevos });
-                                }}
-                                className="text-[10px] text-red-600 px-1"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          ))}
+                        {/* Presupuesto: solo lectura aquí — se edita en la
+                            pestaña Presupuesto, para no mezclar dos
+                            secciones distintas del proyecto en un mismo
+                            formulario. */}
+                        <div className="pl-2 border-l-2 border-emerald-200 pt-1">
+                          <span className="text-[10px] text-gray-500 uppercase">
+                            Presupuesto — {formatoCOP(totalPresupuestoActividad(act))}
+                            {(act.presupuesto ?? []).length === 0 && (
+                              <span className="text-amber-600 normal-case"> (sin definir — edítelo en la pestaña Presupuesto)</span>
+                            )}
+                          </span>
                         </div>
                       </div>
                     ))}
