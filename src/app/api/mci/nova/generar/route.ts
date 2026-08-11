@@ -11,7 +11,7 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { construirPromptNova, CAMPOS_OBLIGATORIOS_NOVA, type NovaOutput } from "@/lib/faro/nova";
+import { construirPromptNova, asignarIdsNova, CAMPOS_OBLIGATORIOS_NOVA, type NovaOutput } from "@/lib/faro/nova";
 import type { RutaOutput } from "@/lib/faro/ruta";
 import { llamarOrquestador, parsearJsonRespuesta } from "@/lib/openrouter/client";
 import {
@@ -110,6 +110,7 @@ export async function POST(request: Request) {
   try {
     const respuestaCruda = await llamarOrquestador(prompt);
     novaOutput = parsearJsonRespuesta<NovaOutput>(respuestaCruda);
+    novaOutput = asignarIdsNova(novaOutput);
   } catch (e) {
     return NextResponse.json({ error: `Error del orquestador: ${(e as Error).message}` }, { status: 502 });
   }

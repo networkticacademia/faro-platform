@@ -79,13 +79,29 @@ Prioriza datos de 2020 en adelante. Si el único dato disponible es más antiguo
 }
 
 export interface CausaProblema {
+  id: string; // asignado en código tras la generación, NO por el LLM
   texto: string;
   tipo: "primaria" | "secundaria";
 }
 
 export interface EfectoProblema {
+  id: string; // asignado en código tras la generación, NO por el LLM
   texto: string;
   tipo: "directo" | "indirecto";
+}
+
+export function asignarIdsNova(output: NovaOutput): NovaOutput {
+  return {
+    ...output,
+    nucleo_causas_estructuradas: output.nucleo_causas_estructuradas.map((c, i) => ({
+      ...c,
+      id: `CAUSA-${i + 1}`,
+    })),
+    onda_efectos_estructurados: output.onda_efectos_estructurados.map((e, i) => ({
+      ...e,
+      id: `EFECTO-${i + 1}`,
+    })),
+  };
 }
 
 export interface PreguntaRespuesta {

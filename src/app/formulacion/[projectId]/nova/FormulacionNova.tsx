@@ -370,7 +370,7 @@ export default function FormulacionNova({
                     ...contenidoEditado,
                     nucleo_causas_estructuradas: [
                       ...(contenidoEditado.nucleo_causas_estructuradas ?? []),
-                      { texto: "", tipo: "secundaria" },
+                      { id: `CAUSA-NUEVA-${(contenidoEditado.nucleo_causas_estructuradas ?? []).length + 1}`, texto: "", tipo: "secundaria" },
                     ],
                   })
                 }
@@ -429,7 +429,7 @@ export default function FormulacionNova({
                     ...contenidoEditado,
                     onda_efectos_estructurados: [
                       ...(contenidoEditado.onda_efectos_estructurados ?? []),
-                      { texto: "", tipo: "indirecto" },
+                      { id: `EFECTO-NUEVO-${(contenidoEditado.onda_efectos_estructurados ?? []).length + 1}`, texto: "", tipo: "indirecto" },
                     ],
                   })
                 }

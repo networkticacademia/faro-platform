@@ -16,14 +16,18 @@ export type NivelBloom =
   | "crear";
 
 export interface ObjetivoEspecifico {
+  id: string; // asignado en código tras la generación (OE-1, OE-2...), NO por el LLM
   texto: string;
   verbo_bloom: string;
   nivel_bloom: NivelBloom;
-  // Trazabilidad obligatoria — debe coincidir textualmente (o casi) con
-  // el texto de una causa en NovaOutput.nucleo_causas_estructuradas.
-  // Null solo permitido si el objetivo específico es de apropiación social
-  // o transversal y no invierte una causa puntual.
+  // Trazabilidad textual (se conserva tal cual, cero riesgo de romper lo
+  // que ya funciona) — debe coincidir con el texto de una causa en NOVA.
   causa_asociada: string | null;
+  // NUEVO — trazabilidad estructural: el ID EXACTO de la causa en
+  // NovaOutput.nucleo_causas_estructuradas (ej. "CAUSA-1"), declarado por
+  // el LLM a partir de la lista de causas CON id que recibe en el prompt.
+  // Null si es transversal/apropiación social, igual que causa_asociada.
+  causa_id: string | null;
 }
 
 // Solo aplica cuando enfoque incluye componente cuantitativo (cuantitativo o mixto)
@@ -35,21 +39,19 @@ export interface HipotesisPar {
 
 // Solo aplica cuando enfoque incluye componente cuantitativo (cuantitativo o mixto)
 export interface Variable {
+  id: string; // asignado en código tras la generación (VAR-1, VAR-2...), NO por el LLM
   nombre: string;
   tipo: "independiente" | "dependiente" | "moderadora";
   definicion_conceptual: string;
   definicion_operacional: string;
   nivel_medicion: "nominal" | "ordinal" | "intervalo" | "razon";
   indicadores: string[];
-  // NUEVO — vínculo directo y obligatorio, declarado por el LLM en la misma
-  // llamada. Reemplaza la heurística anterior (buscar el nombre de la
-  // variable dentro del texto de H1), que fallaba en silencio cuando el
-  // nombre de la variable no aparecía literalmente en la hipótesis.
   objetivo_especifico_asociado: string; // texto del OE que esta variable opera/mide
 }
 
 // Solo aplica cuando enfoque es cualitativo o mixto (componente cualitativo)
 export interface CategoriaAnalisis {
+  id: string; // asignado en código tras la generación (CAT-1, CAT-2...), NO por el LLM
   nombre: string;
   definicion: string;
   pregunta_orientadora: string;
@@ -58,9 +60,12 @@ export interface CategoriaAnalisis {
 
 // Fila de la matriz de consistencia — SE ENSAMBLA EN CÓDIGO, no la genera el LLM
 export interface FilaMatrizConsistencia {
+  objetivo_id: string;
   objetivo_especifico: string;
+  causa_id: string | null;
   causa_asociada: string | null;
   hipotesis: string | null; // h1, si existe
+  variable_id: string | null;
   variable_o_categoria: string | null; // nombre de variable o de categoría de análisis
   indicador: string | null;
 }
@@ -147,25 +152,46 @@ export function ensamblarMatrizConsistencia(
     const categoriaAsociada = output.categorias_analisis.find(
       (c) => c.objetivo_especifico_asociado === oe.texto
     );
-    // CORREGIDO (2026-08-10): antes se buscaba el nombre de la variable
-    // como substring dentro del texto de H1 — fallaba en silencio cuando
-    // el nombre no aparecía literalmente ahí (bug real detectado en el
-    // proyecto piña). Ahora la variable declara su propio vínculo directo
-    // a objetivo_especifico_asociado, igual que ya hacían hipótesis y
-    // categorías — mismo patrón, sin heurística de texto libre cruzado.
     const variableAsociada = output.variables.find(
       (v) => v.objetivo_especifico_asociado === oe.texto
     );
 
     return {
+      objetivo_id: oe.id,
       objetivo_especifico: oe.texto,
+      causa_id: oe.causa_id,
       causa_asociada: oe.causa_asociada,
       hipotesis: hipotesisAsociada?.h1 ?? null,
+      variable_id: variableAsociada?.id ?? categoriaAsociada?.id ?? null,
       variable_o_categoria:
         variableAsociada?.nombre ?? categoriaAsociada?.nombre ?? null,
       indicador: variableAsociada?.indicadores?.[0] ?? null,
     };
   });
+}
+
+// ============================================================
+// Asignación determinística de IDs estables — NO la hace el LLM.
+// Se llama en el endpoint justo después de parsear la respuesta del
+// orquestador y ANTES de ensamblarMatrizConsistencia() y de persistir.
+// Esto es lo que le da a Metodología (y a cualquier verificador futuro,
+// SIGMA Guard incluido) una referencia determinística en vez de tener
+// que volver a adivinar por coincidencia de texto.
+// ============================================================
+
+export function asignarIdsObjetivos(output: ObjetivosOutput): ObjetivosOutput {
+  return {
+    ...output,
+    objetivos_especificos: output.objetivos_especificos.map((oe, i) => ({
+      ...oe,
+      id: `OE-${i + 1}`,
+    })),
+    variables: output.variables.map((v, i) => ({ ...v, id: `VAR-${i + 1}` })),
+    categorias_analisis: output.categorias_analisis.map((c, i) => ({
+      ...c,
+      id: `CAT-${i + 1}`,
+    })),
+  };
 }
 
 // ============================================================
@@ -193,7 +219,7 @@ export function construirPromptObjetivos(params: {
       : "rigor apropiado para pregrado — objetivos de nivel Aplicar/Analizar, priorizando claridad y factibilidad";
 
   const causasTexto = novaOutput.nucleo_causas_estructuradas
-    .map((c: CausaProblema, i: number) => `${i + 1}. [${c.tipo}] ${c.texto}`)
+    .map((c: CausaProblema) => `${c.id} [${c.tipo}]: ${c.texto}`)
     .join("\n");
 
   const bloqueEnfoque =
@@ -221,7 +247,7 @@ CONTEXTO DEL PROYECTO:
 PROBLEMA CENTRAL (RUTA, D(θ) — el objetivo general debe invertirlo en positivo, sin reformular su alcance):
 "${rutaOutput.problema}"
 
-CAUSAS DEL ÁRBOL DE PROBLEMAS (NOVA — cada objetivo específico debe invertir UNA de estas, citando cuál en causa_asociada con el texto exacto o casi exacto de la causa):
+CAUSAS DEL ÁRBOL DE PROBLEMAS (NOVA — cada objetivo específico debe invertir UNA de estas). Cada objetivo específico debe declarar DOS cosas sobre la causa que invierte: causa_asociada (el texto, para que un humano lo lea) Y causa_id (el identificador EXACTO que aparece al inicio de la línea correspondiente abajo, ej. "CAUSA-1" — cópialo tal cual, no lo inventes ni lo modifiques):
 ${causasTexto}
 
 ${bloqueEnfoque}
@@ -257,7 +283,7 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, con esta f
   "enfoque_metodologico": "${enfoque}",
   "objetivo_general": "string",
   "verbo_bloom_general": "string",
-  "objetivos_especificos": [{"texto": "string", "verbo_bloom": "string", "nivel_bloom": "recordar"|"comprender"|"aplicar"|"analizar"|"evaluar"|"crear", "causa_asociada": "string"|null}],
+  "objetivos_especificos": [{"texto": "string", "verbo_bloom": "string", "nivel_bloom": "recordar"|"comprender"|"aplicar"|"analizar"|"evaluar"|"crear", "causa_asociada": "string"|null, "causa_id": "string"|null}],
   "hipotesis": [{"h1": "string", "h0": "string", "objetivo_especifico_asociado": "string"}],
   "variables": [{"nombre": "string", "tipo": "independiente"|"dependiente"|"moderadora", "definicion_conceptual": "string", "definicion_operacional": "string", "nivel_medicion": "nominal"|"ordinal"|"intervalo"|"razon", "indicadores": ["string"], "objetivo_especifico_asociado": "string"}],
   "categorias_analisis": [{"nombre": "string", "definicion": "string", "pregunta_orientadora": "string", "objetivo_especifico_asociado": "string"}],

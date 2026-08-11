@@ -165,7 +165,7 @@ export default function FormulacionMetodologia({
         <div className="text-center py-12 space-y-4">
           <p className="text-gray-600">
             Todavía no hay una propuesta de Metodología para este proyecto — se construye a
-            partir de RUTA, NOVA y los objetivos específicos ya confirmedos.
+            partir de RUTA, NOVA y los objetivos específicos ya confirmados.
           </p>
           <button
             onClick={() => generar()}

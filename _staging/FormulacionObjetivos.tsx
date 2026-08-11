@@ -396,7 +396,7 @@ export default function FormulacionObjetivos({
                     ...ed,
                     objetivos_especificos: [
                       ...ed.objetivos_especificos,
-                      { texto: "", verbo_bloom: "", nivel_bloom: "aplicar", causa_asociada: null },
+                      { id: `OE-NUEVO-${ed.objetivos_especificos.length + 1}`, texto: "", verbo_bloom: "", nivel_bloom: "aplicar", causa_asociada: null, causa_id: null },
                     ],
                   })
                 }
@@ -545,6 +545,7 @@ export default function FormulacionObjetivos({
                       variables: [
                         ...ed.variables,
                         {
+                          id: `VAR-NUEVO-${ed.variables.length + 1}`,
                           nombre: "", tipo: "independiente", definicion_conceptual: "",
                           definicion_operacional: "", nivel_medicion: "razon", indicadores: [],
                           objetivo_especifico_asociado: "",
@@ -668,7 +669,7 @@ export default function FormulacionObjetivos({
                       ...ed,
                       categorias_analisis: [
                         ...ed.categorias_analisis,
-                        { nombre: "", definicion: "", pregunta_orientadora: "", objetivo_especifico_asociado: "" },
+                        { id: `CAT-NUEVO-${ed.categorias_analisis.length + 1}`, nombre: "", definicion: "", pregunta_orientadora: "", objetivo_especifico_asociado: "" },
                       ],
                     })
                   }
