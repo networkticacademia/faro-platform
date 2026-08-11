@@ -59,11 +59,16 @@ export default async function DashboardPage({
     .eq("project_id", projectId)
     .order("created_at", { ascending: true });
 
-  const { data: nodosConfirmados } = await supabase
+  // Nodos confirmados completos — necesarios para el verificador estructural,
+  // no solo para las tarjetas de resumen.
+  const { data: nodosConfirmadosCompletos } = await supabase
     .from("grafo_nodos")
-    .select("tipo, confirmado_humano, delta_nodal, created_at")
+    .select("tipo, contenido, confirmado_humano, delta_nodal, created_at, iteracion")
     .eq("project_id", projectId)
-    .order("created_at", { ascending: false });
+    .eq("confirmado_humano", true)
+    .order("iteracion", { ascending: false });
+
+  const nodosConfirmados = nodosConfirmadosCompletos ?? [];
 
   const actividadOpenRouter = await obtenerActividadOpenRouter();
 

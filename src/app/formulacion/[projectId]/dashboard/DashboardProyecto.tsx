@@ -19,11 +19,18 @@ interface SesionMci {
   created_at: string;
 }
 
+import { verificarHiloConductor, resumenBrechas } from "@/lib/faro/verificadorEstructural";
+import type { NovaOutput } from "@/lib/faro/nova";
+import type { ObjetivosOutput } from "@/lib/faro/objetivos";
+import type { MetodologiaOutput } from "@/lib/faro/metodologia";
+
 interface NodoConfirmado {
   tipo: string;
+  contenido: NovaOutput | ObjetivosOutput | MetodologiaOutput | Record<string, unknown>;
   confirmado_humano: boolean;
   delta_nodal: number | null;
   created_at: string;
+  iteracion: number;
 }
 
 interface ProjectRow {
@@ -76,11 +83,20 @@ export default function DashboardProyecto({
   }
 
   const confirmadoPorTipo: Record<string, boolean> = {};
+  const contenidoConfirmadoPorTipo: Record<string, NodoConfirmado["contenido"]> = {};
   for (const n of nodosConfirmados) {
     if (n.confirmado_humano && !(n.tipo in confirmadoPorTipo)) {
       confirmadoPorTipo[n.tipo] = true;
+      contenidoConfirmadoPorTipo[n.tipo] = n.contenido;
     }
   }
+
+  const brechas = verificarHiloConductor({
+    nova: (contenidoConfirmadoPorTipo["NOVA"] as NovaOutput) ?? null,
+    objetivos: (contenidoConfirmadoPorTipo["OBJETIVOS"] as ObjetivosOutput) ?? null,
+    metodologia: (contenidoConfirmadoPorTipo["METODOLOGIA"] as MetodologiaOutput) ?? null,
+  });
+  const resumen = resumenBrechas(brechas);
 
   const datosGrafica = sesiones.map((s, i) => ({
     orden: i + 1,
@@ -159,7 +175,7 @@ export default function DashboardProyecto({
               <XAxis dataKey="orden" tick={{ fontSize: 11 }} label={{ value: "Iteración global", position: "insideBottom", offset: -5, fontSize: 11 }} />
               <YAxis domain={[0, 1]} tick={{ fontSize: 11 }} />
               <Tooltip
-                formatter={(value) => (typeof value === "number" ? value.toFixed(3) : String(value ?? ""))}
+                formatter={(value) => typeof value === "number" ? value.toFixed(3) : String(value ?? "")}
                 labelFormatter={(label, payload) =>
                   payload?.[0]?.payload ? `${payload[0].payload.modulo} — ${payload[0].payload.fecha}` : label
                 }
@@ -215,6 +231,47 @@ export default function DashboardProyecto({
           </div>
         </div>
       )}
+
+      <div className="rounded-2xl border bg-white p-6">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-sm font-semibold text-faro-navy">Integridad del hilo conductor</h3>
+          {resumen.total === 0 ? (
+            <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+              sin brechas detectadas
+            </span>
+          ) : (
+            <span className={`text-[10px] px-2 py-0.5 rounded-full ${resumen.criticas > 0 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
+              {resumen.criticas} crítica{resumen.criticas !== 1 ? "s" : ""} · {resumen.advertencias} advertencia{resumen.advertencias !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-gray-400 mb-3">
+          Verificación determinística (sin LLM): confirma que cada referencia por ID entre
+          NOVA→Objetivos→Metodología resuelva a algo real. No juzga si la referencia tiene
+          sentido semántico — eso es trabajo futuro de SIGMA Guard.
+        </p>
+        {brechas.length > 0 ? (
+          <ul className="space-y-2">
+            {brechas.map((b, i) => (
+              <li
+                key={i}
+                className={`text-xs rounded-md p-2 border ${
+                  b.severidad === "critica" ? "bg-red-50 border-red-200 text-red-800" : "bg-amber-50 border-amber-200 text-amber-800"
+                }`}
+              >
+                <span className="font-mono text-[10px] opacity-70">{b.origen} · {b.campo}</span>
+                <p>{b.mensaje}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-gray-400">
+            {confirmadoPorTipo["NOVA"] || confirmadoPorTipo["OBJETIVOS"] || confirmadoPorTipo["METODOLOGIA"]
+              ? "Todas las referencias por ID entre nodos confirmados resuelven correctamente."
+              : "Confirme al menos NOVA y Objetivos para activar esta verificación."}
+          </p>
+        )}
+      </div>
 
       {actividadOpenRouter && actividadOpenRouter.length > 0 && (
         <div className="rounded-2xl border bg-white p-6">
