@@ -159,7 +159,7 @@ export default function DashboardProyecto({
               <XAxis dataKey="orden" tick={{ fontSize: 11 }} label={{ value: "Iteración global", position: "insideBottom", offset: -5, fontSize: 11 }} />
               <YAxis domain={[0, 1]} tick={{ fontSize: 11 }} />
               <Tooltip
-                formatter={(value: number) => value.toFixed(3)}
+                formatter={(value) => (typeof value === "number" ? value.toFixed(3) : String(value ?? ""))}
                 labelFormatter={(label, payload) =>
                   payload?.[0]?.payload ? `${payload[0].payload.modulo} — ${payload[0].payload.fecha}` : label
                 }
@@ -270,7 +270,7 @@ export default function DashboardProyecto({
                         <tr key={modelo} className="border-b last:border-0">
                           <td className="pr-2 py-1">{modelo}</td>
                           <td className="pr-2 py-1 text-right">{datos.requests}</td>
-                          <td className="pr-2 py-1 text-right">{datos.tokens.toLocaleString()}</td>
+                          <td className="pr-2 py-1 text-right">{datos.tokens.toLocaleString("es-CO")}</td>
                           <td className="pr-2 py-1 text-right">${datos.usage.toFixed(2)}</td>
                         </tr>
                       ))}

@@ -270,7 +270,7 @@ export default function DashboardProyecto({
                         <tr key={modelo} className="border-b last:border-0">
                           <td className="pr-2 py-1">{modelo}</td>
                           <td className="pr-2 py-1 text-right">{datos.requests}</td>
-                          <td className="pr-2 py-1 text-right">{datos.tokens.toLocaleString()}</td>
+                          <td className="pr-2 py-1 text-right">{datos.tokens.toLocaleString("es-CO")}</td>
                           <td className="pr-2 py-1 text-right">${datos.usage.toFixed(2)}</td>
                         </tr>
                       ))}
