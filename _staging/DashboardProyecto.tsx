@@ -48,14 +48,27 @@ const NODO_COLOR: Record<string, string> = {
   METODOLOGIA: "#0F6E56",
 };
 
+interface ActividadOpenRouter {
+  date: string;
+  model: string;
+  provider_name: string;
+  requests: number;
+  usage: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  reasoning_tokens: number;
+}
+
 export default function DashboardProyecto({
   project,
   sesiones,
   nodosConfirmados,
+  actividadOpenRouter,
 }: {
   project: ProjectRow;
   sesiones: SesionMci[];
   nodosConfirmados: NodoConfirmado[];
+  actividadOpenRouter: ActividadOpenRouter[] | null;
 }) {
   const ultimaPorModulo: Record<string, SesionMci | undefined> = {};
   for (const s of sesiones) {
@@ -146,7 +159,7 @@ export default function DashboardProyecto({
               <XAxis dataKey="orden" tick={{ fontSize: 11 }} label={{ value: "Iteración global", position: "insideBottom", offset: -5, fontSize: 11 }} />
               <YAxis domain={[0, 1]} tick={{ fontSize: 11 }} />
               <Tooltip
-                formatter={(value) => (typeof value === "number" ? value.toFixed(3) : String(value ?? ""))}
+                formatter={(value: number) => value.toFixed(3)}
                 labelFormatter={(label, payload) =>
                   payload?.[0]?.payload ? `${payload[0].payload.modulo} — ${payload[0].payload.fecha}` : label
                 }
@@ -197,11 +210,75 @@ export default function DashboardProyecto({
               ))}
             </div>
             <p className="text-[11px] text-gray-400 mt-2">
-              {sesiones.length} generaciones registradas en total. Para ver costo real en USD y
-              consumo de tokens por modelo, se necesita conectar la Analytics API de OpenRouter
-              (requiere una Management Key aparte de la clave de inferencia) — pendiente de diseño.
+              {sesiones.length} generaciones registradas en total.
             </p>
           </div>
+        </div>
+      )}
+
+      {actividadOpenRouter && actividadOpenRouter.length > 0 && (
+        <div className="rounded-2xl border bg-white p-6">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-sm font-semibold text-faro-navy">Actividad de OpenRouter — últimos 30 días</h3>
+            <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+              cuenta completa, no solo este proyecto
+            </span>
+          </div>
+          <p className="text-xs text-gray-400 mb-4">
+            Todos los proyectos de FARO comparten la misma clave de OpenRouter — estos números
+            no se pueden separar por proyecto todavía.
+          </p>
+
+          {(() => {
+            const totalUsage = actividadOpenRouter.reduce((acc, a) => acc + a.usage, 0);
+            const totalRequests = actividadOpenRouter.reduce((acc, a) => acc + a.requests, 0);
+            const porModelo = new Map<string, { usage: number; requests: number; tokens: number }>();
+            for (const a of actividadOpenRouter) {
+              const prev = porModelo.get(a.model) ?? { usage: 0, requests: 0, tokens: 0 };
+              porModelo.set(a.model, {
+                usage: prev.usage + a.usage,
+                requests: prev.requests + a.requests,
+                tokens: prev.tokens + a.prompt_tokens + a.completion_tokens + a.reasoning_tokens,
+              });
+            }
+
+            return (
+              <>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <p className="text-2xl font-bold text-faro-navy">${totalUsage.toFixed(2)}</p>
+                    <p className="text-[11px] text-gray-400">Gasto total (USD)</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-faro-navy">{totalRequests}</p>
+                    <p className="text-[11px] text-gray-400">Solicitudes totales</p>
+                  </div>
+                </div>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-gray-500 border-b">
+                      <th className="pr-2 py-1">Modelo</th>
+                      <th className="pr-2 py-1 text-right">Solicitudes</th>
+                      <th className="pr-2 py-1 text-right">Tokens</th>
+                      <th className="pr-2 py-1 text-right">Gasto (USD)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from(porModelo.entries())
+                      .sort((a, b) => b[1].usage - a[1].usage)
+                      .map(([modelo, datos]) => (
+                        <tr key={modelo} className="border-b last:border-0">
+                          <td className="pr-2 py-1">{modelo}</td>
+                          <td className="pr-2 py-1 text-right">{datos.requests}</td>
+                          <td className="pr-2 py-1 text-right">{datos.tokens.toLocaleString()}</td>
+                          <td className="pr-2 py-1 text-right">${datos.usage.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </>
+            );
+          })()}
         </div>
       )}
     </div>
