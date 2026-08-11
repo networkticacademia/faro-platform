@@ -10,6 +10,7 @@ const NODOS = [
   { slug: "/fuentes", label: "Fuentes" },
   { slug: "/objetivos", label: "Objetivos" },
   { slug: "/metodologia", label: "Metodología" },
+  { slug: "/presupuesto", label: "💰 Presupuesto" },
 ] as const;
 
 export default function NavegacionNodos({ projectId }: { projectId: string }) {
