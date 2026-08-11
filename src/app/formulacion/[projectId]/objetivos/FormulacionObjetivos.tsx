@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import NavegacionNodos from "@/components/faro/NavegacionNodos";
 import type {
   ObjetivosOutput,
   FilaMatrizConsistencia,
@@ -134,6 +134,8 @@ export default function FormulacionObjetivos({
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      <NavegacionNodos projectId={project.id} />
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-faro-navy">
@@ -143,14 +145,6 @@ export default function FormulacionObjetivos({
             {project.tau}{project.subtipo_dti ? ` · ${project.subtipo_dti}` : ""} · {project.nu} · {project.alpha_area}
             {c ? ` · enfoque ${c.enfoque_metodologico}` : ""}
           </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href={`/formulacion/${project.id}/nova`}
-            className="text-xs px-3 py-1.5 rounded-md border border-faro-navy text-faro-navy hover:bg-faro-navy hover:text-white transition-colors font-medium"
-          >
-            ← NOVA
-          </Link>
         </div>
       </div>
 

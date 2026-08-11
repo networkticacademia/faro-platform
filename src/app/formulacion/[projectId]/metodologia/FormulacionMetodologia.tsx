@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import NavegacionNodos from "@/components/faro/NavegacionNodos";
 import type {
   MetodologiaOutput,
   FilaMatrizConsistenciaExtendida,
@@ -139,6 +139,8 @@ export default function FormulacionMetodologia({
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      <NavegacionNodos projectId={project.id} />
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-faro-navy">
@@ -149,14 +151,6 @@ export default function FormulacionMetodologia({
             {c ? ` · enfoque ${c.enfoque_metodologico}` : ""}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href={`/formulacion/${project.id}/objetivos`}
-            className="text-xs px-3 py-1.5 rounded-md border border-faro-navy text-faro-navy hover:bg-faro-navy hover:text-white transition-colors font-medium"
-          >
-            ← Objetivos
-          </Link>
-        </div>
       </div>
 
       {error && <div className="bg-red-50 text-red-700 text-sm p-3 rounded-md">{error}</div>}
@@ -165,7 +159,7 @@ export default function FormulacionMetodologia({
         <div className="text-center py-12 space-y-4">
           <p className="text-gray-600">
             Todavía no hay una propuesta de Metodología para este proyecto — se construye a
-            partir de RUTA, NOVA y los objetivos específicos ya confirmedos.
+            partir de RUTA, NOVA y los objetivos específicos ya confirmados.
           </p>
           <button
             onClick={() => generar()}

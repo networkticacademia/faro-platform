@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import NavegacionNodos from "@/components/faro/NavegacionNodos";
 import type { NovaOutput } from "@/lib/faro/nova";
 import type { RutaOutput } from "@/lib/faro/ruta";
 import type { TipoProyecto } from "@/lib/faro/types";
@@ -138,6 +139,7 @@ export default function FormulacionNova({
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      <NavegacionNodos projectId={project.id} />
       <NovaInfoPanel />
       <CifrasContextoInput
         projectId={project.id}

@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import Link from "next/link";
+import NavegacionNodos from "@/components/faro/NavegacionNodos";
 import type { RutaOutput } from "@/lib/faro/ruta";
 import {
   construirCadenaNucleo,
@@ -256,6 +257,7 @@ export default function FormulacionRuta({
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      <NavegacionNodos projectId={project.id} />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-faro-navy">

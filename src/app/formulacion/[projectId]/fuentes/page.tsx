@@ -16,6 +16,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import NavegacionNodos from "@/components/faro/NavegacionNodos";
 import { FuentesTable, type FuenteCorpus } from "./FuentesTable";
 import { FuentesGrafo } from "./FuentesGrafo";
 
@@ -89,6 +90,7 @@ export default function FuentesPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
+      {projectId && <NavegacionNodos projectId={projectId} />}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Fuentes del proyecto</h1>
