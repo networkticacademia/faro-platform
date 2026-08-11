@@ -80,6 +80,7 @@ export default function FormulacionNova({
   const [editando, setEditando] = useState(false);
   const [contenidoEditado, setContenidoEditado] = useState<NovaOutput | null>(null);
   const [confirmando, setConfirmando] = useState(false);
+  const [reabriendo, setReabriendo] = useState(false);
 
   const nodoActual = nodos[0] ?? null;
 
@@ -135,6 +136,26 @@ export default function FormulacionNova({
     if (!nodoActual) return;
     setContenidoEditado({ ...nodoActual.contenido });
     setEditando(true);
+  }
+
+  async function reabrirParaEditar() {
+    if (!nodoActual) return;
+    setReabriendo(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/mci/nodo/reabrir", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nodo_id: nodoActual.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error al reabrir el nodo.");
+      setNodos((prev) => [data.nodo, ...prev.slice(1)]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error desconocido.");
+    } finally {
+      setReabriendo(false);
+    }
   }
 
   return (
@@ -316,6 +337,22 @@ export default function FormulacionNova({
                 className="border border-faro-navy text-faro-navy rounded-md px-5 py-2.5 font-medium"
               >
                 Editar antes de aceptar
+              </button>
+            </div>
+          )}
+
+          {nodoActual.confirmado_humano && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 flex items-center justify-between flex-wrap gap-3">
+              <p className="text-xs text-amber-800">
+                Este nodo ya está confirmado. Si necesita ajustar algo, reábralo para
+                editar — el contenido actual no se pierde.
+              </p>
+              <button
+                onClick={reabrirParaEditar}
+                disabled={reabriendo}
+                className="text-xs bg-amber-600 text-white rounded-md px-4 py-2 font-medium disabled:opacity-40 whitespace-nowrap"
+              >
+                {reabriendo ? "Reabriendo..." : "Reabrir para editar"}
               </button>
             </div>
           )}
