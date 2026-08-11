@@ -14,6 +14,8 @@ interface SesionMci {
   l_faro: number;
   omega: number;
   convergio: boolean;
+  tiempo_ms: number | null;
+  modelo_usado: string | null;
   created_at: string;
 }
 
@@ -164,6 +166,44 @@ export default function DashboardProyecto({
           referencia es orientativa, no el valor exacto de este proyecto.
         </p>
       </div>
+
+      {sesiones.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="rounded-2xl border bg-white p-5">
+            <p className="text-xs text-gray-500 uppercase tracking-wide">Tiempo total de generación</p>
+            <p className="text-2xl font-bold text-faro-navy mt-1">
+              {(
+                sesiones.reduce((acc, s) => acc + (s.tiempo_ms ?? 0), 0) / 1000
+              ).toFixed(1)}{" "}
+              s
+            </p>
+            <p className="text-[11px] text-gray-400">
+              Promedio por generación:{" "}
+              {(
+                sesiones.reduce((acc, s) => acc + (s.tiempo_ms ?? 0), 0) /
+                sesiones.length /
+                1000
+              ).toFixed(1)}{" "}
+              s
+            </p>
+          </div>
+          <div className="rounded-2xl border bg-white p-5 sm:col-span-2">
+            <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">Modelo(s) usado(s)</p>
+            <div className="flex flex-wrap gap-2">
+              {Array.from(new Set(sesiones.map((s) => s.modelo_usado).filter(Boolean))).map((m) => (
+                <span key={m} className="text-xs bg-faro-navy/5 text-faro-navy px-2.5 py-1 rounded-full">
+                  {m}
+                </span>
+              ))}
+            </div>
+            <p className="text-[11px] text-gray-400 mt-2">
+              {sesiones.length} generaciones registradas en total. Para ver costo real en USD y
+              consumo de tokens por modelo, se necesita conectar la Analytics API de OpenRouter
+              (requiere una Management Key aparte de la clave de inferencia) — pendiente de diseño.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
