@@ -92,8 +92,8 @@ export const CAMPOS_OBLIGATORIOS_MARCO_REFERENCIAL: (keyof MarcoReferencialOutpu
 
 export function todasLasReferencias(output: MarcoReferencialOutput): Referencia[] {
   return [
-    ...output.marco_teorico.referencias,
-    ...output.marco_conceptual.referencias,
+    ...(output?.marco_teorico?.referencias ?? []),
+    ...(output?.marco_conceptual?.referencias ?? []),
   ];
 }
 

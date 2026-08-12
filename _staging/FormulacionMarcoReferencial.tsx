@@ -189,31 +189,37 @@ export default function FormulacionMarcoReferencial({
       {nodoActual && c && !editando && (
         <div className="space-y-4">
           <div className="bg-white rounded-lg border p-5 space-y-4">
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">📚 Marco Teórico</p>
-              <p className="text-sm font-medium mt-1">Postura teórica: {c.marco_teorico.postura_teorica}</p>
-              <p className="text-[11px] text-gray-400">Teorías: {c.marco_teorico.teorias_sustantivas.join(", ")}</p>
-              <p className="text-sm text-gray-700 mt-1">{c.marco_teorico.texto}</p>
-              {c.marco_teorico.referencias.length > 0 && (
-                <ul className="mt-2 space-y-1">
-                  {c.marco_teorico.referencias.map((r, i) => (
-                    <li key={i} className="text-[11px] text-gray-500 border-l-2 border-gray-200 pl-2">
-                      {r.autor} ({r.año}). <em>{r.titulo}</em>. {r.fuente}.
-                      {r.doi_o_isbn ? ` DOI/ISBN: ${r.doi_o_isbn}.` : ""}
-                      {r.nivel_confianza !== "alta" && (
-                        <span className="text-amber-600"> [confianza {r.nivel_confianza} — verificar antes de citar]</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            {c.marco_teorico && (
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide">📚 Marco Teórico</p>
+                {c.marco_teorico.postura_teorica && (
+                  <p className="text-sm font-medium mt-1">Postura teórica: {c.marco_teorico.postura_teorica}</p>
+                )}
+                {Array.isArray(c.marco_teorico.teorias_sustantivas) && c.marco_teorico.teorias_sustantivas.length > 0 && (
+                  <p className="text-[11px] text-gray-400">Teorías: {c.marco_teorico.teorias_sustantivas.join(", ")}</p>
+                )}
+                <p className="text-sm text-gray-700 mt-1">{c.marco_teorico.texto}</p>
+                {Array.isArray(c.marco_teorico.referencias) && c.marco_teorico.referencias.length > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {c.marco_teorico.referencias.map((r, i) => (
+                      <li key={i} className="text-[11px] text-gray-500 border-l-2 border-gray-200 pl-2">
+                        {r.autor} ({r.año}). <em>{r.titulo}</em>. {r.fuente}.
+                        {r.doi_o_isbn ? ` DOI/ISBN: ${r.doi_o_isbn}.` : ""}
+                        {r.nivel_confianza !== "alta" && (
+                          <span className="text-amber-600"> [confianza {r.nivel_confianza} — verificar antes de citar]</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
 
-            {c.marco_conceptual.incluido && (
+            {c.marco_conceptual?.incluido && (
               <div className="border-t pt-3">
                 <p className="text-xs text-gray-500 uppercase tracking-wide">🔤 Marco Conceptual</p>
                 <p className="text-sm text-gray-700 mt-1">{c.marco_conceptual.texto}</p>
-                {c.marco_conceptual.definiciones.length > 0 && (
+                {Array.isArray(c.marco_conceptual.definiciones) && c.marco_conceptual.definiciones.length > 0 && (
                   <ul className="mt-2 space-y-1">
                     {c.marco_conceptual.definiciones.map((d, i) => (
                       <li key={i} className="text-xs border-l-2 border-sky-300 pl-2">
@@ -226,7 +232,7 @@ export default function FormulacionMarcoReferencial({
               </div>
             )}
 
-            {c.marco_contextual.incluido && (
+            {c.marco_contextual?.incluido && (
               <div className="border-t pt-3">
                 <p className="text-xs text-gray-500 uppercase tracking-wide">🌍 Marco Contextual</p>
                 <p className="text-sm text-gray-700 mt-1">{c.marco_contextual.texto}</p>
@@ -238,11 +244,11 @@ export default function FormulacionMarcoReferencial({
               </div>
             )}
 
-            {c.marco_legal.incluido && (
+            {c.marco_legal?.incluido && (
               <div className="border-t pt-3">
                 <p className="text-xs text-gray-500 uppercase tracking-wide">⚖️ Marco Legal</p>
                 <p className="text-sm text-gray-700 mt-1">{c.marco_legal.texto}</p>
-                {c.marco_legal.normas.length > 0 && (
+                {Array.isArray(c.marco_legal.normas) && c.marco_legal.normas.length > 0 && (
                   <ul className="mt-2 space-y-1">
                     {c.marco_legal.normas.map((n, i) => (
                       <li key={i} className="text-xs border-l-2 border-amber-300 pl-2">
@@ -254,7 +260,7 @@ export default function FormulacionMarcoReferencial({
               </div>
             )}
 
-            {c.marco_historico.incluido && (
+            {c.marco_historico?.incluido && (
               <div className="border-t pt-3">
                 <p className="text-xs text-gray-500 uppercase tracking-wide">🕰️ Marco Histórico</p>
                 <p className="text-sm text-gray-700 mt-1">{c.marco_historico.texto}</p>
