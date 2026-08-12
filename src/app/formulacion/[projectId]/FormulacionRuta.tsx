@@ -16,6 +16,8 @@ import { ClasificadorSubtipoDti } from "./ClasificadorTipoProyecto";
 import PanelHerramientasReferencia from "@/components/faro/PanelHerramientasReferencia";
 import type { SubtipoDti } from "@/lib/faro/tipologiaProyecto";
 import type { TipoProyecto } from "@/lib/faro/types";
+import { CargaRubrica } from "./CargaRubrica";
+import type { RubricaProyecto } from "@/lib/faro/rubrica";
 
 interface NodoGrafo {
   id: string;
@@ -77,6 +79,7 @@ interface ProjectRow {
   nu: string;
   tau: TipoProyecto;
   subtipo_dti?: SubtipoDti | null;
+  rubrica_evaluacion?: RubricaProyecto | null;
   mu: string;
   alpha_area: string;
   u0_initial: number;
@@ -281,6 +284,7 @@ export default function FormulacionRuta({
     <div className="max-w-3xl mx-auto space-y-6">
       <NavegacionNodos projectId={project.id} />
       <RutaInfoPanel />
+      <CargaRubrica projectId={project.id} rubricaInicial={project.rubrica_evaluacion ?? null} />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-faro-navy">
