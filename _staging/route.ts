@@ -1,7 +1,19 @@
+<<<<<<< HEAD
+=======
+// ============================================================
+// FARO — POST /api/mci/rubrica/cargar
+// Recibe el texto libre de una rúbrica de evaluación o términos de
+// referencia, lo estructura vía LLM (construirPromptExtraccionRubrica)
+// y lo guarda en projects.rubrica_evaluacion. No verifica cobertura
+// todavía — eso es la siguiente pieza, pendiente.
+// ============================================================
+
+>>>>>>> 7b23b56828da5ef66a5a9fecf68c6b43258eb88f
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { llamarOrquestador, parsearJsonRespuesta } from "@/lib/openrouter/client";
 import {
+<<<<<<< HEAD
   construirPromptMarcoReferencial,
   CAMPOS_OBLIGATORIOS_MARCO_REFERENCIAL,
   type MarcoReferencialOutput,
@@ -11,6 +23,12 @@ import {
   calcularSeTauCompleto, calcularTauC, haConvergido,
   type ContradiccionDetectada,
 } from "@/lib/faro/mci";
+=======
+  construirPromptExtraccionRubrica,
+  asignarIdsRubrica,
+  type RubricaProyecto,
+} from "@/lib/faro/rubrica";
+>>>>>>> 7b23b56828da5ef66a5a9fecf68c6b43258eb88f
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -20,9 +38,15 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
+<<<<<<< HEAD
   const { project_id, feedback } = body;
   if (!project_id) {
     return NextResponse.json({ error: "Falta project_id." }, { status: 400 });
+=======
+  const { project_id, texto_rubrica } = body;
+  if (!project_id || !texto_rubrica) {
+    return NextResponse.json({ error: "Falta project_id o texto_rubrica." }, { status: 400 });
+>>>>>>> 7b23b56828da5ef66a5a9fecf68c6b43258eb88f
   }
 
   const { data: project, error: projectError } = await supabase
@@ -35,6 +59,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Proyecto no encontrado." }, { status: 404 });
   }
 
+<<<<<<< HEAD
   const { data: nodoRuta, error: errRuta } = await supabase
     .from("grafo_nodos")
     .select("*")
@@ -170,4 +195,37 @@ export async function POST(request: Request) {
     nodo,
     metrica: { deltaI, omega, deltaModulada, lFaro, seTau, tauC, convergio, contradicciones: contradiccionesTyped },
   });
+=======
+  const prompt = construirPromptExtraccionRubrica({
+    textoRubrica: texto_rubrica,
+    nu: project.nu,
+  });
+
+  let rubrica: RubricaProyecto;
+  try {
+    const respuestaCruda = await llamarOrquestador(prompt);
+    rubrica = parsearJsonRespuesta<RubricaProyecto>(respuestaCruda);
+  } catch (e) {
+    return NextResponse.json({ error: `Error del orquestador: ${(e as Error).message}` }, { status: 502 });
+  }
+
+  rubrica = asignarIdsRubrica(rubrica);
+  rubrica.fecha_carga = new Date().toISOString();
+
+  const { data: updated, error: updateError } = await supabase
+    .from("projects")
+    .update({ rubrica_evaluacion: rubrica })
+    .eq("id", project_id)
+    .select()
+    .single();
+
+  if (updateError || !updated) {
+    return NextResponse.json(
+      { error: updateError?.message ?? "No se pudo guardar la rúbrica." },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ rubrica });
+>>>>>>> 7b23b56828da5ef66a5a9fecf68c6b43258eb88f
 }

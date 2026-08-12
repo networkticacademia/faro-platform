@@ -8,12 +8,9 @@ import type { EstadoEvidencia, NivelConfianza } from "./ruta";
 // ============================================================
 
 export interface TecnicaInstrumento {
-  tecnica: string; // ej. "Encuesta estructurada", "Entrevista semiestructurada", "Sensor IoT NPK"
-  instrumento: string; // ej. "Cuestionario validado", "Guía de entrevista", "Datalogger"
-  variable_o_categoria_asociada: string; // texto — debe coincidir con el nombre de una Variable o CategoriaAnalisis de Objetivos
-  // NUEVO — trazabilidad estructural: el ID EXACTO de la Variable o
-  // CategoriaAnalisis en Objetivos (ej. "VAR-1", "CAT-1"), declarado por
-  // el LLM a partir de la lista con id que recibe en el prompt.
+  tecnica: string;
+  instrumento: string;
+  variable_o_categoria_asociada: string;
   variable_id: string | null;
 }
 
@@ -53,7 +50,6 @@ export const RUBRO_PRESUPUESTO_LABEL: Record<RubroPresupuesto, string> = {
   propiedad_intelectual: "15. Gastos de propiedad intelectual",
 };
 
-// Cofinanciación — misma estructura de 3 columnas del formato oficial
 export type FuentePresupuesto =
   | "contrapartida_especie"
   | "contrapartida_efectivo"
@@ -65,43 +61,58 @@ export const FUENTE_PRESUPUESTO_LABEL: Record<FuentePresupuesto, string> = {
   financiador_efectivo: "Financiador — Efectivo",
 };
 
-// El formulador la ingresa manualmente — el LLM NUNCA genera valores de
-// presupuesto (misma honestidad epistémica que las cifras de contexto de
-// NOVA: inventar un costo sería precisión falsa, igual que un tamaño de
-// muestra inventado).
 export interface ItemPresupuesto {
   rubro: RubroPresupuesto;
-  descripcion: string; // el "insumo" del formato oficial
+  descripcion: string;
   cantidad: number;
   valor_unitario: number;
   fuente: FuentePresupuesto;
 }
 
-export interface ActividadProducto {
-  actividad: string; // verbo + acción concreta, ej. "Instalar sensores NPK en 10 parcelas piloto"
-  producto: string; // entregable verificable, ej. "Base de datos de mediciones foliares (n=10 parcelas)"
-  indicador_gestion: string; // indicador de avance/cumplimiento MGA, distinto del indicador científico de Objetivos
-  tiempo_estimado: string; // ej. "Mes 1-2", "Semana 3"
+// ============================================================
+// Jerarquía real MGA (verificada contra Documento_conceptual_2023.pdf
+// del DNP, sección 3.4 "Cadena de Valor"): Objetivo → N Productos → cada
+// Producto con SU PROPIO indicador (metodología CREMA) → N Actividades
+// que lo generan (mínimo 2, según el manual: "cada bien o servicio es el
+// resultado de dos o más actividades"). El presupuesto se asigna a nivel
+// de actividad (los insumos se transforman a través de las actividades).
+// ============================================================
+
+export interface Actividad {
+  actividad: string; // verbo + acción concreta
+  indicador_gestion: string; // avance/cumplimiento de ESTA actividad (ej. "% de ejecución"), distinto del indicador de producto
+  tiempo_estimado: string;
   presupuesto: ItemPresupuesto[]; // SIEMPRE vacío al generar — lo llena el formulador
+}
+
+export interface Producto {
+  nombre_producto: string; // el bien o servicio entregado, ej. "Modelo de estimación de nitrógeno foliar validado"
+  indicador_producto: string; // indicador CREMA (Claro, Relevante, Económico, Medible, Adecuado) del DNP
+  unidad_medida: string; // ej. "Documento", "Número de parcelas", "Porcentaje"
+  meta: string; // valor objetivo de ese indicador
+  actividades: Actividad[]; // mínimo 2, según el manual DNP
 }
 
 export function valorTotalItem(item: ItemPresupuesto): number {
   return item.cantidad * item.valor_unitario;
 }
 
-export function totalPresupuestoActividad(actividad: ActividadProducto): number {
-  return actividad.presupuesto.reduce((acc, item) => acc + valorTotalItem(item), 0);
+export function totalPresupuestoActividad(actividad: Actividad): number {
+  return (actividad.presupuesto ?? []).reduce((acc, item) => acc + valorTotalItem(item), 0);
+}
+
+export function totalPresupuestoProducto(producto: Producto): number {
+  return (producto.actividades ?? []).reduce((acc, a) => acc + totalPresupuestoActividad(a), 0);
 }
 
 export function totalPresupuestoObjetivo(plan: PlanPorObjetivo): number {
-  return plan.actividades.reduce((acc, a) => acc + totalPresupuestoActividad(a), 0);
+  return (plan.productos ?? []).reduce((acc, p) => acc + totalPresupuestoProducto(p), 0);
 }
 
 export function totalPresupuestoProyecto(planPorObjetivo: PlanPorObjetivo[]): number {
   return planPorObjetivo.reduce((acc, p) => acc + totalPresupuestoObjetivo(p), 0);
 }
 
-// Resumen por rubro y por fuente — para la vista tipo "RESUMEN" del formato oficial
 export function resumenPorRubro(
   planPorObjetivo: PlanPorObjetivo[]
 ): Record<RubroPresupuesto, number> {
@@ -110,9 +121,11 @@ export function resumenPorRubro(
     resumen[rubro] = 0;
   }
   for (const plan of planPorObjetivo) {
-    for (const actividad of plan.actividades) {
-      for (const item of actividad.presupuesto) {
-        resumen[item.rubro] += valorTotalItem(item);
+    for (const producto of plan.productos ?? []) {
+      for (const actividad of producto.actividades ?? []) {
+        for (const item of actividad.presupuesto ?? []) {
+          resumen[item.rubro] += valorTotalItem(item);
+        }
       }
     }
   }
@@ -128,9 +141,11 @@ export function resumenPorFuente(
     financiador_efectivo: 0,
   } as Record<FuentePresupuesto, number>;
   for (const plan of planPorObjetivo) {
-    for (const actividad of plan.actividades) {
-      for (const item of actividad.presupuesto) {
-        resumen[item.fuente] += valorTotalItem(item);
+    for (const producto of plan.productos ?? []) {
+      for (const actividad of producto.actividades ?? []) {
+        for (const item of actividad.presupuesto ?? []) {
+          resumen[item.fuente] += valorTotalItem(item);
+        }
       }
     }
   }
@@ -138,28 +153,25 @@ export function resumenPorFuente(
 }
 
 export interface PlanPorObjetivo {
-  objetivo_especifico: string; // texto — debe coincidir con un objetivo_especifico de Objetivos
-  // NUEVO — trazabilidad estructural: el ID EXACTO del objetivo específico
-  // en Objetivos (ej. "OE-1"), declarado por el LLM a partir de la lista
-  // con id que recibe en el prompt.
+  objetivo_especifico: string;
   objetivo_id: string;
-  actividades: ActividadProducto[];
+  productos: Producto[]; // CAMBIO DE ESTRUCTURA (2026-08-11): antes "actividades" plano, ahora Objetivo→Productos→Actividades, jerarquía real MGA verificada contra manual DNP 2023.
 }
 
 export interface MetodologiaOutput {
-  enfoque_metodologico: EnfoqueMetodologico; // heredado de Objetivos, no se re-decide aquí
+  enfoque_metodologico: EnfoqueMetodologico;
 
-  diseno_metodologico: string; // ej. "Cuasi-experimental, corte longitudinal" / "Estudio de caso instrumental"
-  tipo_investigacion: string; // aplicada/descriptiva/correlacional/explicativa/exploratoria (mismo eje que en Objetivos)
+  diseno_metodologico: string;
+  tipo_investigacion: string;
 
   poblacion: string;
-  muestra: string; // tipo de muestreo + tamaño si aplica; si es cualitativo, criterio de saturación teórica
+  muestra: string;
 
   tecnicas_instrumentos: TecnicaInstrumento[];
 
-  plan_por_objetivo: PlanPorObjetivo[]; // el hilo conductor: actividades/productos por cada objetivo específico
+  plan_por_objetivo: PlanPorObjetivo[];
 
-  plan_analisis_datos: string; // pruebas estadísticas (cuantitativo) o técnica de análisis cualitativo (codificación, etc.)
+  plan_analisis_datos: string;
   consideraciones_eticas: string;
 
   estado_evidencia: EstadoEvidencia;
@@ -167,12 +179,14 @@ export interface MetodologiaOutput {
   preguntas_para_el_usuario: string[];
 }
 
-// Extiende la fila de Objetivos con las columnas de gestión — ensamblado
-// determinístico en código, igual que la matriz base de objetivos.ts.
+// Extiende la fila de Objetivos con la cadena de valor completa —
+// ensamblado determinístico en código, igual que la matriz base.
 export interface FilaMatrizConsistenciaExtendida extends FilaMatrizConsistencia {
-  actividades: string[];
-  productos: string[];
-  indicadores_gestion: string[];
+  productos: {
+    nombre_producto: string;
+    indicador_producto: string;
+    actividades: string[];
+  }[];
 }
 
 // ============================================================
@@ -191,8 +205,6 @@ export const CAMPOS_OBLIGATORIOS_METODOLOGIA: (keyof MetodologiaOutput)[] = [
 
 // ============================================================
 // Ensamblaje determinístico de la matriz extendida
-// (NO generado por el LLM — combina la matriz base de Objetivos
-// con las actividades/productos que Metodología produjo)
 // ============================================================
 
 export function ensamblarMatrizExtendida(
@@ -200,18 +212,16 @@ export function ensamblarMatrizExtendida(
   planPorObjetivo: PlanPorObjetivo[]
 ): FilaMatrizConsistenciaExtendida[] {
   return matrizBase.map((fila) => {
-    // Empareja primero por ID (determinístico, sin ambigüedad). Si algún
-    // dato viejo no trae objetivo_id (nodos generados antes de este
-    // cambio), cae al emparejamiento por texto como respaldo — no rompe
-    // proyectos ya existentes.
     const plan =
       planPorObjetivo.find((p) => p.objetivo_id && p.objetivo_id === fila.objetivo_id) ??
       planPorObjetivo.find((p) => p.objetivo_especifico === fila.objetivo_especifico);
     return {
       ...fila,
-      actividades: plan?.actividades.map((a) => a.actividad) ?? [],
-      productos: plan?.actividades.map((a) => a.producto) ?? [],
-      indicadores_gestion: plan?.actividades.map((a) => a.indicador_gestion) ?? [],
+      productos: (plan?.productos ?? []).map((p) => ({
+        nombre_producto: p.nombre_producto,
+        indicador_producto: p.indicador_producto,
+        actividades: (p.actividades ?? []).map((a) => a.actividad),
+      })),
     };
   });
 }
@@ -250,20 +260,19 @@ export function construirPromptMetodologia(params: {
 
   const arbolDecisionTRL = `ÁRBOL DE DECISIÓN METODOLÓGICO SEGÚN TIPO DE PROYECTO Y TRL (obligatorio consultar antes de elegir el diseño — fundamentación verificada, no es opcional):
 
-- Investigación BÁSICA (TRL 1-2): diseño analítico puro / modelado conceptual matemático / revisión sistemática de literatura. No hay prototipo físico ni sistema integrado — un diseño experimental carece de operatividad en este nivel.
-- Investigación APLICADA (TRL 3-4): diseño experimental puro, cuasi-experimental, o simulación experimental por computadora. Se necesita prueba de concepto o pre-prototipo para validar que la hipótesis científica es viable empíricamente, con aislamiento riguroso de variables extrañas.
-- DESARROLLO TECNOLÓGICO (TRL 5-7): Design Science Research (DSR) como metodología central — Hevner et al. (2004) y Peffers et al. (2007). El foco se desplaza del principio aislado de laboratorio a la interacción del prototipo integrado con su contexto relevante de destino. Complementa con enfoque de ingeniería (Modelo en V) o experimentos de caso único en contexto real.
-  - Fases de Peffers et al. (2007) a seguir en plan_por_objetivo: (1) identificación del problema y motivación, (2) definición de objetivos de la solución, (3) diseño y desarrollo del artefacto, (4) demostración, (5) evaluación, (6) comunicación.
-  - Los tres ciclos de Hevner (2007) deben quedar reflejados: Ciclo de Relevancia (requisitos y criterios de aceptación desde el entorno real), Ciclo de Rigor (teorías de base y métodos ya existentes que sustentan el diseño), Ciclo de Diseño (construcción y evaluación iterativa del artefacto).
-  - Diferencia clave frente al diseño experimental clásico: DSR evalúa utilidad y efectividad práctica del artefacto en su entorno relevante, no busca aislar variables para inferencia causal pura.
-- INNOVACIÓN Y TRANSFERENCIA (TRL 8-9): diseño no experimental correlacional (modelos de adopción tipo TAM/UTAUT), no experimental longitudinal de panel, o investigación-acción participativa para la gobernanza de la transferencia. El foco ya no es la optimización técnica del artefacto sino su adopción, sostenibilidad y efectos socioeconómicos a escala real.
+- Investigación BÁSICA (TRL 1-2): diseño analítico puro / modelado conceptual matemático / revisión sistemática de literatura.
+- Investigación APLICADA (TRL 3-4): diseño experimental puro, cuasi-experimental, o simulación experimental por computadora.
+- DESARROLLO TECNOLÓGICO (TRL 5-7): Design Science Research (DSR) — Hevner et al. (2004) y Peffers et al. (2007). Fases: (1) identificación del problema, (2) definición de objetivos de la solución, (3) diseño y desarrollo, (4) demostración, (5) evaluación, (6) comunicación. Tres ciclos de Hevner (2007): Relevancia, Rigor, Diseño.
+- INNOVACIÓN Y TRANSFERENCIA (TRL 8-9): no experimental correlacional (TAM/UTAUT), longitudinal de panel, o investigación-acción participativa.
 
-Si el proyecto es de tipo "aplicada" pero declaró subtipo DTI con TRL objetivo en Objetivos/NOVA, prioriza la rama de TRL sobre la rama genérica de "aplicada" — el TRL manda cuando ambos criterios están disponibles.`;
+Si el proyecto declaró subtipo DTI con TRL objetivo, prioriza la rama de TRL sobre la rama genérica del tipo de proyecto.`;
 
-  return `Eres el agente Metodología de FARO. Tu tarea es diseñar cómo se ejecutarán los objetivos específicos ya definidos, manteniendo el mismo hilo conductor que viene desde el árbol de causas de NOVA: cada objetivo específico invierte una causa, y ahora cada objetivo específico necesita su propio plan de actividades, productos e indicadores de gestión.
+  return `Eres el agente Metodología de FARO. Tu tarea es diseñar cómo se ejecutarán los objetivos específicos ya definidos, siguiendo la CADENA DE VALOR real de la Metodología General Ajustada (MGA) del DNP, verificada contra el Manual Conceptual vigente (Documento_conceptual_2023.pdf).
 
-REGLA ARQUITECTÓNICA NO NEGOCIABLE — trazabilidad completa del hilo:
-plan_por_objetivo debe tener exactamente una entrada por cada objetivo específico ya definido (ni más, ni menos). Cada entrada debe declarar DOS cosas sobre el objetivo que ejecuta: objetivo_especifico (el texto, para que un humano lo lea) Y objetivo_id (el identificador EXACTO que aparece al inicio de la línea correspondiente abajo, ej. "OE-1" — cópialo tal cual, no lo inventes). No agregues actividades sueltas que no respondan a ningún objetivo específico. De la misma forma, cada técnica/instrumento debe declarar variable_o_categoria_asociada (texto) Y variable_id (el ID exacto de la lista de variables/categorías de abajo, ej. "VAR-1" o "CAT-1"; null solo si la técnica no mide ninguna variable puntual).
+REGLA ARQUITECTÓNICA NO NEGOCIABLE — jerarquía real MGA (Objetivo → Productos → Actividades, NO Objetivo → Actividades directamente):
+Cada objetivo específico entrega uno o más PRODUCTOS (bienes o servicios tangibles, nunca confundir con actividades ni con la población beneficiaria). Cada producto se obtiene mediante DOS O MÁS ACTIVIDADES — nunca declares un producto con una sola actividad, y nunca declares una actividad que no pertenezca a ningún producto. Cada producto tiene su PROPIO indicador (indicador_producto, no confundir con el indicador de gestión de cada actividad, que mide avance de ejecución, no el resultado entregado).
+
+plan_por_objetivo debe tener exactamente una entrada por cada objetivo específico ya definido. Cada entrada declara objetivo_especifico (texto) Y objetivo_id (el ID EXACTO de la lista de abajo, ej. "OE-1" — cópialo tal cual).
 
 ${arbolDecisionTRL}
 
@@ -273,19 +282,21 @@ CONTEXTO DEL PROYECTO:
 
 PROBLEMA CENTRAL (RUTA): "${rutaOutput.problema}"
 
-OBJETIVOS ESPECÍFICOS (Objetivos — cada uno necesita su plan de actividades; usa el ID exacto al inicio de cada línea para objetivo_id):
+OBJETIVOS ESPECÍFICOS (usa el ID exacto para objetivo_id):
 ${objetivosTexto}
 
-${enfoque === "cualitativo" ? "CATEGORÍAS DE ANÁLISIS" : "VARIABLES"} (Objetivos — tus técnicas/instrumentos deben poder capturarlas; usa el ID exacto al inicio de cada línea para variable_id):
+${enfoque === "cualitativo" ? "CATEGORÍAS DE ANÁLISIS" : "VARIABLES"} (usa el ID exacto para variable_id):
 ${variablesOCategorias}
 
 ${bloqueEnfoque}
 
-ACTIVIDADES Y PRODUCTOS (por cada objetivo específico): cada actividad debe ser una acción concreta y verificable (no una descripción vaga), cada producto un entregable tangible que demuestre que la actividad se completó, y cada indicador de gestión una métrica de avance/cumplimiento (distinta del indicador científico ya definido en Objetivos — este mide ejecución del proyecto, no el fenómeno de investigación). Ejemplo de la diferencia: indicador científico = "concentración de nitrógeno foliar (%)"; indicador de gestión = "número de parcelas piloto instrumentadas / total de parcelas planificadas".
+INDICADOR DE PRODUCTO — metodología CREMA (Claro, Relevante, Económico, Medible, Adecuado, guía oficial DNP): cada indicador_producto debe cumplir estos cinco criterios. Ejemplo bueno: "Número de modelos de estimación de nitrógeno foliar validados con precisión ≥85%". Ejemplo malo (evita): "Modelo funcionando bien".
 
-PRESUPUESTO — SIEMPRE array vacío []: no propongas valores de presupuesto, cantidades de personal, precios de equipos ni rubros de costo bajo ninguna circunstancia, aunque el contexto del proyecto sugiera cifras plausibles. El presupuesto lo completa el formulador manualmente en la plataforma, con datos reales de cotizaciones y costos institucionales — un valor inventado por el modelo, aunque parezca razonable, es exactamente el tipo de precisión falsa que este framework prohíbe explícitamente (mismo principio que rige tamaños de muestra e indicadores científicos).
+INDICADOR DE GESTIÓN (a nivel de actividad, distinto del de producto): mide avance/cumplimiento de ESA actividad puntual, ej. "Número de parcelas piloto instrumentadas / total de parcelas planificadas".
 
-REGLA CRÍTICA — misma honestidad epistémica que los nodos anteriores: no inventes tamaños de muestra con precisión falsa si no hay datos previos para calcularlos — la fórmula de población infinita (n₀=Z²pq/e²) y finita (corrección FPC) solo son válidas si tienes los parámetros reales (Z, p, N); si falta alguno, declara el criterio de cálculo pendiente en preguntas_para_el_usuario en vez de inventar un valor. Para enfoque cualitativo, usa criterio de saturación teórica (documentado, no un número fijo), no fuerces un tamaño de muestra cuantitativo. Al proponer técnicas_instrumentos, si sugieres un instrumento de escala (tipo Likert), menciona que su confiabilidad deberá verificarse con Alfa de Cronbach o, si hay cargas factoriales desiguales esperadas, Omega de McDonald — no asumas que cualquier instrumento nuevo ya es confiable sin esa verificación. No inventes pruebas estadísticas que no correspondan al nivel de medición real de cada variable.
+PRESUPUESTO — SIEMPRE array vacío [] en cada actividad: no propongas valores de presupuesto bajo ninguna circunstancia. El formulador lo completa manualmente con datos reales — un valor inventado es precisión falsa, prohibida en este framework.
+
+REGLA CRÍTICA — misma honestidad epistémica que los nodos anteriores: no inventes tamaños de muestra con precisión falsa sin datos reales (fórmula de población infinita/finita solo si tienes Z, p, N reales; si falta alguno, declara el criterio pendiente en preguntas_para_el_usuario). Para enfoque cualitativo, usa saturación teórica documentada, no un número fijo. Si sugieres un instrumento tipo Likert, menciona verificación de confiabilidad (Alfa de Cronbach u Omega de McDonald). No inventes pruebas estadísticas incoherentes con el nivel de medición real de cada variable.
 ${feedbackIteracionAnterior ? `\nRETROALIMENTACIÓN DE LA ITERACIÓN ANTERIOR (corrige esto):\n${feedbackIteracionAnterior}` : ""}
 
 Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, con esta forma exacta:
@@ -296,7 +307,17 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, con esta f
   "poblacion": "string",
   "muestra": "string",
   "tecnicas_instrumentos": [{"tecnica": "string", "instrumento": "string", "variable_o_categoria_asociada": "string", "variable_id": "string"|null}],
-  "plan_por_objetivo": [{"objetivo_especifico": "string", "objetivo_id": "string", "actividades": [{"actividad": "string", "producto": "string", "indicador_gestion": "string", "tiempo_estimado": "string", "presupuesto": []}]}],
+  "plan_por_objetivo": [{
+    "objetivo_especifico": "string",
+    "objetivo_id": "string",
+    "productos": [{
+      "nombre_producto": "string",
+      "indicador_producto": "string",
+      "unidad_medida": "string",
+      "meta": "string",
+      "actividades": [{"actividad": "string", "indicador_gestion": "string", "tiempo_estimado": "string", "presupuesto": []}]
+    }]
+  }],
   "plan_analisis_datos": "string",
   "consideraciones_eticas": "string",
   "estado_evidencia": "sin_verificar" | "confirmado_por_rsl" | "contradicho_por_rsl",
