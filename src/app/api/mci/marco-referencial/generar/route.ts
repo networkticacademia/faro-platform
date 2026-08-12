@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { project_id, feedback } = body;
+  const { project_id, feedback, fuentes_externas_verificadas } = body;
   if (!project_id) {
     return NextResponse.json({ error: "Falta project_id." }, { status: 400 });
   }
@@ -107,6 +107,7 @@ export async function POST(request: Request) {
     rutaOutput,
     novaOutput,
     objetivosOutput,
+    fuentesExternasVerificadas: fuentes_externas_verificadas,
     feedbackIteracionAnterior: feedback,
   });
 

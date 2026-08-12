@@ -39,6 +39,7 @@ export default function FormulacionMarcoReferencial({
   const [nodos, setNodos] = useState<NodoGrafo[]>(nodosIniciales);
   const [panelPromptsAbierto, setPanelPromptsAbierto] = useState(false);
   const [copiado, setCopiado] = useState<string | null>(null);
+  const [fuentesExternas, setFuentesExternas] = useState("");
 
   const prompts = generarPromptsFundamentacionTeorica(problemaProyecto);
 
@@ -64,7 +65,11 @@ export default function FormulacionMarcoReferencial({
     try {
       const res = await fetch("/api/mci/marco-referencial/generar", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project_id: project.id, feedback: conFeedback }),
+        body: JSON.stringify({
+          project_id: project.id,
+          feedback: conFeedback,
+          fuentes_externas_verificadas: fuentesExternas || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error generando la propuesta.");
@@ -167,6 +172,24 @@ export default function FormulacionMarcoReferencial({
                 <pre className="text-[11px] text-gray-600 whitespace-pre-wrap font-sans">{p.texto}</pre>
               </div>
             ))}
+
+            <div className="border-t pt-3">
+              <p className="text-xs font-semibold text-faro-navy mb-1">
+                Pegue aquí los resultados de NotebookLM/Perplexity (fichas de fuentes verificadas)
+              </p>
+              <p className="text-[11px] text-gray-500 mb-2">
+                El agente citará PRIORITARIAMENTE de aquí al generar Marco Referencial, en vez de
+                usar solo su propio conocimiento. Puede dejarlo vacío y generar igual — pero sin
+                esto, las citas dependen únicamente de la honestidad epistémica del modelo.
+              </p>
+              <textarea
+                className="w-full border rounded-md p-2 text-gray-900 bg-white text-sm"
+                rows={8}
+                value={fuentesExternas}
+                onChange={(e) => setFuentesExternas(e.target.value)}
+                placeholder="Pegue aquí el texto completo devuelto por NotebookLM o Perplexity..."
+              />
+            </div>
           </div>
         )}
       </div>
@@ -189,37 +212,31 @@ export default function FormulacionMarcoReferencial({
       {nodoActual && c && !editando && (
         <div className="space-y-4">
           <div className="bg-white rounded-lg border p-5 space-y-4">
-            {c.marco_teorico && (
-              <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wide">📚 Marco Teórico</p>
-                {c.marco_teorico.postura_teorica && (
-                  <p className="text-sm font-medium mt-1">Postura teórica: {c.marco_teorico.postura_teorica}</p>
-                )}
-                {Array.isArray(c.marco_teorico.teorias_sustantivas) && c.marco_teorico.teorias_sustantivas.length > 0 && (
-                  <p className="text-[11px] text-gray-400">Teorías: {c.marco_teorico.teorias_sustantivas.join(", ")}</p>
-                )}
-                <p className="text-sm text-gray-700 mt-1">{c.marco_teorico.texto}</p>
-                {Array.isArray(c.marco_teorico.referencias) && c.marco_teorico.referencias.length > 0 && (
-                  <ul className="mt-2 space-y-1">
-                    {c.marco_teorico.referencias.map((r, i) => (
-                      <li key={i} className="text-[11px] text-gray-500 border-l-2 border-gray-200 pl-2">
-                        {r.autor} ({r.año}). <em>{r.titulo}</em>. {r.fuente}.
-                        {r.doi_o_isbn ? ` DOI/ISBN: ${r.doi_o_isbn}.` : ""}
-                        {r.nivel_confianza !== "alta" && (
-                          <span className="text-amber-600"> [confianza {r.nivel_confianza} — verificar antes de citar]</span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">📚 Marco Teórico</p>
+              <p className="text-sm font-medium mt-1">Postura teórica: {c.marco_teorico.postura_teorica}</p>
+              <p className="text-[11px] text-gray-400">Teorías: {c.marco_teorico.teorias_sustantivas.join(", ")}</p>
+              <p className="text-sm text-gray-700 mt-1">{c.marco_teorico.texto}</p>
+              {c.marco_teorico.referencias.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {c.marco_teorico.referencias.map((r, i) => (
+                    <li key={i} className="text-[11px] text-gray-500 border-l-2 border-gray-200 pl-2">
+                      {r.autor} ({r.año}). <em>{r.titulo}</em>. {r.fuente}.
+                      {r.doi_o_isbn ? ` DOI/ISBN: ${r.doi_o_isbn}.` : ""}
+                      {r.nivel_confianza !== "alta" && (
+                        <span className="text-amber-600"> [confianza {r.nivel_confianza} — verificar antes de citar]</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
 
-            {c.marco_conceptual?.incluido && (
+            {c.marco_conceptual.incluido && (
               <div className="border-t pt-3">
                 <p className="text-xs text-gray-500 uppercase tracking-wide">🔤 Marco Conceptual</p>
                 <p className="text-sm text-gray-700 mt-1">{c.marco_conceptual.texto}</p>
-                {Array.isArray(c.marco_conceptual.definiciones) && c.marco_conceptual.definiciones.length > 0 && (
+                {c.marco_conceptual.definiciones.length > 0 && (
                   <ul className="mt-2 space-y-1">
                     {c.marco_conceptual.definiciones.map((d, i) => (
                       <li key={i} className="text-xs border-l-2 border-sky-300 pl-2">
@@ -232,7 +249,7 @@ export default function FormulacionMarcoReferencial({
               </div>
             )}
 
-            {c.marco_contextual?.incluido && (
+            {c.marco_contextual.incluido && (
               <div className="border-t pt-3">
                 <p className="text-xs text-gray-500 uppercase tracking-wide">🌍 Marco Contextual</p>
                 <p className="text-sm text-gray-700 mt-1">{c.marco_contextual.texto}</p>
@@ -244,11 +261,11 @@ export default function FormulacionMarcoReferencial({
               </div>
             )}
 
-            {c.marco_legal?.incluido && (
+            {c.marco_legal.incluido && (
               <div className="border-t pt-3">
                 <p className="text-xs text-gray-500 uppercase tracking-wide">⚖️ Marco Legal</p>
                 <p className="text-sm text-gray-700 mt-1">{c.marco_legal.texto}</p>
-                {Array.isArray(c.marco_legal.normas) && c.marco_legal.normas.length > 0 && (
+                {c.marco_legal.normas.length > 0 && (
                   <ul className="mt-2 space-y-1">
                     {c.marco_legal.normas.map((n, i) => (
                       <li key={i} className="text-xs border-l-2 border-amber-300 pl-2">
@@ -260,7 +277,7 @@ export default function FormulacionMarcoReferencial({
               </div>
             )}
 
-            {c.marco_historico?.incluido && (
+            {c.marco_historico.incluido && (
               <div className="border-t pt-3">
                 <p className="text-xs text-gray-500 uppercase tracking-wide">🕰️ Marco Histórico</p>
                 <p className="text-sm text-gray-700 mt-1">{c.marco_historico.texto}</p>

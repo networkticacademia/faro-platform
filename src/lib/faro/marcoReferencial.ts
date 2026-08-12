@@ -92,8 +92,8 @@ export const CAMPOS_OBLIGATORIOS_MARCO_REFERENCIAL: (keyof MarcoReferencialOutpu
 
 export function todasLasReferencias(output: MarcoReferencialOutput): Referencia[] {
   return [
-    ...(output?.marco_teorico?.referencias ?? []),
-    ...(output?.marco_conceptual?.referencias ?? []),
+    ...output.marco_teorico.referencias,
+    ...output.marco_conceptual.referencias,
   ];
 }
 
@@ -208,9 +208,10 @@ export function construirPromptMarcoReferencial(params: {
   rutaOutput: RutaOutput;
   novaOutput: NovaOutput;
   objetivosOutput: ObjetivosOutput;
+  fuentesExternasVerificadas?: string;
   feedbackIteracionAnterior?: string;
 }): string {
-  const { nu, tau, subtipoDti, rutaOutput, novaOutput, objetivosOutput, feedbackIteracionAnterior } = params;
+  const { nu, tau, subtipoDti, rutaOutput, novaOutput, objetivosOutput, fuentesExternasVerificadas, feedbackIteracionAnterior } = params;
 
   const aplicables = marcosAplicablesParaProyecto(tau, subtipoDti);
 
@@ -251,7 +252,7 @@ INSTRUCCIONES POR MARCO (cuando aplique):
 MARCO CONCEPTUAL — operacionalización en 4 etapas (Lazarsfeld, verificado): representación literaria/conceptual → especificación de dimensiones → selección de indicadores → construcción de ítems. Cada definicion debe corresponder a un término técnico específico del proyecto (no vocabulario general), y vincularse a variable_o_categoria_id cuando el término ya está operacionalizado en Objetivos.
 
 REGLA OBLIGATORIA — PATRÓN ASEVERACIÓN→CITA, SIN EXCEPCIÓN (esto es innegociable, no un estilo opcional): cada afirmación teórica o conceptual en marco_teorico.texto y marco_conceptual.texto debe ir acompañada de su cita (autor, año) inmediatamente después, igual que un texto académico real — nunca escribas una afirmación teórica sin atribución. Por cada autor/teoría que menciones en el texto, debes agregar la ficha completa correspondiente en el array "referencias" de ese marco.
-
+${fuentesExternasVerificadas ? `\nFUENTES YA VERIFICADAS POR EL FORMULADOR (autor/año/DOI confirmados manualmente contra fuentes reales — CITA DE AQUÍ CON PRIORIDAD ABSOLUTA antes de recurrir a tu propio conocimiento; si una fuente de esta lista aplica al problema, úsala en vez de citar otra que solo recuerdes de tu entrenamiento):\n"""\n${fuentesExternasVerificadas}\n"""\n` : ""}
 HONESTIDAD EPISTÉMICA ESTRICTA SOBRE CITAS — esto es tan importante como la regla anterior: NUNCA inventes un DOI, ISBN, año exacto o título de obra que no conozcas con certeza real. Si vas a citar un autor/teoría de la que tienes conocimiento general pero no recuerdas con precisión el año exacto, el título exacto de la obra, o el DOI/ISBN, declara nivel_confianza="baja" y deja doi_o_isbn=null — NO complete esos campos con un valor inventado que parezca plausible. Es preferible una cita con nivel_confianza baja y datos incompletos honestos, que una cita completa pero fabricada — el formulador va a verificar cada referencia contra fuentes reales antes de publicar, y una cita inventada detectada destruye la confianza en todo el documento.
 
 MARCO CONTEXTUAL — 3 dimensiones obligatorias si incluido=true: geográfica-territorial, institucional-organizacional, sectorial. REGLA CRÍTICA para no duplicar con RUTA: el alcance de RUTA es el "recorte" (qué queda dentro/fuera del proyecto en espacio/tiempo/población); el Marco Contextual es la descripción cualitativa DENTRO de esas fronteras ya delimitadas — no repitas la delimitación, descríbela.
