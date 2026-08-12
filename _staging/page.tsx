@@ -30,10 +30,25 @@ export default async function MarcoReferencialPage({
     .eq("tipo", "MARCO_REFERENCIAL")
     .order("iteracion", { ascending: false });
 
+  // Trae el problema real de RUTA para armar los prompts de fundamentación
+  // teórica ya rellenados — no genéricos.
+  const { data: nodoRuta } = await supabase
+    .from("grafo_nodos")
+    .select("contenido")
+    .eq("project_id", projectId)
+    .eq("tipo", "RUTA")
+    .eq("confirmado_humano", true)
+    .order("iteracion", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const problemaProyecto = (nodoRuta?.contenido as { problema?: string } | null)?.problema ?? "";
+
   return (
     <FormulacionMarcoReferencial
       project={project}
       nodosIniciales={nodos ?? []}
+      problemaProyecto={problemaProyecto}
     />
   );
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import NavegacionNodos from "@/components/faro/NavegacionNodos";
 import type { MarcoReferencialOutput } from "@/lib/faro/marcoReferencial";
+import { generarPromptsFundamentacionTeorica } from "@/lib/faro/marcoReferencial";
 import type { TipoProyecto } from "@/lib/faro/types";
 import type { SubtipoDti } from "@/lib/faro/tipologiaProyecto";
 
@@ -33,9 +34,19 @@ interface ProjectRow {
 }
 
 export default function FormulacionMarcoReferencial({
-  project, nodosIniciales,
-}: { project: ProjectRow; nodosIniciales: NodoGrafo[] }) {
+  project, nodosIniciales, problemaProyecto,
+}: { project: ProjectRow; nodosIniciales: NodoGrafo[]; problemaProyecto: string }) {
   const [nodos, setNodos] = useState<NodoGrafo[]>(nodosIniciales);
+  const [panelPromptsAbierto, setPanelPromptsAbierto] = useState(false);
+  const [copiado, setCopiado] = useState<string | null>(null);
+
+  const prompts = generarPromptsFundamentacionTeorica(problemaProyecto);
+
+  function copiar(texto: string, etiqueta: string) {
+    navigator.clipboard.writeText(texto);
+    setCopiado(etiqueta);
+    setTimeout(() => setCopiado(null), 2000);
+  }
   const [metrica, setMetrica] = useState<Metrica | null>(null);
   const [generando, setGenerando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -118,6 +129,48 @@ export default function FormulacionMarcoReferencial({
         </p>
       </div>
 
+      <div className="rounded-xl border border-gray-200 bg-white">
+        <button type="button" onClick={() => setPanelPromptsAbierto((v) => !v)}
+          className="w-full flex items-center gap-2 px-4 py-3 text-left">
+          <span className="text-gray-400 text-xs">{panelPromptsAbierto ? "▾" : "▸"}</span>
+          <span className="text-sm font-medium text-faro-navy">
+            Prompts de fundamentación teórica (NotebookLM / Perplexity)
+          </span>
+        </button>
+        {panelPromptsAbierto && (
+          <div className="px-4 pb-4 space-y-4">
+            {!problemaProyecto && (
+              <p className="text-xs text-amber-600">
+                No se encontró el problema de RUTA confirmado — estos prompts quedarán con el
+                campo del problema vacío hasta que confirme RUTA.
+              </p>
+            )}
+            <p className="text-xs text-gray-600">
+              Antes de generar Marco Referencial, use estos prompts para conseguir fundamentación
+              teórica verificable — cada herramienta se usa en dos pasos, sin mezclarlas.
+            </p>
+
+            {([
+              { label: "NotebookLM — Paso 1: Búsqueda", texto: prompts.notebooklmBusqueda },
+              { label: "NotebookLM — Paso 2: Extracción", texto: prompts.notebooklmExtraccion },
+              { label: "Perplexity — Paso 1: Descubrimiento de fuentes", texto: prompts.perplexityBusqueda },
+              { label: "Perplexity — Paso 2: Extracción con citas (mismo hilo)", texto: prompts.perplexityExtraccion },
+            ] as const).map((p) => (
+              <div key={p.label} className="border rounded-lg p-3 bg-gray-50">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-semibold text-faro-navy">{p.label}</span>
+                  <button onClick={() => copiar(p.texto, p.label)}
+                    className="text-[11px] border border-faro-navy text-faro-navy rounded px-2 py-0.5 whitespace-nowrap">
+                    {copiado === p.label ? "✓ Copiado" : "Copiar"}
+                  </button>
+                </div>
+                <pre className="text-[11px] text-gray-600 whitespace-pre-wrap font-sans">{p.texto}</pre>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {error && <div className="bg-red-50 text-red-700 text-sm p-3 rounded-md">{error}</div>}
 
       {!nodoActual && (
@@ -141,6 +194,19 @@ export default function FormulacionMarcoReferencial({
               <p className="text-sm font-medium mt-1">Postura teórica: {c.marco_teorico.postura_teorica}</p>
               <p className="text-[11px] text-gray-400">Teorías: {c.marco_teorico.teorias_sustantivas.join(", ")}</p>
               <p className="text-sm text-gray-700 mt-1">{c.marco_teorico.texto}</p>
+              {c.marco_teorico.referencias.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {c.marco_teorico.referencias.map((r, i) => (
+                    <li key={i} className="text-[11px] text-gray-500 border-l-2 border-gray-200 pl-2">
+                      {r.autor} ({r.año}). <em>{r.titulo}</em>. {r.fuente}.
+                      {r.doi_o_isbn ? ` DOI/ISBN: ${r.doi_o_isbn}.` : ""}
+                      {r.nivel_confianza !== "alta" && (
+                        <span className="text-amber-600"> [confianza {r.nivel_confianza} — verificar antes de citar]</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             {c.marco_conceptual.incluido && (
