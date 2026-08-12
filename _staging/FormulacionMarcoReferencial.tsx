@@ -154,6 +154,13 @@ export default function FormulacionMarcoReferencial({
               Antes de generar Marco Referencial, use estos prompts para conseguir fundamentación
               teórica verificable — cada herramienta se usa en dos pasos, sin mezclarlas.
             </p>
+            <p className="text-xs bg-sky-50 border border-sky-200 rounded p-2 text-sky-800">
+              <strong>Orden recomendado:</strong> genere primero la propuesta sin pegar nada aquí
+              — el agente citará solo del corpus ya verificado por RSL para este proyecto, y le
+              dirá con honestidad qué quedó sin respaldo. Revise esa lista, y solo entonces use
+              estos prompts enfocados en llenar exactamente esos huecos — ahorra tiempo y es
+              doble verificación real, no repetir la misma búsqueda dos veces.
+            </p>
 
             {([
               { label: "NotebookLM — Paso 1: Búsqueda", texto: prompts.notebooklmBusqueda },
@@ -201,6 +208,12 @@ export default function FormulacionMarcoReferencial({
           <p className="text-gray-600">
             Todavía no hay una propuesta de Marco Referencial — se construye a partir de RUTA,
             NOVA y Objetivos ya confirmados.
+          </p>
+          <p className="text-xs text-gray-400 max-w-md mx-auto">
+            El agente cita en este orden: 1º el corpus ya verificado por RSL para este proyecto,
+            2º las fuentes que usted pegue arriba, 3º su propio conocimiento — solo como último
+            recurso, con honestidad epistémica obligatoria. Si no hay corpus de RSL ni fuentes
+            pegadas, el documento se marcará explícitamente como pendiente de verificación manual.
           </p>
           <button onClick={() => generar()} disabled={generando}
             className="bg-faro-navy text-white rounded-md px-6 py-3 font-medium disabled:opacity-40">
@@ -281,6 +294,29 @@ export default function FormulacionMarcoReferencial({
               <div className="border-t pt-3">
                 <p className="text-xs text-gray-500 uppercase tracking-wide">🕰️ Marco Histórico</p>
                 <p className="text-sm text-gray-700 mt-1">{c.marco_historico.texto}</p>
+              </div>
+            )}
+
+            {(c.sugerencias_figuras ?? []).length > 0 && (
+              <div className="border-t pt-3">
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">🖼️ Sugerencias de figuras (opcional)</p>
+                <div className="space-y-2">
+                  {c.sugerencias_figuras.map((s, i) => (
+                    <div key={i} className="border border-purple-200 bg-purple-50/50 rounded-lg p-2.5">
+                      <p className="text-xs font-medium text-purple-900">{s.descripcion}</p>
+                      <p className="text-[11px] text-gray-500 mt-0.5">{s.justificacion}</p>
+                      <div className="flex items-center justify-between mt-1.5 gap-2">
+                        <span className="text-[10px] text-gray-400 truncate">Prompt de imagen listo para copiar →</span>
+                        <button
+                          onClick={() => { navigator.clipboard.writeText(s.prompt_imagen); setCopiado(`figura-${i}`); setTimeout(() => setCopiado(null), 2000); }}
+                          className="text-[10px] border border-purple-400 text-purple-700 rounded px-2 py-0.5 whitespace-nowrap"
+                        >
+                          {copiado === `figura-${i}` ? "✓ Copiado" : "Copiar prompt"}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

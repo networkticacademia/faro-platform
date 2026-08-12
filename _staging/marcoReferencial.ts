@@ -74,12 +74,21 @@ export interface MarcoHistorico {
   texto: string;
 }
 
+export interface SugerenciaFigura {
+  marco_asociado: TipoMarco;
+  descripcion: string; // qué mostraría la figura, en una línea
+  justificacion: string; // por qué ayuda más que el texto solo
+  prompt_imagen: string; // prompt listo para pegar en un generador de imágenes externo
+}
+
 export interface MarcoReferencialOutput {
   marco_teorico: MarcoTeorico;
   marco_conceptual: MarcoConceptual;
   marco_contextual: MarcoContextual;
   marco_legal: MarcoLegal;
   marco_historico: MarcoHistorico;
+
+  sugerencias_figuras: SugerenciaFigura[]; // 0 a 3 sugerencias, nunca obligatorias
 
   estado_evidencia: EstadoEvidencia;
   nivel_confianza_agente: NivelConfianza;
@@ -208,10 +217,11 @@ export function construirPromptMarcoReferencial(params: {
   rutaOutput: RutaOutput;
   novaOutput: NovaOutput;
   objetivosOutput: ObjetivosOutput;
+  corpusRSL?: string;
   fuentesExternasVerificadas?: string;
   feedbackIteracionAnterior?: string;
 }): string {
-  const { nu, tau, subtipoDti, rutaOutput, novaOutput, objetivosOutput, fuentesExternasVerificadas, feedbackIteracionAnterior } = params;
+  const { nu, tau, subtipoDti, rutaOutput, novaOutput, objetivosOutput, corpusRSL, fuentesExternasVerificadas, feedbackIteracionAnterior } = params;
 
   const aplicables = marcosAplicablesParaProyecto(tau, subtipoDti);
 
@@ -252,14 +262,22 @@ INSTRUCCIONES POR MARCO (cuando aplique):
 MARCO CONCEPTUAL — operacionalización en 4 etapas (Lazarsfeld, verificado): representación literaria/conceptual → especificación de dimensiones → selección de indicadores → construcción de ítems. Cada definicion debe corresponder a un término técnico específico del proyecto (no vocabulario general), y vincularse a variable_o_categoria_id cuando el término ya está operacionalizado en Objetivos.
 
 REGLA OBLIGATORIA — PATRÓN ASEVERACIÓN→CITA, SIN EXCEPCIÓN (esto es innegociable, no un estilo opcional): cada afirmación teórica o conceptual en marco_teorico.texto y marco_conceptual.texto debe ir acompañada de su cita (autor, año) inmediatamente después, igual que un texto académico real — nunca escribas una afirmación teórica sin atribución. Por cada autor/teoría que menciones en el texto, debes agregar la ficha completa correspondiente en el array "referencias" de ese marco.
-${fuentesExternasVerificadas ? `\nFUENTES YA VERIFICADAS POR EL FORMULADOR (autor/año/DOI confirmados manualmente contra fuentes reales — CITA DE AQUÍ CON PRIORIDAD ABSOLUTA antes de recurrir a tu propio conocimiento; si una fuente de esta lista aplica al problema, úsala en vez de citar otra que solo recuerdes de tu entrenamiento):\n"""\n${fuentesExternasVerificadas}\n"""\n` : ""}
-HONESTIDAD EPISTÉMICA ESTRICTA SOBRE CITAS — esto es tan importante como la regla anterior: NUNCA inventes un DOI, ISBN, año exacto o título de obra que no conozcas con certeza real. Si vas a citar un autor/teoría de la que tienes conocimiento general pero no recuerdas con precisión el año exacto, el título exacto de la obra, o el DOI/ISBN, declara nivel_confianza="baja" y deja doi_o_isbn=null — NO complete esos campos con un valor inventado que parezca plausible. Es preferible una cita con nivel_confianza baja y datos incompletos honestos, que una cita completa pero fabricada — el formulador va a verificar cada referencia contra fuentes reales antes de publicar, y una cita inventada detectada destruye la confianza en todo el documento.
+
+ORDEN DE PRIORIDAD DE FUENTES PARA CITAR — ESTRICTO, EN ESTE ORDEN, NO NEGOCIABLE:
+1º — Corpus ya verificado por RSL contra Crossref/OpenAlex/Semantic Scholar para ESTE proyecto (máxima prioridad, si algo de aquí aplica, úsalo primero, sin excepción).
+2º — Fuentes aportadas manualmente por el formulador (NotebookLM/Perplexity, ya verificadas por él).
+3º — Tu propio conocimiento de entrenamiento — SOLO como último recurso, cuando ninguna de las dos fuentes anteriores cubre la teoría necesaria, y ÚNICAMENTE con la honestidad epistémica estricta descrita abajo.
+${corpusRSL ? `\nCORPUS VERIFICADO POR RSL PARA ESTE PROYECTO (prioridad 1 — fuentes ya confirmadas contra Crossref/OpenAlex/Semantic Scholar, cita de aquí antes que de cualquier otro lugar):\n"""\n${corpusRSL}\n"""\n` : ""}${fuentesExternasVerificadas ? `\nFUENTES APORTADAS MANUALMENTE POR EL FORMULADOR (prioridad 2 — autor/año/DOI confirmados manualmente contra fuentes reales):\n"""\n${fuentesExternasVerificadas}\n"""\n` : ""}
+HONESTIDAD EPISTÉMICA ESTRICTA SOBRE CITAS DE PRIORIDAD 3 (tu propio conocimiento) — esto es tan importante como la regla anterior: NUNCA inventes un DOI, ISBN, año exacto o título de obra que no conozcas con certeza real. Si vas a citar un autor/teoría de la que tienes conocimiento general pero no recuerdas con precisión el año exacto, el título exacto de la obra, o el DOI/ISBN, declara nivel_confianza="baja" y deja doi_o_isbn=null — NO complete esos campos con un valor inventado que parezca plausible. Es preferible una cita con nivel_confianza baja y datos incompletos honestos, que una cita completa pero fabricada — el formulador va a verificar cada referencia contra fuentes reales antes de publicar, y una cita inventada detectada destruye la confianza en todo el documento. Si citas de prioridad 1 o 2 (corpus ya verificado), declara nivel_confianza="alta" porque ya pasó verificación real.
+${!corpusRSL && !fuentesExternasVerificadas ? `\nADVERTENCIA CRÍTICA — NO HAY NINGUNA FUENTE VERIFICADA DISPONIBLE para este proyecto (ni corpus de RSL, ni fuentes aportadas por el formulador). Vas a citar ÚNICAMENTE desde tu propio conocimiento, que NO ha pasado ninguna verificación externa. Por esta razón: (1) declara nivel_confianza_agente="baja" para todo el documento, sin excepción; (2) marca nivel_confianza="baja" en TODAS las referencias que generes, sin excepción; (3) agrega una pregunta_para_el_usuario indicando explícitamente que este Marco Referencial se generó sin fuentes verificadas externamente y requiere verificación manual completa antes de usarse en una convocatoria o propuesta formal.\n` : ""}
 
 MARCO CONTEXTUAL — 3 dimensiones obligatorias si incluido=true: geográfica-territorial, institucional-organizacional, sectorial. REGLA CRÍTICA para no duplicar con RUTA: el alcance de RUTA es el "recorte" (qué queda dentro/fuera del proyecto en espacio/tiempo/población); el Marco Contextual es la descripción cualitativa DENTRO de esas fronteras ya delimitadas — no repitas la delimitación, descríbela.
 
 MARCO LEGAL — diferencia entre Marco Legal (leyes/decretos con fuerza coactiva estatal) y Marco Normativo (estándares técnicos ISO/OMS/sectoriales sin fuerza de ley, NO es esto). Si aplica, cita jerarquía piramidal cuando sea pertinente: Constitución → Leyes → Decretos → Resoluciones. No inventes números de norma que no conozcas con certeza — si no tienes certeza de la identificación exacta, decláralo en preguntas_para_el_usuario en vez de inventar un número de ley/decreto.
 
 MARCO HISTÓRICO (el menos frecuente) — solo si el problema está históricamente determinado (dinámicas comunitarias, políticas públicas, tecnologías acumulativas). Si incluido=true, usa 1 a 3 líneas: descriptiva, explicativa, normativa — completa solo las que apliquen, las demás null.
+
+SUGERENCIAS DE FIGURAS — 0 a 3, nunca obligatorias, solo cuando un concepto se explicaría genuinamente mejor con un diagrama que con más texto (ej. relación entre varias teorías, un proceso con etapas, una comparación). NO generes la imagen — FARO no gasta tokens en esto porque otras herramientas externas lo hacen mejor y gratis. En su lugar, para cada sugerencia entrega un prompt_imagen COMPLETO y específico, listo para pegar directamente en un generador de imágenes externo (ChatGPT/DALL-E, Gemini/Nano Banana, u otro) — debe describir composición, elementos exactos a mostrar, y estilo (ej. "diagrama técnico limpio", "esquema de flujo"), no una idea vaga. El formulador copia ese prompt, genera la imagen donde quiera, y la inserta manualmente al exportar a LaTeX/Word — FARO solo deja el marcador de dónde debería ir.
 
 REGLA CRÍTICA — honestidad epistémica: no inventes normas legales, teorías o cifras sin certeza real. Si te falta información para construir bien alguna sección, decláralo en preguntas_para_el_usuario.
 ${feedbackIteracionAnterior ? `\nRETROALIMENTACIÓN DE LA ITERACIÓN ANTERIOR (corrige esto):\n${feedbackIteracionAnterior}` : ""}
@@ -271,6 +289,7 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, con esta f
   "marco_contextual": {"incluido": boolean, "dimension_geografica_territorial": "string", "dimension_institucional_organizacional": "string", "dimension_sectorial": "string", "texto": "string"},
   "marco_legal": {"incluido": boolean, "normas": [{"tipo": "constitucion"|"ley"|"decreto"|"resolucion"|"otro", "identificacion": "string", "relevancia": "string"}], "texto": "string"},
   "marco_historico": {"incluido": boolean, "linea_descriptiva": "string"|null, "linea_explicativa": "string"|null, "linea_normativa": "string"|null, "texto": "string"},
+  "sugerencias_figuras": [{"marco_asociado": "teorico"|"conceptual"|"contextual"|"legal"|"historico", "descripcion": "string", "justificacion": "string", "prompt_imagen": "string"}],
   "estado_evidencia": "sin_verificar" | "confirmado_por_rsl" | "contradicho_por_rsl",
   "nivel_confianza_agente": "alta" | "media" | "baja",
   "preguntas_para_el_usuario": ["string"]

@@ -100,6 +100,26 @@ export async function POST(request: Request) {
 
   const iteracion = (nodosPrevios?.[0]?.iteracion ?? -1) + 1;
 
+  const { data: corpusFuentes } = await supabase
+    .from("corpus_fuentes")
+    .select("doi, titulo, autores, anio, revista, resumen_hallazgo")
+    .eq("project_id", project_id)
+    .eq("estado_verificacion", "verificado");
+
+  const corpusRSL =
+    corpusFuentes && corpusFuentes.length > 0
+      ? corpusFuentes
+          .map(
+            (f) =>
+              `- ${f.autores ? f.autores + " " : ""}(${
+                f.anio ?? "s.f."
+              }). ${f.titulo}. ${f.revista ? f.revista + ". " : ""}${
+                f.doi ? `DOI: ${f.doi}. ` : ""
+              }${f.resumen_hallazgo ? `Hallazgos: ${f.resumen_hallazgo}` : ""}`
+          )
+          .join("\n")
+      : undefined;
+
   const prompt = construirPromptMarcoReferencial({
     nu: project.nu,
     tau: project.tau,
@@ -107,6 +127,7 @@ export async function POST(request: Request) {
     rutaOutput,
     novaOutput,
     objetivosOutput,
+    corpusRSL,
     fuentesExternasVerificadas: fuentes_externas_verificadas,
     feedbackIteracionAnterior: feedback,
   });
