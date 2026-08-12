@@ -217,7 +217,7 @@ export default function FormulacionMarcoReferencial({
               <p className="text-sm font-medium mt-1">Postura teórica: {c.marco_teorico.postura_teorica}</p>
               <p className="text-[11px] text-gray-400">Teorías: {c.marco_teorico.teorias_sustantivas.join(", ")}</p>
               <p className="text-sm text-gray-700 mt-1">{c.marco_teorico.texto}</p>
-              {c.marco_teorico.referencias.length > 0 && (
+              {(c.marco_teorico.referencias ?? []).length > 0 && (
                 <ul className="mt-2 space-y-1">
                   {c.marco_teorico.referencias.map((r, i) => (
                     <li key={i} className="text-[11px] text-gray-500 border-l-2 border-gray-200 pl-2">
@@ -236,7 +236,7 @@ export default function FormulacionMarcoReferencial({
               <div className="border-t pt-3">
                 <p className="text-xs text-gray-500 uppercase tracking-wide">🔤 Marco Conceptual</p>
                 <p className="text-sm text-gray-700 mt-1">{c.marco_conceptual.texto}</p>
-                {c.marco_conceptual.definiciones.length > 0 && (
+                {(c.marco_conceptual.definiciones ?? []).length > 0 && (
                   <ul className="mt-2 space-y-1">
                     {c.marco_conceptual.definiciones.map((d, i) => (
                       <li key={i} className="text-xs border-l-2 border-sky-300 pl-2">
@@ -265,7 +265,7 @@ export default function FormulacionMarcoReferencial({
               <div className="border-t pt-3">
                 <p className="text-xs text-gray-500 uppercase tracking-wide">⚖️ Marco Legal</p>
                 <p className="text-sm text-gray-700 mt-1">{c.marco_legal.texto}</p>
-                {c.marco_legal.normas.length > 0 && (
+                {(c.marco_legal.normas ?? []).length > 0 && (
                   <ul className="mt-2 space-y-1">
                     {c.marco_legal.normas.map((n, i) => (
                       <li key={i} className="text-xs border-l-2 border-amber-300 pl-2">
