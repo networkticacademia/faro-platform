@@ -196,6 +196,21 @@ export default function FormulacionMarcoReferencial({
                 onChange={(e) => setFuentesExternas(e.target.value)}
                 placeholder="Pegue aquí el texto completo devuelto por NotebookLM o Perplexity..."
               />
+              {fuentesExternas.trim().length > 0 && (
+                <div className="mt-2 rounded-md bg-green-50 border border-green-200 p-2.5 flex items-center justify-between flex-wrap gap-2">
+                  <p className="text-xs text-green-800">
+                    ✓ Fuentes guardadas aquí — todavía no se han usado. Haga clic para
+                    {nodoActual ? " regenerar" : " generar"} la propuesta e integrarlas.
+                  </p>
+                  <button
+                    onClick={() => { setPanelPromptsAbierto(false); generar(feedback || undefined); }}
+                    disabled={generando}
+                    className="text-xs bg-faro-navy text-white rounded-md px-3 py-1.5 font-medium disabled:opacity-40 whitespace-nowrap"
+                  >
+                    {generando ? "Generando..." : nodoActual ? "Regenerar con estas fuentes →" : "Generar con estas fuentes →"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
