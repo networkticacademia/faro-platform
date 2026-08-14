@@ -203,9 +203,10 @@ export function construirPromptObjetivos(params: {
   mu: string;
   rutaOutput: RutaOutput;
   novaOutput: NovaOutput;
+  duracionMesesProyecto?: number | null;
   feedbackIteracionAnterior?: string;
 }): string {
-  const { nu, mu, rutaOutput, novaOutput, feedbackIteracionAnterior } = params;
+  const { nu, mu, rutaOutput, novaOutput, duracionMesesProyecto, feedbackIteracionAnterior } = params;
 
   const enfoque = estructuraSegunEnfoque(mu);
 
@@ -224,15 +225,9 @@ export function construirPromptObjetivos(params: {
 
   const bloqueEnfoque =
     enfoque === "cuantitativo"
-      ? `ENFOQUE CUANTITATIVO — debes producir:
-- hipotesis: un par H1/H0 por cada objetivo específico que lo requiera (objetivos de caracterización pura pueden no necesitar hipótesis explícita — decláralo así si aplica).
-- variables: cada variable con definición conceptual Y operacional, nivel de medición (nominal/ordinal/intervalo/razón), indicadores concretos, Y el campo objetivo_especifico_asociado con el TEXTO EXACTO del objetivo específico que esa variable mide u opera (obligatorio, no lo omitas — es lo que permite construir la matriz de consistencia sin ambigüedad). Las variables independientes deben corresponder a las causas del árbol de NOVA; las dependientes, al problema central o sus efectos.
-- categorias_analisis: array VACÍO (no aplica a este enfoque).`
+      ? `ENFOQUE CUANTITATIVO — debes producir:\n- hipotesis: un par H1/H0 por cada objetivo específico que lo requiera (objetivos de caracterización pura pueden no necesitar hipótesis explícita — decláralo así si aplica).\n- variables: cada variable con definición conceptual Y operacional, nivel de medición (nominal/ordinal/intervalo/razón), indicadores concretos, Y el campo objetivo_especifico_asociado con el TEXTO EXACTO del objetivo específico que esa variable mide u opera (obligatorio, no lo omitas — es lo que permite construir la matriz de consistencia sin ambigüedad). Las variables independientes deben corresponder a las causas del árbol de NOVA; las dependientes, al problema central o sus efectos.\n- categorias_analisis: array VACÍO (no aplica a este enfoque).`
       : enfoque === "cualitativo"
-      ? `ENFOQUE CUALITATIVO — debes producir:
-- categorias_analisis: para cada objetivo específico que lo requiera, una categoría de análisis con definición y pregunta orientadora (NO hipótesis positivista — la investigación cualitativa no predice un resultado a contrastar, explora e interpreta un fenómeno).
-- hipotesis: array VACÍO (no aplica a este enfoque; si el usuario intenta forzar hipótesis cuantitativas aquí, señálalo en preguntas_para_el_usuario en vez de inventarlas).
-- variables: array VACÍO (no aplica a este enfoque).`
+      ? `ENFOQUE CUALITATIVO — debes producir:\n- categorias_analisis: para cada objetivo específico que lo requiera, una categoría de análisis con definición y pregunta orientadora (NO hipótesis positivista — la investigación cualitativa no predice un resultado a contrastar, explora e interpreta un fenómeno).\n- hipotesis: array VACÍO (no aplica a este enfoque; si el usuario intenta forzar hipótesis cuantitativas aquí, señálalo en preguntas_para_el_usuario en vez de inventarlas).\n- variables: array VACÍO (no aplica a este enfoque).`
       : `ENFOQUE MIXTO — debes producir AMBAS ramas: hipotesis + variables para el componente cuantitativo del diseño, Y categorias_analisis para el componente cualitativo. Sé explícito en qué objetivos específicos corresponden a cada componente — no mezcles una hipótesis cuantitativa con una categoría cualitativa para el mismo objetivo específico.`;
 
   return `Eres el agente Objetivos de FARO. Tu tarea es derivar el objetivo general, los objetivos específicos, y (según el enfoque metodológico) las hipótesis/variables o categorías de análisis del proyecto, a partir del problema ya delimitado por RUTA y del árbol de problemas ya construido por NOVA.
@@ -243,6 +238,9 @@ El objetivo general es la inversión positiva del problema central. Cada objetiv
 CONTEXTO DEL PROYECTO:
 - Nivel: ${nu} (aplica ${rigor})
 - Enfoque metodológico declarado: "${mu}" → clasificado como: ${enfoque}
+${duracionMesesProyecto
+    ? `- DURACIÓN CONFIRMADA DEL PROYECTO: ${duracionMesesProyecto} MESES — restricción dura (Triángulo de Hierro: Tiempo-Alcance-Presupuesto, Barnes 1969). El número y la ambición de los objetivos específicos deben ser REALISTAS para ejecutarse completos en ${duracionMesesProyecto} meses, incluyendo tiempo de análisis y escritura. Para un horizonte de 6 meses o menos, 2-3 objetivos específicos acotados son más apropiados que 5 objetivos ambiciosos que no alcanzan a completarse. NO propongas un alcance que un cronograma real de ${duracionMesesProyecto} meses no pueda sostener.`
+    : `- DURACIÓN DEL PROYECTO: no confirmada todavía. Agrega una pregunta_para_el_usuario pidiendo que se confirme la duración en RUTA antes de considerar el alcance de objetivos como definitivo — sin ese dato, el número de objetivos podría no ser realista.`}
 
 PROBLEMA CENTRAL (RUTA, D(θ) — el objetivo general debe invertirlo en positivo, sin reformular su alcance):
 "${rutaOutput.problema}"

@@ -203,9 +203,10 @@ export function construirPromptObjetivos(params: {
   mu: string;
   rutaOutput: RutaOutput;
   novaOutput: NovaOutput;
+  duracionMesesProyecto?: number | null;
   feedbackIteracionAnterior?: string;
 }): string {
-  const { nu, mu, rutaOutput, novaOutput, feedbackIteracionAnterior } = params;
+  const { nu, mu, rutaOutput, novaOutput, duracionMesesProyecto, feedbackIteracionAnterior } = params;
 
   const enfoque = estructuraSegunEnfoque(mu);
 
@@ -243,6 +244,9 @@ El objetivo general es la inversión positiva del problema central. Cada objetiv
 CONTEXTO DEL PROYECTO:
 - Nivel: ${nu} (aplica ${rigor})
 - Enfoque metodológico declarado: "${mu}" → clasificado como: ${enfoque}
+${duracionMesesProyecto
+    ? `- DURACIÓN CONFIRMADA DEL PROYECTO: ${duracionMesesProyecto} MESES — restricción dura (Triángulo de Hierro: Tiempo-Alcance-Presupuesto, Barnes 1969). El número y la ambición de los objetivos específicos deben ser REALISTAS para ejecutarse completos en ${duracionMesesProyecto} meses, incluyendo tiempo de análisis y escritura. Para un horizonte de 6 meses o menos, 2-3 objetivos específicos acotados son más apropiados que 5 objetivos ambiciosos que no alcanzan a completarse. NO propongas un alcance que un cronograma real de ${duracionMesesProyecto} meses no pueda sostener.`
+    : `- DURACIÓN DEL PROYECTO: no confirmada todavía. Agrega una pregunta_para_el_usuario pidiendo que se confirme la duración en RUTA antes de considerar el alcance de objetivos como definitivo — sin ese dato, el número de objetivos podría no ser realista.`}
 
 PROBLEMA CENTRAL (RUTA, D(θ) — el objetivo general debe invertirlo en positivo, sin reformular su alcance):
 "${rutaOutput.problema}"

@@ -107,6 +107,7 @@ export async function POST(request: Request) {
     rutaOutput,
     novaOutput,
     objetivosOutput,
+    duracionMesesProyecto: project.duracion_meses_proyecto ?? null,
     feedbackIteracionAnterior: feedback,
   });
 
