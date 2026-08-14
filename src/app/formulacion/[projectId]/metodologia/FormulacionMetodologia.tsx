@@ -139,7 +139,7 @@ export default function FormulacionMetodologia({
     const plan = ed.plan_por_objetivo[i];
     const nuevoProducto: Producto = {
       nombre_producto: "", indicador_producto: "", unidad_medida: "", meta: "",
-      actividades: [{ actividad: "", indicador_gestion: "", tiempo_estimado: "", presupuesto: [] }],
+      actividades: [{ actividad: "", indicador_gestion: "", tiempo_estimado: "", semana_inicio: 1, semana_fin: 1, presupuesto: [] }],
     };
     setPlan(i, { ...plan, productos: [...(plan.productos ?? []), nuevoProducto] });
   }
@@ -151,7 +151,7 @@ export default function FormulacionMetodologia({
   function agregarActividad(i: number, j: number) {
     if (!ed) return;
     const prod = ed.plan_por_objetivo[i].productos[j];
-    const nueva: Actividad = { actividad: "", indicador_gestion: "", tiempo_estimado: "", presupuesto: [] };
+    const nueva: Actividad = { actividad: "", indicador_gestion: "", tiempo_estimado: "", semana_inicio: 1, semana_fin: 1, presupuesto: [] };
     setProducto(i, j, { ...prod, actividades: [...(prod.actividades ?? []), nueva] });
   }
   function eliminarActividad(i: number, j: number, k: number) {
@@ -264,7 +264,7 @@ export default function FormulacionMetodologia({
                               <li key={k} className="text-xs border-l-2 border-emerald-300 pl-2">
                                 <span className="text-gray-800">{a.actividad}</span>
                                 <span className="text-[10px] text-gray-400 block">
-                                  {a.tiempo_estimado} · Indicador gestión: {a.indicador_gestion} ·{" "}
+                                  {a.tiempo_estimado}{a.semana_inicio != null && a.semana_fin != null ? ` (Sem. ${a.semana_inicio}-${a.semana_fin})` : ""} · Indicador gestión: {a.indicador_gestion} ·{" "}
                                   {(a.presupuesto ?? []).length > 0
                                     ? formatoCOP(totalPresupuestoActividad(a))
                                     : <span className="text-amber-600">presupuesto sin definir</span>}
@@ -389,6 +389,12 @@ export default function FormulacionMetodologia({
                               <input value={act.tiempo_estimado}
                                 onChange={(e) => setActividad(i, j, k, { ...act, tiempo_estimado: e.target.value })}
                                 placeholder="Tiempo" className="w-16 text-[11px] border rounded px-1 py-0.5 bg-white text-gray-900" />
+                              <input type="number" min={1} value={act.semana_inicio ?? 1}
+                                onChange={(e) => setActividad(i, j, k, { ...act, semana_inicio: Number(e.target.value) })}
+                                title="Semana inicio" className="w-12 text-[11px] border rounded px-1 py-0.5 bg-white text-gray-900" />
+                              <input type="number" min={1} value={act.semana_fin ?? 1}
+                                onChange={(e) => setActividad(i, j, k, { ...act, semana_fin: Number(e.target.value) })}
+                                title="Semana fin" className="w-12 text-[11px] border rounded px-1 py-0.5 bg-white text-gray-900" />
                               <button onClick={() => eliminarActividad(i, j, k)} className="text-[11px] text-red-600 px-1">✕</button>
                             </div>
                           ))}

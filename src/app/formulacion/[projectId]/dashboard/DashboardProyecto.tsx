@@ -233,7 +233,7 @@ export default function DashboardProyecto({
         </div>
       )}
 
-      <div className="rounded-2xl border bg-white p-6">
+      <div id="integridad-hilo-conductor" className="rounded-2xl border bg-white p-6">
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-sm font-semibold text-faro-navy">Integridad del hilo conductor</h3>
           {resumen.total === 0 ? (
@@ -274,7 +274,7 @@ export default function DashboardProyecto({
         )}
       </div>
 
-      <TarjetaConvergencia projectId={project.id} />
+      <TarjetaConvergencia projectId={project.id} brechasCriticas={resumen.criticas} />
 
       {actividadOpenRouter && actividadOpenRouter.length > 0 && (
         <div className="rounded-2xl border bg-white p-6">

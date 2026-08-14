@@ -19,6 +19,7 @@ import {
   calcularTauC,
   type ContradiccionDetectada,
 } from "@/lib/faro/mci";
+import { semanaFinalCronograma } from "@/lib/faro/metodologia";
 import type { RutaOutput } from "@/lib/faro/ruta";
 import type { NovaOutput } from "@/lib/faro/nova";
 import type { ObjetivosOutput } from "@/lib/faro/objetivos";
@@ -331,10 +332,28 @@ export async function POST(request: Request) {
     }
   }
 
-  // 9. cronogramaExcedeDuracion: pendiente de estructurar tiempo_estimado como semanas numéricas.
-  // Los campos tiempo_estimado de Metodología son texto libre ("Semanas 1-3", etc.) — no es posible
-  // sumarlos de forma confiable sin parseo frágil. Se deja null hasta que se estructure ese campo.
-  const cronogramaExcedeDuracion: boolean | null = null;
+  // 9. cronogramaExcedeDuracion — cálculo real usando semana_fin numérico de cada actividad.
+  // semanaFinalCronograma() toma el máximo semana_fin (no la suma — actividades pueden correr en paralelo).
+  let cronogramaExcedeDuracion: boolean | null = null;
+  let mesesExcedidos: number | undefined = undefined;
+
+  const nodoMetodologia = nodosConfirmados["METODOLOGIA"];
+  const duracionMeses: number | null = project.duracion_meses_proyecto ?? null;
+
+  if (nodoMetodologia && duracionMeses !== null) {
+    const plan = (nodoMetodologia.contenido as unknown as MetodologiaOutput).plan_por_objetivo ?? [];
+    const semanaFinal = semanaFinalCronograma(plan);
+    const semanasDisponibles = duracionMeses * 4;
+    if (semanaFinal > semanasDisponibles) {
+      cronogramaExcedeDuracion = true;
+      mesesExcedidos = Math.ceil((semanaFinal - semanasDisponibles) / 4);
+    } else if (semanaFinal > 0) {
+      // semanaFinal=0 significa que ninguna actividad tiene semana_fin definido (nodos generados
+      // antes de agregar semana_inicio/fin) — en ese caso no se puede evaluar
+      cronogramaExcedeDuracion = false;
+    }
+    // Si semanaFinal===0 (campos no definidos aún), cronogramaExcedeDuracion queda null
+  }
 
   // 10. Calcular convergencia del proyecto
   const resultadoConvergencia = calcularConvergenciaProyecto({
@@ -347,6 +366,7 @@ export async function POST(request: Request) {
     nodosRequeridosTotal,
     nodosConfirmadosTotal,
     cronogramaExcedeDuracion,
+    mesesExcedidos,
   });
 
   // Adjuntar detalle de δᵢⱼ y Φ al resultado para guardarlo y mostrarlo
