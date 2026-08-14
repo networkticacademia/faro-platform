@@ -11,6 +11,7 @@ const NODOS = [
   { slug: "/objetivos", label: "Objetivos" },
   { slug: "/marco-referencial", label: "Marco Referencial" },
   { slug: "/metodologia", label: "Metodología" },
+  { slug: "/impactos-delimitacion", label: "Impactos y Delimitación" },
   { slug: "/presupuesto", label: "💰 Presupuesto" },
 ] as const;
 

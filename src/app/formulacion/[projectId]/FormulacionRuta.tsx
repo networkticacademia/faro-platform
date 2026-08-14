@@ -18,6 +18,7 @@ import type { SubtipoDti } from "@/lib/faro/tipologiaProyecto";
 import type { TipoProyecto } from "@/lib/faro/types";
 import { CargaRubrica } from "./CargaRubrica";
 import type { RubricaProyecto } from "@/lib/faro/rubrica";
+import { duracionDefaultMeses } from "@/lib/faro/impactosDelimitacion";
 
 interface NodoGrafo {
   id: string;
@@ -84,6 +85,7 @@ interface ProjectRow {
   alpha_area: string;
   u0_initial: number;
   estado: string;
+  duracion_meses_proyecto?: number | null;
 }
 
 const CAMPOS_EDITABLES: { key: keyof RutaOutput; etiqueta: string; multilinea?: boolean }[] = [
@@ -105,6 +107,14 @@ export default function FormulacionRuta({
   nodosIniciales: NodoGrafo[];
 }) {
   const [nodos, setNodos] = useState<NodoGrafo[]>(nodosIniciales);
+  const defDuracion = duracionDefaultMeses(project.nu);
+  const [duracionMeses, setDuracionMeses] = useState<number | null>(project.duracion_meses_proyecto ?? null);
+  const [inputDuracion, setInputDuracion] = useState<string>(
+    project.duracion_meses_proyecto?.toString() ?? defDuracion.meses?.toString() ?? ""
+  );
+  const [guardandoDuracion, setGuardandoDuracion] = useState(false);
+  const [errorDuracion, setErrorDuracion] = useState<string | null>(null);
+  const [panelDuracionAbierto, setPanelDuracionAbierto] = useState(true);
   const [metrica, setMetrica] = useState<Metrica | null>(null);
   const [generando, setGenerando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -285,6 +295,99 @@ export default function FormulacionRuta({
       <NavegacionNodos projectId={project.id} />
       <RutaInfoPanel />
       <CargaRubrica projectId={project.id} rubricaInicial={project.rubrica_evaluacion ?? null} />
+
+      {/* Panel de Duración del Proyecto */}
+      <div className="rounded-xl border border-gray-200 bg-white mb-4">
+        <button
+          type="button"
+          onClick={() => setPanelDuracionAbierto((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 text-left"
+        >
+          <span className="flex items-center gap-2">
+            <span className="text-gray-400 text-xs">{panelDuracionAbierto ? "▾" : "▸"}</span>
+            <span className="text-sm font-medium text-faro-navy">Duración del Proyecto</span>
+          </span>
+          {duracionMeses !== null && (
+            <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+              Confirmada: {duracionMeses} meses
+            </span>
+          )}
+        </button>
+
+        {panelDuracionAbierto && (
+          <div className="px-4 pb-4 space-y-3">
+            <p className="text-xs text-gray-600">
+              La duración confirmada es una restricción dura del Triángulo de Hierro. Determina la viabilidad temporal del alcance, los recursos y los riesgos del proyecto.
+            </p>
+
+            {duracionMeses !== null ? (
+              <div className="bg-green-50 border border-green-200 rounded-md p-3 text-sm text-green-800 flex items-center justify-between">
+                <span>
+                  ✓ Duración confirmada del proyecto: <strong>{duracionMeses} meses</strong>.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setDuracionMeses(null)}
+                  className="text-xs text-green-700 underline font-medium hover:text-green-900"
+                >
+                  Modificar
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500">
+                  {defDuracion.meses
+                    ? `Sugerido por defecto para nivel ${project.nu}: ${defDuracion.meses} meses (${defDuracion.fuente}).`
+                    : `No hay duración por defecto para nivel ${project.nu} (${defDuracion.fuente}).`}
+                </p>
+                {errorDuracion && <div className="text-xs text-red-600">{errorDuracion}</div>}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    className="w-24 text-sm border rounded px-2.5 py-1.5 bg-white text-gray-900"
+                    placeholder="Meses"
+                    value={inputDuracion}
+                    onChange={(e) => setInputDuracion(e.target.value)}
+                  />
+                  <button
+                    onClick={async () => {
+                      const valor = parseInt(inputDuracion, 10);
+                      if (isNaN(valor) || valor <= 0) {
+                        setErrorDuracion("Debe introducir un número de meses válido y positivo");
+                        return;
+                      }
+                      setGuardandoDuracion(true);
+                      setErrorDuracion(null);
+                      try {
+                        const res = await fetch("/api/mci/proyecto/duracion", {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            project_id: project.id,
+                            duracion_meses_proyecto: valor,
+                          }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.error ?? "Error al guardar la duración.");
+                        setDuracionMeses(data.duracion_meses_proyecto);
+                      } catch (err) {
+                        setErrorDuracion(err instanceof Error ? err.message : "Error desconocido");
+                      } finally {
+                        setGuardandoDuracion(false);
+                      }
+                    }}
+                    disabled={guardandoDuracion || !inputDuracion}
+                    className="bg-faro-navy text-white text-sm font-medium rounded-md px-4 py-1.5 disabled:opacity-40"
+                  >
+                    {guardandoDuracion ? "Confirmando..." : "Confirmar duración"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-faro-navy">
