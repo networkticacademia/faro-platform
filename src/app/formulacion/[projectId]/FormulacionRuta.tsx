@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import Link from "next/link";
 import NavegacionNodos from "@/components/faro/NavegacionNodos";
+import { IndicadorGenerando } from "@/components/faro/IndicadorGenerando";
 import { RutaInfoPanel } from "./RutaInfoPanel";
 import type { RutaOutput } from "@/lib/faro/ruta";
 import {
@@ -438,6 +439,7 @@ export default function FormulacionRuta({
           >
             {generando ? "Generando..." : "Generar propuesta RUTA →"}
           </button>
+          {generando && <IndicadorGenerando />}
         </div>
       )}
 
@@ -758,6 +760,7 @@ export default function FormulacionRuta({
             >
               {generando ? "Generando nueva iteración..." : "Regenerar propuesta →"}
             </button>
+            {generando && <IndicadorGenerando mensaje="Regenerando propuesta con el agente de IA..." />}
           </div>
         </div>
       )}

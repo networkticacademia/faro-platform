@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import NavegacionNodos from "@/components/faro/NavegacionNodos";
+import { IndicadorGenerando } from "@/components/faro/IndicadorGenerando";
 import type { NovaOutput } from "@/lib/faro/nova";
 import type { RutaOutput } from "@/lib/faro/ruta";
 import type { TipoProyecto } from "@/lib/faro/types";
@@ -213,6 +214,7 @@ export default function FormulacionNova({
           >
             {generando ? "Generando..." : "Generar propuesta NOVA →"}
           </button>
+          {generando && <IndicadorGenerando />}
         </div>
       )}
 
@@ -373,6 +375,7 @@ export default function FormulacionNova({
             >
               {generando ? "Generando nueva iteración..." : "Regenerar propuesta →"}
             </button>
+            {generando && <IndicadorGenerando mensaje="Regenerando propuesta con el agente de IA..." />}
           </div>
         </div>
       )}

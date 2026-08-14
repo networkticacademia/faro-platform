@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import NavegacionNodos from "@/components/faro/NavegacionNodos";
+import { IndicadorGenerando } from "@/components/faro/IndicadorGenerando";
 import type {
   ObjetivosOutput,
   FilaMatrizConsistencia,
@@ -185,6 +186,7 @@ export default function FormulacionObjetivos({
           >
             {generando ? "Generando..." : "Generar propuesta de Objetivos →"}
           </button>
+          {generando && <IndicadorGenerando />}
         </div>
       )}
 
@@ -402,6 +404,7 @@ export default function FormulacionObjetivos({
             >
               {generando ? "Generando nueva iteración..." : "Regenerar propuesta →"}
             </button>
+            {generando && <IndicadorGenerando mensaje="Regenerando propuesta con el agente de IA..." />}
           </div>
         </div>
       )}

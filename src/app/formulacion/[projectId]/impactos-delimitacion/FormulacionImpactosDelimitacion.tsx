@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import NavegacionNodos from "@/components/faro/NavegacionNodos";
+import { IndicadorGenerando } from "@/components/faro/IndicadorGenerando";
 import type {
   ImpactosDelimitacionOutput,
   TipoImpacto,
@@ -253,6 +254,7 @@ export default function FormulacionImpactosDelimitacion({
             className="bg-faro-navy text-white rounded-md px-6 py-3 font-medium disabled:opacity-40">
             {generando ? "Generando..." : "Generar propuesta de Impactos y Delimitación →"}
           </button>
+          {generando && <IndicadorGenerando />}
         </div>
       )}
 
@@ -400,6 +402,7 @@ export default function FormulacionImpactosDelimitacion({
               className="border border-faro-navy text-faro-navy rounded-md px-5 py-2.5 font-medium hover:bg-faro-navy hover:text-white transition-colors disabled:opacity-40">
               {generando ? "Generando nueva iteración..." : "Regenerar propuesta →"}
             </button>
+            {generando && <IndicadorGenerando mensaje="Regenerando propuesta con el agente de IA..." />}
           </div>
         </div>
       )}

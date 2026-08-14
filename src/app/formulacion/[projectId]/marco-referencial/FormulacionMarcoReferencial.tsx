@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import NavegacionNodos from "@/components/faro/NavegacionNodos";
+import { IndicadorGenerando } from "@/components/faro/IndicadorGenerando";
 import type { MarcoReferencialOutput } from "@/lib/faro/marcoReferencial";
 import { generarPromptsFundamentacionTeorica } from "@/lib/faro/marcoReferencial";
 import type { TipoProyecto } from "@/lib/faro/types";
@@ -234,6 +235,7 @@ export default function FormulacionMarcoReferencial({
             className="bg-faro-navy text-white rounded-md px-6 py-3 font-medium disabled:opacity-40">
             {generando ? "Generando..." : "Generar propuesta de Marco Referencial →"}
           </button>
+          {generando && <IndicadorGenerando />}
         </div>
       )}
 
@@ -387,6 +389,7 @@ export default function FormulacionMarcoReferencial({
               className="border border-faro-navy text-faro-navy rounded-md px-5 py-2.5 font-medium hover:bg-faro-navy hover:text-white transition-colors disabled:opacity-40">
               {generando ? "Generando nueva iteración..." : "Regenerar propuesta →"}
             </button>
+            {generando && <IndicadorGenerando mensaje="Regenerando propuesta con el agente de IA..." />}
           </div>
         </div>
       )}
