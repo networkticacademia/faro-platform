@@ -172,7 +172,7 @@ TÉCNICAS/INSTRUMENTOS YA DEFINIDOS (Metodología — orienta qué recursos tecn
 ${tecnicasTexto}
 
 REGLA CRÍTICA GENERAL — misma honestidad epistémica que todos los nodos anteriores: si te falta información para construir bien alguna sección, decláralo en preguntas_para_el_usuario en vez de inventar.
-${feedbackIteracionAnterior ? `\nRETROALIMENTACIÓN DE LA ITERACIÓN ANTERIOR (corrige esto):\n${feedbackIteracionAnterior}` : ""}
+${feedbackIteracionAnterior ? `\nRETROALIMENTACIÓN DE LA ITERACIÓN ANTERIOR (corrige esto):\n${feedbackIteracionAnterior}\n\nREGLA ANTI-PREGUNTAS-INFINITAS — esta es una iteración de REFINAMIENTO, no la primera vez: el formulador ya respondió preguntas anteriores. NO generes una nueva ronda extensa de preguntas de la misma naturaleza que las que ya respondió. Genera como máximo 1-2 preguntas NUEVAS, y solo si son genuinamente distintas, críticas e insalvables sin esa información específica. Para cualquier otra incertidumbre menor, haz el supuesto más razonable, decláralo EXPLÍCITAMENTE en el texto generado, y avanza — no lo conviertas en otra pregunta.` : ""}
 
 Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, con esta forma exacta:
 {

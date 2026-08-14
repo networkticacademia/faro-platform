@@ -3,6 +3,7 @@
 import { useState } from "react";
 import NavegacionNodos from "@/components/faro/NavegacionNodos";
 import { IndicadorGenerando } from "@/components/faro/IndicadorGenerando";
+import { PreguntasPendientes, ensamblarFeedbackDesdeRespuestas } from "@/components/faro/PreguntasPendientes";
 import type { MarcoReferencialOutput } from "@/lib/faro/marcoReferencial";
 import { generarPromptsFundamentacionTeorica } from "@/lib/faro/marcoReferencial";
 import type { TipoProyecto } from "@/lib/faro/types";
@@ -57,6 +58,7 @@ export default function FormulacionMarcoReferencial({
   const [ed, setEd] = useState<MarcoReferencialOutput | null>(null);
   const [confirmando, setConfirmando] = useState(false);
   const [reabriendo, setReabriendo] = useState(false);
+  const [respuestasPreguntas, setRespuestasPreguntas] = useState<Record<number, string>>({});
 
   const nodoActual = nodos[0] ?? null;
   const c = nodoActual?.contenido;
@@ -75,7 +77,7 @@ export default function FormulacionMarcoReferencial({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error generando la propuesta.");
       setNodos((prev) => [data.nodo, ...prev]);
-      setMetrica(data.metrica); setFeedback(""); setEditando(false);
+      setMetrica(data.metrica); setFeedback(""); setRespuestasPreguntas({}); setEditando(false);
     } catch (e) { setError(e instanceof Error ? e.message : "Error desconocido."); }
     finally { setGenerando(false); }
   }
@@ -93,6 +95,7 @@ export default function FormulacionMarcoReferencial({
       if (!res.ok) throw new Error(data.error ?? "Error al confirmar.");
       setNodos((prev) => [data.nodo, ...prev.slice(1)]);
       setEditando(false);
+      setRespuestasPreguntas({});
     } catch (e) { setError(e instanceof Error ? e.message : "Error desconocido."); }
     finally { setConfirmando(false); }
   }
@@ -339,10 +342,11 @@ export default function FormulacionMarcoReferencial({
 
             {nodoActual.preguntas_pendientes?.length > 0 && (
               <div className="border-t pt-3">
-                <p className="text-xs text-gray-500 uppercase tracking-wide">El agente necesita que usted aclare</p>
-                <ul className="list-disc list-inside text-sm text-amber-700">
-                  {nodoActual.preguntas_pendientes.map((p, i) => <li key={i}>{p}</li>)}
-                </ul>
+                <PreguntasPendientes
+                  preguntas={nodoActual.preguntas_pendientes}
+                  respuestas={respuestasPreguntas}
+                  onCambiarRespuesta={(i, v) => setRespuestasPreguntas((prev) => ({ ...prev, [i]: v }))}
+                />
               </div>
             )}
             <p className="text-xs text-gray-400">Confianza del agente: {nodoActual.confianza_agente}</p>
@@ -385,7 +389,16 @@ export default function FormulacionMarcoReferencial({
             <textarea className="w-full border rounded-md p-2 text-gray-900 bg-white text-sm" rows={2}
               value={feedback} onChange={(e) => setFeedback(e.target.value)}
               placeholder="Ej. El Marco Legal debería incluir la normativa ambiental aplicable..." />
-            <button onClick={() => generar(feedback || undefined)} disabled={generando}
+            <button onClick={() => {
+              const feedbackPreguntas = ensamblarFeedbackDesdeRespuestas(
+                nodoActual.preguntas_pendientes ?? [],
+                respuestasPreguntas
+              );
+              const feedbackLibre = feedback.trim();
+              const partes = [feedbackPreguntas, feedbackLibre].filter(Boolean);
+              const feedbackCompleto = partes.join("\n\n");
+              generar(feedbackCompleto || undefined);
+            }} disabled={generando}
               className="border border-faro-navy text-faro-navy rounded-md px-5 py-2.5 font-medium hover:bg-faro-navy hover:text-white transition-colors disabled:opacity-40">
               {generando ? "Generando nueva iteración..." : "Regenerar propuesta →"}
             </button>

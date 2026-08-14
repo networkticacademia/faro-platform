@@ -225,9 +225,15 @@ export function construirPromptObjetivos(params: {
 
   const bloqueEnfoque =
     enfoque === "cuantitativo"
-      ? `ENFOQUE CUANTITATIVO — debes producir:\n- hipotesis: un par H1/H0 por cada objetivo específico que lo requiera (objetivos de caracterización pura pueden no necesitar hipótesis explícita — decláralo así si aplica).\n- variables: cada variable con definición conceptual Y operacional, nivel de medición (nominal/ordinal/intervalo/razón), indicadores concretos, Y el campo objetivo_especifico_asociado con el TEXTO EXACTO del objetivo específico que esa variable mide u opera (obligatorio, no lo omitas — es lo que permite construir la matriz de consistencia sin ambigüedad). Las variables independientes deben corresponder a las causas del árbol de NOVA; las dependientes, al problema central o sus efectos.\n- categorias_analisis: array VACÍO (no aplica a este enfoque).`
+      ? `ENFOQUE CUANTITATIVO — debes producir:
+- hipotesis: un par H1/H0 por cada objetivo específico que lo requiera (objetivos de caracterización pura pueden no necesitar hipótesis explícita — decláralo así si aplica).
+- variables: cada variable con definición conceptual Y operacional, nivel de medición (nominal/ordinal/intervalo/razón), indicadores concretos, Y el campo objetivo_especifico_asociado con el TEXTO EXACTO del objetivo específico que esa variable mide u opera (obligatorio, no lo omitas — es lo que permite construir la matriz de consistencia sin ambigüedad). Las variables independientes deben corresponder a las causas del árbol de NOVA; las dependientes, al problema central o sus efectos.
+- categorias_analisis: array VACÍO (no aplica a este enfoque).`
       : enfoque === "cualitativo"
-      ? `ENFOQUE CUALITATIVO — debes producir:\n- categorias_analisis: para cada objetivo específico que lo requiera, una categoría de análisis con definición y pregunta orientadora (NO hipótesis positivista — la investigación cualitativa no predice un resultado a contrastar, explora e interpreta un fenómeno).\n- hipotesis: array VACÍO (no aplica a este enfoque; si el usuario intenta forzar hipótesis cuantitativas aquí, señálalo en preguntas_para_el_usuario en vez de inventarlas).\n- variables: array VACÍO (no aplica a este enfoque).`
+      ? `ENFOQUE CUALITATIVO — debes producir:
+- categorias_analisis: para cada objetivo específico que lo requiera, una categoría de análisis con definición y pregunta orientadora (NO hipótesis positivista — la investigación cualitativa no predice un resultado a contrastar, explora e interpreta un fenómeno).
+- hipotesis: array VACÍO (no aplica a este enfoque; si el usuario intenta forzar hipótesis cuantitativas aquí, señálalo en preguntas_para_el_usuario en vez de inventarlas).
+- variables: array VACÍO (no aplica a este enfoque).`
       : `ENFOQUE MIXTO — debes producir AMBAS ramas: hipotesis + variables para el componente cuantitativo del diseño, Y categorias_analisis para el componente cualitativo. Sé explícito en qué objetivos específicos corresponden a cada componente — no mezcles una hipótesis cuantitativa con una categoría cualitativa para el mismo objetivo específico.`;
 
   return `Eres el agente Objetivos de FARO. Tu tarea es derivar el objetivo general, los objetivos específicos, y (según el enfoque metodológico) las hipótesis/variables o categorías de análisis del proyecto, a partir del problema ya delimitado por RUTA y del árbol de problemas ya construido por NOVA.
@@ -274,7 +280,7 @@ FILTRO SMART — aplícalo a cada objetivo específico antes de declararlo defin
 FILTRO CREMA (aplícalo ADEMÁS de SMART cuando el proyecto tenga destino MGA/Minciencias — no lo apliques si el único destino es artículo Q1): Claro, Relevante, Económico (viable con los recursos reales del proyecto), Medible, Adecuado a la institución/convocatoria. Es el criterio propio del DNP para evaluar el objetivo general de un proyecto de inversión — un evaluador de Minciencias lo reconoce de inmediato.
 
 REGLA CRÍTICA — misma honestidad epistémica que RUTA y NOVA: no inventes indicadores con valores absolutos de precisión si no hay datos previos que los respalden (usa el patrón "cuantificando mediante [métrica] con metas definidas a partir de la línea base empírica" en esos casos). Si una causa de NOVA no permite derivar un objetivo específico claro, decláralo en preguntas_para_el_usuario en vez de forzar un objetivo débil.
-${feedbackIteracionAnterior ? `\nRETROALIMENTACIÓN DE LA ITERACIÓN ANTERIOR (corrige esto):\n${feedbackIteracionAnterior}` : ""}
+${feedbackIteracionAnterior ? `\nRETROALIMENTACIÓN DE LA ITERACIÓN ANTERIOR (corrige esto):\n${feedbackIteracionAnterior}\n\nREGLA ANTI-PREGUNTAS-INFINITAS — esta es una iteración de REFINAMIENTO, no la primera vez: el formulador ya respondió preguntas anteriores. NO generes una nueva ronda extensa de preguntas de la misma naturaleza que las que ya respondió. Genera como máximo 1-2 preguntas NUEVAS, y solo si son genuinamente distintas, críticas e insalvables sin esa información específica. Para cualquier otra incertidumbre menor, haz el supuesto más razonable, decláralo EXPLÍCITAMENTE en el texto generado, y avanza — no lo conviertas en otra pregunta.` : ""}
 
 Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, con esta forma exacta:
 {

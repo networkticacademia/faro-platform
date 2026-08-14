@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import Link from "next/link";
 import NavegacionNodos from "@/components/faro/NavegacionNodos";
 import { IndicadorGenerando } from "@/components/faro/IndicadorGenerando";
+import { PreguntasPendientes, ensamblarFeedbackDesdeRespuestas } from "@/components/faro/PreguntasPendientes";
 import { RutaInfoPanel } from "./RutaInfoPanel";
 import type { RutaOutput } from "@/lib/faro/ruta";
 import {
@@ -124,6 +125,7 @@ export default function FormulacionRuta({
   const [contenidoEditado, setContenidoEditado] = useState<RutaOutput | null>(null);
   const [confirmando, setConfirmando] = useState(false);
   const [reabriendo, setReabriendo] = useState(false);
+  const [respuestasPreguntas, setRespuestasPreguntas] = useState<Record<number, string>>({});
 
   // Pantalla de confirmación de búsqueda (RSL)
   const [propuestaBusqueda, setPropuestaBusqueda] = useState<PropuestaCadenaBusqueda | null>(null);
@@ -159,6 +161,7 @@ export default function FormulacionRuta({
       setNodos((prev) => [data.nodo, ...prev]);
       setMetrica(data.metrica);
       setFeedback("");
+      setRespuestasPreguntas({});
       setEditando(false);
       // Nueva iteración → nueva propuesta de búsqueda, se descarta cualquier
       // verificación RSL previa (correspondía a la iteración anterior).
@@ -193,6 +196,7 @@ export default function FormulacionRuta({
       if (!res.ok) throw new Error(data.error ?? "Error al confirmar.");
       setNodos((prev) => [data.nodo, ...prev.slice(1)]);
       setEditando(false);
+      setRespuestasPreguntas({});
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error desconocido.");
     } finally {
@@ -473,10 +477,11 @@ export default function FormulacionRuta({
 
             {nodoActual.preguntas_pendientes?.length > 0 && (
               <div className="border-t pt-3">
-                <p className="text-xs text-gray-500 uppercase tracking-wide">El agente necesita que usted aclare</p>
-                <ul className="list-disc list-inside text-sm text-amber-700">
-                  {nodoActual.preguntas_pendientes.map((p, i) => <li key={i}>{p}</li>)}
-                </ul>
+                <PreguntasPendientes
+                  preguntas={nodoActual.preguntas_pendientes}
+                  respuestas={respuestasPreguntas}
+                  onCambiarRespuesta={(i, v) => setRespuestasPreguntas((prev) => ({ ...prev, [i]: v }))}
+                />
               </div>
             )}
 
@@ -754,7 +759,16 @@ export default function FormulacionRuta({
               placeholder="Ej. El alcance espacial no corresponde a la región real del proyecto..."
             />
             <button
-              onClick={() => generar(feedback || undefined)}
+              onClick={() => {
+                const feedbackPreguntas = ensamblarFeedbackDesdeRespuestas(
+                  nodoActual.preguntas_pendientes ?? [],
+                  respuestasPreguntas
+                );
+                const feedbackLibre = feedback.trim();
+                const partes = [feedbackPreguntas, feedbackLibre].filter(Boolean);
+                const feedbackCompleto = partes.join("\n\n");
+                generar(feedbackCompleto || undefined);
+              }}
               disabled={generando}
               className="border border-faro-navy text-faro-navy rounded-md px-5 py-2.5 font-medium hover:bg-faro-navy hover:text-white transition-colors disabled:opacity-40"
             >

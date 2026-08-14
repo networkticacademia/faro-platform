@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import NavegacionNodos from "@/components/faro/NavegacionNodos";
 import { IndicadorGenerando } from "@/components/faro/IndicadorGenerando";
+import { PreguntasPendientes, ensamblarFeedbackDesdeRespuestas } from "@/components/faro/PreguntasPendientes";
 import type { NovaOutput } from "@/lib/faro/nova";
 import type { RutaOutput } from "@/lib/faro/ruta";
 import type { TipoProyecto } from "@/lib/faro/types";
@@ -82,6 +83,7 @@ export default function FormulacionNova({
   const [contenidoEditado, setContenidoEditado] = useState<NovaOutput | null>(null);
   const [confirmando, setConfirmando] = useState(false);
   const [reabriendo, setReabriendo] = useState(false);
+  const [respuestasPreguntas, setRespuestasPreguntas] = useState<Record<number, string>>({});
 
   const nodoActual = nodos[0] ?? null;
 
@@ -99,6 +101,7 @@ export default function FormulacionNova({
       setNodos((prev) => [data.nodo, ...prev]);
       setMetrica(data.metrica);
       setFeedback("");
+      setRespuestasPreguntas({});
       setEditando(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error desconocido.");
@@ -126,6 +129,7 @@ export default function FormulacionNova({
       if (!res.ok) throw new Error(data.error ?? "Error al confirmar.");
       setNodos((prev) => [data.nodo, ...prev.slice(1)]);
       setEditando(false);
+      setRespuestasPreguntas({});
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error desconocido.");
     } finally {
@@ -288,10 +292,11 @@ export default function FormulacionNova({
 
             {nodoActual.preguntas_pendientes?.length > 0 && (
               <div className="border-t pt-3">
-                <p className="text-xs text-gray-500 uppercase tracking-wide">El agente necesita que usted aclare</p>
-                <ul className="list-disc list-inside text-sm text-amber-700">
-                  {nodoActual.preguntas_pendientes.map((p, i) => <li key={i}>{p}</li>)}
-                </ul>
+                <PreguntasPendientes
+                  preguntas={nodoActual.preguntas_pendientes}
+                  respuestas={respuestasPreguntas}
+                  onCambiarRespuesta={(i, v) => setRespuestasPreguntas((prev) => ({ ...prev, [i]: v }))}
+                />
               </div>
             )}
 
@@ -369,7 +374,16 @@ export default function FormulacionNova({
               placeholder="Ej. La causa raíz no coincide con lo que documenté en la cadena de porqués..."
             />
             <button
-              onClick={() => generar(feedback || undefined)}
+              onClick={() => {
+                const feedbackPreguntas = ensamblarFeedbackDesdeRespuestas(
+                  nodoActual.preguntas_pendientes ?? [],
+                  respuestasPreguntas
+                );
+                const feedbackLibre = feedback.trim();
+                const partes = [feedbackPreguntas, feedbackLibre].filter(Boolean);
+                const feedbackCompleto = partes.join("\n\n");
+                generar(feedbackCompleto || undefined);
+              }}
               disabled={generando}
               className="border border-faro-navy text-faro-navy rounded-md px-5 py-2.5 font-medium hover:bg-faro-navy hover:text-white transition-colors disabled:opacity-40"
             >
