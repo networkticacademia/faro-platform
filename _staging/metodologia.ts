@@ -81,8 +81,25 @@ export interface ItemPresupuesto {
 export interface Actividad {
   actividad: string; // verbo + acción concreta
   indicador_gestion: string; // avance/cumplimiento de ESTA actividad (ej. "% de ejecución"), distinto del indicador de producto
-  tiempo_estimado: string;
+  tiempo_estimado: string; // texto legible, ej. "Semanas 1-3" — se conserva para mostrar
+  semana_inicio: number; // NUEVO — número de semana del proyecto en que inicia (1 = primera semana)
+  semana_fin: number; // NUEVO — número de semana del proyecto en que termina (inclusive)
   presupuesto: ItemPresupuesto[]; // SIEMPRE vacío al generar — lo llena el formulador
+}
+
+// Total de semanas de un cronograma — usa el máximo semana_fin de todas las
+// actividades, no la suma (las actividades de distintos objetivos pueden
+// correr en paralelo, un cronograma real no es una sola fila secuencial).
+export function semanaFinalCronograma(planPorObjetivo: PlanPorObjetivo[]): number {
+  let maxSemana = 0;
+  for (const plan of planPorObjetivo) {
+    for (const producto of plan.productos ?? []) {
+      for (const actividad of producto.actividades ?? []) {
+        if (actividad.semana_fin > maxSemana) maxSemana = actividad.semana_fin;
+      }
+    }
+  }
+  return maxSemana;
 }
 
 export interface Producto {
@@ -281,7 +298,7 @@ CONTEXTO DEL PROYECTO:
 - Nivel: ${nu} · Tipo: ${tau}
 - Enfoque metodológico (ya resuelto en Objetivos, no lo vuelvas a decidir): ${enfoque}
 ${duracionMesesProyecto
-    ? `- DURACIÓN CONFIRMADA DEL PROYECTO: ${duracionMesesProyecto} MESES (${duracionMesesProyecto * 4} semanas aprox.) — restricción dura (Triángulo de Hierro: Tiempo-Alcance-Presupuesto, Barnes 1969). La SUMA de los tiempo_estimado de TODAS las actividades de TODOS los productos, distribuidas de forma realista (algunas actividades de objetivos distintos pueden correr en paralelo, no todo es secuencial), debe caber dentro de ${duracionMesesProyecto} meses — dejando margen al final para análisis de resultados y escritura del informe final, que también consume tiempo del cronograma. Si el número de objetivos/productos que ya vienen de Objetivos es demasiado ambicioso para este horizonte, decláralo explícitamente en preguntas_para_el_usuario en vez de comprimir artificialmente los tiempos hasta hacerlos irreales (ej. nunca declares "Semana 1" para una actividad que en la realidad toma 2 meses).`
+    ? `- DURACIÓN CONFIRMADA DEL PROYECTO: ${duracionMesesProyecto} MESES (${duracionMesesProyecto * 4} semanas aprox.) — restricción dura (Triángulo de Hierro: Tiempo-Alcance-Presupuesto, Barnes 1969). Cada actividad debe declarar semana_inicio y semana_fin como NÚMEROS reales (1 = primera semana del proyecto), NO solo el texto de tiempo_estimado. Ninguna actividad puede tener semana_fin mayor a ${duracionMesesProyecto * 4 - 2} — deja las últimas 2 semanas del cronograma SIN actividades de campo/técnicas, reservadas para análisis final y escritura del informe (no las llenes con otra actividad). Actividades de objetivos distintos pueden correr en paralelo (semanas superpuestas) — no es obligatorio que todo sea secuencial. Si el número de objetivos/productos que ya vienen de Objetivos es demasiado ambicioso para este horizonte, decláralo explícitamente en preguntas_para_el_usuario en vez de comprimir artificialmente los tiempos hasta hacerlos irreales (ej. nunca declares semana_inicio=1, semana_fin=1 para una actividad que en la realidad toma 2 meses).`
     : `- DURACIÓN DEL PROYECTO: no confirmada todavía. Agrega una pregunta_para_el_usuario pidiendo que se confirme en RUTA — sin ese dato, el cronograma que generes es solo orientativo y puede no ser realista.`}
 
 PROBLEMA CENTRAL (RUTA): "${rutaOutput.problema}"
@@ -319,7 +336,7 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, con esta f
       "indicador_producto": "string",
       "unidad_medida": "string",
       "meta": "string",
-      "actividades": [{"actividad": "string", "indicador_gestion": "string", "tiempo_estimado": "string", "presupuesto": []}]
+      "actividades": [{"actividad": "string", "indicador_gestion": "string", "tiempo_estimado": "string", "semana_inicio": number, "semana_fin": number, "presupuesto": []}]
     }]
   }],
   "plan_analisis_datos": "string",
