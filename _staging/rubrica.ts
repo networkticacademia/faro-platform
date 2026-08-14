@@ -18,6 +18,7 @@ export type NodoFaro =
   | "OBJETIVOS"
   | "METODOLOGIA"
   | "MARCO_REFERENCIAL"
+  | "IMPACTOS_DELIMITACION"
   | "PRESUPUESTO"
   | "TRANSVERSAL"; // aplica a todo el proyecto, no a un nodo específico
 
@@ -101,7 +102,7 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, con esta f
     {
       "descripcion": "string",
       "peso": number | null,
-      "nodo_esperado": ["RUTA"|"NOVA"|"OBJETIVOS"|"METODOLOGIA"|"MARCO_REFERENCIAL"|"PRESUPUESTO"|"TRANSVERSAL"],
+      "nodo_esperado": ["RUTA"|"NOVA"|"OBJETIVOS"|"METODOLOGIA"|"MARCO_REFERENCIAL"|"IMPACTOS_DELIMITACION"|"PRESUPUESTO"|"TRANSVERSAL"],
       "criterio_verificacion": "string",
       "es_enfoque_diferencial_territorial": boolean
     }
@@ -110,3 +111,86 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, con esta f
 }
 `;
 }
+
+// ============================================================
+// Verificación de cobertura de rúbrica — término Φ de la fórmula
+// extendida de L_FARO (L_FARO = Σwᵢδᵢ + Σwᵢⱼδᵢⱼ + γΩ + βΔ(z₀*,B,G) +
+// κΦ(z₀*,R)). Dos pasos, igual que en toda la plataforma: el LLM
+// evalúa cada ítem por separado CON EVIDENCIA CITADA (nunca un
+// porcentaje directo), el CÓDIGO agrega de forma determinística.
+// ============================================================
+
+export type EstadoCobertura = "cubierto" | "parcial" | "no_cubierto";
+
+export interface CoberturaItem {
+  item_id: string; // el id del ItemRubrica correspondiente
+  estado_cobertura: EstadoCobertura;
+  evidencia_textual: string | null; // cita exacta del nodo que respalda la cobertura, o null si no hay
+  justificacion: string;
+}
+
+export function construirPromptVerificacionCobertura(params: {
+  item: ItemRubrica;
+  contenidoNodoResumido: string; // extracto relevante del/los nodo(s) esperado(s), ya armado por el endpoint
+}): string {
+  const { item, contenidoNodoResumido } = params;
+
+  return `Eres el verificador de cobertura de rúbrica de FARO. Tu única tarea es determinar si el siguiente ítem de la rúbrica está cubierto por el contenido real del proyecto — con evidencia citada, nunca por impresión general.
+
+ÍTEM A VERIFICAR: "${item.descripcion}"
+CRITERIO DE VERIFICACIÓN: "${item.criterio_verificacion}"
+${item.es_enfoque_diferencial_territorial ? `\nADVERTENCIA — este ítem es de ENFOQUE DIFERENCIAL/TERRITORIAL: NUNCA puede declararse "cubierto" completo solo porque el texto lo menciona. El máximo posible es "parcial", con la justificación explícita de que requiere soporte documental adjunto (certificados, actas, etc.) que un texto por sí solo no puede demostrar. Esta regla viene de un caso real (PROY-141612): un proyecto declaró enfoque diferencial en el texto sin documentos de soporte y perdió 8/10 puntos en evaluación real.` : ""}
+
+CONTENIDO REAL DEL PROYECTO (nodo(s) esperado(s) para este ítem):
+"""
+${contenidoNodoResumido}
+"""
+
+REGLA CRÍTICA — evidencia citada obligatoria: si declaras "cubierto" o "parcial", debes citar el texto EXACTO del contenido de arriba que lo respalda en evidencia_textual. Si no hay ningún texto que lo respalde, declara "no_cubierto" con evidencia_textual=null — NUNCA declares cobertura sin poder señalar dónde está.
+
+Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional:
+{
+  "estado_cobertura": "cubierto" | "parcial" | "no_cubierto",
+  "evidencia_textual": "string (cita exacta)" | null,
+  "justificacion": "string"
+}
+`;
+}
+
+// Agregación determinística en código — NO es el LLM diciendo un
+// porcentaje directo. Ítems sin peso declarado en la rúbrica original
+// se excluyen del cálculo (no se les asume un peso arbitrario).
+export function calcularPhi(
+  items: ItemRubrica[],
+  coberturas: CoberturaItem[]
+): { phi: number; itemsConsiderados: number; itemsSinPeso: number } {
+  const puntajeCobertura: Record<EstadoCobertura, number> = {
+    cubierto: 1,
+    parcial: 0.5,
+    no_cubierto: 0,
+  };
+
+  let sumaPonderada = 0;
+  let sumaPesos = 0;
+  let itemsSinPeso = 0;
+
+  for (const item of items) {
+    if (item.peso === null) {
+      itemsSinPeso++;
+      continue;
+    }
+    const cobertura = coberturas.find((c) => c.item_id === item.id);
+    if (!cobertura) continue;
+    sumaPonderada += item.peso * puntajeCobertura[cobertura.estado_cobertura];
+    sumaPesos += item.peso;
+  }
+
+  const phi = sumaPesos > 0 ? sumaPonderada / sumaPesos : 0;
+
+  return {
+    phi: Math.round(phi * 1000) / 1000,
+    itemsConsiderados: items.length - itemsSinPeso,
+    itemsSinPeso,
+  };
+}
+

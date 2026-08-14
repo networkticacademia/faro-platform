@@ -1,0 +1,206 @@
+"use client";
+
+import { useState } from "react";
+import type { ResultadoConvergenciaProyecto, CondicionConvergencia } from "@/lib/faro/convergenciaProyecto";
+import type { ResultadoCoherenciaPar } from "@/lib/faro/verificadorSemantico";
+
+interface ResultadoCompleto extends ResultadoConvergenciaProyecto {
+  deltas_ij: ResultadoCoherenciaPar[] | null;
+  phi_detalle: { itemsConsiderados: number; itemsSinPeso: number } | null;
+}
+
+const CONDICION_ICONO: Record<CondicionConvergencia["id"], string> = {
+  completitud:     "📋",
+  l_faro:         "📐",
+  estructural:     "🔗",
+  contradicciones: "⚡",
+  cronograma:      "📅",
+};
+
+export default function TarjetaConvergencia({ projectId }: { projectId: string }) {
+  const [resultado, setResultado] = useState<ResultadoCompleto | null>(null);
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function verificar() {
+    setCargando(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/mci/convergencia/calcular", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_id: projectId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error desconocido");
+      setResultado(data.resultado as ResultadoCompleto);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border bg-white p-6">
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-sm font-semibold text-faro-navy">Convergencia del proyecto</h3>
+        {resultado && (
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded-full ${
+              resultado.es_provisional
+                ? "bg-amber-100 text-amber-700"
+                : resultado.convergio
+                ? "bg-green-100 text-green-700"
+                : "bg-red-100 text-red-700"
+            }`}
+          >
+            {resultado.es_provisional ? "Provisional" : resultado.convergio ? "Convergió" : "No convergió"}
+          </span>
+        )}
+      </div>
+
+      <p className="text-xs text-gray-400 mb-4">
+        Verificación semántica entre nodos (δᵢⱼ) + cobertura de rúbrica (Φ) — requiere varias llamadas al
+        orquestador. No corre automáticamente.
+      </p>
+
+      {/* Botón principal */}
+      {!cargando && (
+        <button
+          id="btn-verificar-convergencia"
+          onClick={verificar}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-faro-navy text-white text-xs font-medium hover:bg-faro-navy/90 transition-colors"
+        >
+          {resultado ? "↺ Recalcular convergencia" : "Verificar convergencia"}
+        </button>
+      )}
+
+      {cargando && (
+        <div className="flex items-center gap-2 text-xs text-gray-500">
+          <svg className="animate-spin h-4 w-4 text-faro-navy" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+          </svg>
+          Verificando — esto puede tardar un minuto (varias llamadas LLM)…
+        </div>
+      )}
+
+      {error && (
+        <p className="mt-3 text-xs text-red-600 bg-red-50 rounded-md p-2">{error}</p>
+      )}
+
+      {/* Resultado */}
+      {resultado && !cargando && (
+        <div className="mt-5 space-y-5">
+          {/* Aviso provisional */}
+          {resultado.es_provisional && (
+            <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+              <span>⚠️</span>
+              <span>
+                <strong>Convergencia provisional</strong> — faltan piezas por calcular
+                {resultado.promedio_delta_ij === null && " (δᵢⱼ no calculado)"}
+                {resultado.phi === null && " (Φ no calculado — no hay rúbrica cargada o ningún nodo esperado está confirmado aún)"}
+                . El resultado es orientativo, no definitivo.
+              </span>
+            </div>
+          )}
+
+          {/* Indicador grande */}
+          <div className="flex items-center gap-4">
+            <span className="text-5xl">{resultado.convergio ? "✅" : "⏳"}</span>
+            <div>
+              <p className="text-lg font-bold text-faro-navy">
+                {resultado.convergio ? "El proyecto convergió" : "Aún no converge"}
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                L_FARO<sub>proyecto</sub> ={" "}
+                <span className="font-mono font-semibold">{resultado.l_faro_proyecto.toFixed(3)}</span>
+                {" · "}τc ={" "}
+                <span className="font-mono">{resultado.tau_c_proyecto.toFixed(3)}</span>
+              </p>
+              {resultado.phi !== null && (
+                <p className="text-xs text-gray-500">
+                  Φ (cobertura rúbrica) ={" "}
+                  <span className="font-mono font-semibold">{resultado.phi.toFixed(3)}</span>
+                  {resultado.phi_detalle && (
+                    <span className="text-gray-400">
+                      {" "}({resultado.phi_detalle.itemsConsiderados} ítem(s) considerado(s)
+                      {resultado.phi_detalle.itemsSinPeso > 0
+                        ? `, ${resultado.phi_detalle.itemsSinPeso} sin peso`
+                        : ""})
+                    </span>
+                  )}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* 5 condiciones */}
+          <ul className="space-y-2">
+            {resultado.condiciones.map((c) => (
+              <li
+                key={c.id}
+                className={`flex items-start gap-2 rounded-lg px-3 py-2 text-xs border ${
+                  c.cumple
+                    ? "bg-green-50 border-green-200 text-green-800"
+                    : "bg-red-50 border-red-200 text-red-700"
+                }`}
+              >
+                <span className="text-base leading-none">{CONDICION_ICONO[c.id]}</span>
+                <div>
+                  <span className="font-semibold">{c.nombre}: </span>
+                  {c.explicacion}
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {/* Tabla de δᵢⱼ */}
+          {resultado.deltas_ij && resultado.deltas_ij.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-faro-navy mb-2">
+                Coherencia semántica entre nodos (δᵢⱼ)
+                {resultado.promedio_delta_ij !== null && (
+                  <span className="ml-2 font-normal text-gray-500">
+                    promedio: <span className="font-mono">{resultado.promedio_delta_ij.toFixed(3)}</span>
+                  </span>
+                )}
+              </p>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b">
+                    <th className="pr-2 py-1">Par</th>
+                    <th className="pr-2 py-1 text-right">δᵢⱼ</th>
+                    <th className="py-1">Resumen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resultado.deltas_ij.map((d, i) => (
+                    <tr key={i} className="border-b last:border-0 align-top">
+                      <td className="pr-2 py-1 font-mono text-[10px] whitespace-nowrap">
+                        {d.nodoOrigen} → {d.nodoDestino}
+                      </td>
+                      <td
+                        className={`pr-2 py-1 text-right font-mono font-semibold ${
+                          d.delta_ij <= 0.2
+                            ? "text-green-600"
+                            : d.delta_ij <= 0.5
+                            ? "text-amber-600"
+                            : "text-red-600"
+                        }`}
+                      >
+                        {d.delta_ij.toFixed(3)}
+                      </td>
+                      <td className="py-1 text-gray-600">{d.resumen}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -5,6 +5,7 @@ import {
   ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import NavegacionNodos from "@/components/faro/NavegacionNodos";
+import TarjetaConvergencia from "./TarjetaConvergencia";
 
 interface SesionMci {
   id: string;
@@ -272,6 +273,8 @@ export default function DashboardProyecto({
           </p>
         )}
       </div>
+
+      <TarjetaConvergencia projectId={project.id} />
 
       {actividadOpenRouter && actividadOpenRouter.length > 0 && (
         <div className="rounded-2xl border bg-white p-6">
