@@ -229,7 +229,7 @@ export default function FormulacionImpactosDelimitacion({
     : {} as Record<CategoriaRecurso, RecursoDetalle[]>;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6">
       <NavegacionNodos projectId={project.id} />
 
       <div>
