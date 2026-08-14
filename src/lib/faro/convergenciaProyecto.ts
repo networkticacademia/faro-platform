@@ -21,6 +21,33 @@ import type { ContradiccionDetectada } from "./mci";
 export const PESO_DELTA_IJ_PROVISIONAL = 0.3;
 export const PESO_PHI_PROVISIONAL = 0.3;
 
+// Desglose por nodo — para poder decirle al formulador CUÁL nodo corregir,
+// no solo que el total supera el umbral.
+export interface DetalleLFaroNodo {
+  nodo: string;
+  l_faro: number;
+  confianza_agente: string | null;
+  num_preguntas_pendientes: number;
+  sugerencia: string; // texto accionable, calculated aquí mismo, determinístico
+}
+
+function generarSugerenciaNodo(d: { l_faro: number; confianza_agente: string | null; num_preguntas_pendientes: number }): string {
+  if (d.num_preguntas_pendientes > 0) {
+    return `Tiene ${d.num_preguntas_pendientes} pregunta(s) sin resolver — respóndalas y regenere con esa información como retroalimentación.`;
+  }
+  if (d.confianza_agente === "baja") {
+    return `El agente declaró confianza baja al generarlo — revise el contenido con cuidado y considere regenerar con instrucciones más específicas.`;
+  }
+  if (d.confianza_agente === "media") {
+    return `Confianza media del agente — revise si hay algo impreciso y regenere con feedback puntual si es necesario.`;
+  }
+  return `L_FARO individual alto sin causa evidente declarada — revise el contenido manualmente, puede haber una contradicción con RSL (Δ) no resuelta.`;
+}
+
+export function ordenarNodosPorContribucion(detalles: DetalleLFaroNodo[]): DetalleLFaroNodo[] {
+  return [...detalles].sort((a, b) => b.l_faro - a.l_faro);
+}
+
 export interface CondicionConvergencia {
   id: "completitud" | "l_faro" | "estructural" | "contradicciones" | "cronograma";
   nombre: string;
@@ -36,10 +63,11 @@ export interface ResultadoConvergenciaProyecto {
   phi: number | null; // null si no hay rúbrica cargada
   promedio_delta_ij: number | null; // null si no se ha corrido la verificación semántica
   es_provisional: boolean; // true mientras falten piezas (δᵢⱼ o Φ no calculados)
+  detalle_l_faro_por_nodo: DetalleLFaroNodo[]; // ordenado de mayor a menor contribución — para saber QUÉ nodo corregir primero
 }
 
 export function calcularConvergenciaProyecto(params: {
-  lFaroReducidaPorNodoConfirmado: number[]; // solo de nodos ya CONFIRMADOS
+  lFaroReducidaPorNodoConfirmado: { nodo: string; l_faro: number; confianza_agente: string | null; num_preguntas_pendientes: number }[];
   tauCProyecto: number;
   deltasIj: ResultadoCoherenciaPar[] | null; // null = todavía no se corrió esta verificación
   phi: number | null; // null = no hay rúbrica cargada, no se computó
@@ -59,7 +87,7 @@ export function calcularConvergenciaProyecto(params: {
 
   const promedioLFaroNodos =
     lFaroReducidaPorNodoConfirmado.length > 0
-      ? lFaroReducidaPorNodoConfirmado.reduce((a, b) => a + b, 0) / lFaroReducidaPorNodoConfirmado.length
+      ? lFaroReducidaPorNodoConfirmado.reduce((a, b) => a + b.l_faro, 0) / lFaroReducidaPorNodoConfirmado.length
       : 0;
 
   const promedioDeltaIj =
@@ -133,6 +161,16 @@ export function calcularConvergenciaProyecto(params: {
   const convergio = condiciones.every((c) => c.cumple);
   const esProvisional = promedioDeltaIj === null || phi === null;
 
+  const detalleLFaroPorNodo = ordenarNodosPorContribucion(
+    lFaroReducidaPorNodoConfirmado.map((d) => ({
+      nodo: d.nodo,
+      l_faro: d.l_faro,
+      confianza_agente: d.confianza_agente,
+      num_preguntas_pendientes: d.num_preguntas_pendientes,
+      sugerencia: generarSugerenciaNodo(d),
+    }))
+  );
+
   return {
     convergio,
     l_faro_proyecto: Math.round(lFaroProyecto * 1000) / 1000,
@@ -141,5 +179,6 @@ export function calcularConvergenciaProyecto(params: {
     phi,
     promedio_delta_ij: promedioDeltaIj !== null ? Math.round(promedioDeltaIj * 1000) / 1000 : null,
     es_provisional: esProvisional,
+    detalle_l_faro_por_nodo: detalleLFaroPorNodo,
   };
 }

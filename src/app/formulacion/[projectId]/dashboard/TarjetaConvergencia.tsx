@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { ResultadoConvergenciaProyecto, CondicionConvergencia } from "@/lib/faro/convergenciaProyecto";
 import type { ResultadoCoherenciaPar } from "@/lib/faro/verificadorSemantico";
 
@@ -15,6 +16,26 @@ const CONDICION_ICONO: Record<CondicionConvergencia["id"], string> = {
   estructural:     "🔗",
   contradicciones: "⚡",
   cronograma:      "📅",
+};
+
+const NODO_SLUG_MAP: Record<string, string> = {
+  RUTA: "",
+  NOVA: "/nova",
+  OBJETIVOS: "/objetivos",
+  MARCO_REFERENCIAL: "/marco-referencial",
+  METODOLOGIA: "/metodologia",
+  IMPACTOS_DELIMITACION: "/impactos-delimitacion",
+  PRESUPUESTO: "/presupuesto",
+};
+
+const NODO_LABEL_MAP: Record<string, string> = {
+  RUTA: "RUTA",
+  NOVA: "NOVA",
+  OBJETIVOS: "Objetivos",
+  MARCO_REFERENCIAL: "Marco Referencial",
+  METODOLOGIA: "Metodología",
+  IMPACTOS_DELIMITACION: "Impactos y Delimitación",
+  PRESUPUESTO: "Presupuesto",
 };
 
 export default function TarjetaConvergencia({
@@ -157,17 +178,56 @@ export default function TarjetaConvergencia({
             {resultado.condiciones.map((c) => (
               <li
                 key={c.id}
-                className={`flex items-start gap-2 rounded-lg px-3 py-2 text-xs border ${
+                className={`flex flex-col gap-1 rounded-lg px-3 py-2 text-xs border ${
                   c.cumple
                     ? "bg-green-50 border-green-200 text-green-800"
                     : "bg-red-50 border-red-200 text-red-700"
                 }`}
               >
-                <span className="text-base leading-none">{CONDICION_ICONO[c.id]}</span>
-                <div>
-                  <span className="font-semibold">{c.nombre}: </span>
-                  {c.explicacion}
+                <div className="flex items-start gap-2">
+                  <span className="text-base leading-none">{CONDICION_ICONO[c.id]}</span>
+                  <div>
+                    <span className="font-semibold">{c.nombre}: </span>
+                    {c.explicacion}
+                  </div>
                 </div>
+
+                {/* Si L_FARO no cumple, mostrar desglose por nodo ordenado */}
+                {c.id === "l_faro" && !c.cumple && resultado.detalle_l_faro_por_nodo && (
+                  <div className="mt-2 pt-2 border-t border-red-200/60">
+                    <p className="font-semibold text-[11px] mb-1.5 text-red-900">
+                      Desglose de L_FARO por nodo (ordenado de mayor a menor incertidumbre):
+                    </p>
+                    <div className="space-y-1.5">
+                      {resultado.detalle_l_faro_por_nodo.map((d) => {
+                        const slug = NODO_SLUG_MAP[d.nodo] ?? "";
+                        const label = NODO_LABEL_MAP[d.nodo] ?? d.nodo;
+                        return (
+                          <div
+                            key={d.nodo}
+                            className="flex items-start justify-between gap-2 bg-white/80 rounded p-2 border border-red-200/50"
+                          >
+                            <div className="space-y-0.5 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-faro-navy">{label}</span>
+                                <span className="font-mono text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded">
+                                  L_FARO: {d.l_faro.toFixed(3)}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-gray-700">{d.sugerencia}</p>
+                            </div>
+                            <Link
+                              href={`/formulacion/${projectId}${slug}`}
+                              className="text-[11px] font-medium text-faro-navy hover:underline whitespace-nowrap bg-faro-navy/5 px-2 py-1 rounded"
+                            >
+                              Ir a {label} →
+                            </Link>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </li>
             ))}
           </ul>

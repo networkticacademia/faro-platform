@@ -43,6 +43,8 @@ interface NodoConfirmado {
   tipo: NodoRequerido;
   contenido: Record<string, unknown>;
   iteracion: number;
+  confianza_agente: string | null;
+  preguntas_pendientes: string[];
 }
 
 // ============================================================
@@ -177,7 +179,7 @@ export async function POST(request: Request) {
   // 2. Traer el último nodo CONFIRMADO de cada tipo (tipo → nodo confirmado más reciente)
   const { data: nodosRaw } = await supabase
     .from("grafo_nodos")
-    .select("tipo, contenido, iteracion, confirmado_humano")
+    .select("tipo, contenido, iteracion, confirmado_humano, confianza_agente, preguntas_pendientes")
     .eq("project_id", project_id)
     .eq("confirmado_humano", true)
     .in("tipo", [...NODOS_REQUERIDOS])
@@ -192,6 +194,8 @@ export async function POST(request: Request) {
         tipo,
         contenido: nodo.contenido as Record<string, unknown>,
         iteracion: nodo.iteracion,
+        confianza_agente: nodo.confianza_agente ?? null,
+        preguntas_pendientes: (nodo.preguntas_pendientes as string[]) ?? [],
       };
     }
   }
@@ -201,7 +205,7 @@ export async function POST(request: Request) {
 
   // 3. Para cada nodo confirmado, traer el L_FARO de la sesión correspondiente
   //    a su iteración exacta (no la más reciente — ver decisión de diseño)
-  const lFarosPorNodo: number[] = [];
+  const lFarosPorNodo: { nodo: string; l_faro: number; confianza_agente: string | null; num_preguntas_pendientes: number }[] = [];
   for (const [tipo, nodo] of Object.entries(nodosConfirmados) as [NodoRequerido, NodoConfirmado][]) {
     const { data: sesion } = await supabase
       .from("sesiones_mci_log")
@@ -211,7 +215,12 @@ export async function POST(request: Request) {
       .eq("iteracion", nodo.iteracion)
       .single();
     if (sesion?.l_faro != null) {
-      lFarosPorNodo.push(sesion.l_faro);
+      lFarosPorNodo.push({
+        nodo: tipo,
+        l_faro: sesion.l_faro,
+        confianza_agente: nodo.confianza_agente,
+        num_preguntas_pendientes: (nodo.preguntas_pendientes ?? []).length,
+      });
     }
   }
 

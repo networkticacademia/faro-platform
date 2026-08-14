@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ReferenceLine,
@@ -78,6 +79,7 @@ export default function DashboardProyecto({
   nodosConfirmados: NodoConfirmado[];
   actividadOpenRouter: ActividadOpenRouter[] | null;
 }) {
+  const router = useRouter();
   const ultimaPorModulo: Record<string, SesionMci | undefined> = {};
   for (const s of sesiones) {
     ultimaPorModulo[s.modulo] = s;
@@ -113,11 +115,19 @@ export default function DashboardProyecto({
     <div className="max-w-5xl mx-auto space-y-6">
       <NavegacionNodos projectId={project.id} />
 
-      <div>
-        <h1 className="text-2xl font-semibold text-faro-navy">Dashboard del proyecto</h1>
-        <p className="text-sm text-gray-600">
-          {project.titulo_provisional ?? "Sin título provisional"} — {project.tau} · {project.nu} · {project.alpha_area}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-faro-navy">Dashboard del proyecto</h1>
+          <p className="text-sm text-gray-600">
+            {project.titulo_provisional ?? "Sin título provisional"} — {project.tau} · {project.nu} · {project.alpha_area}
+          </p>
+        </div>
+        <button
+          onClick={() => router.refresh()}
+          className="text-xs px-3 py-1.5 rounded-lg border border-faro-navy/20 bg-white text-faro-navy font-medium hover:bg-faro-navy/5 transition-colors flex items-center gap-1.5 shadow-sm"
+        >
+          🔄 Actualizar
+        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">

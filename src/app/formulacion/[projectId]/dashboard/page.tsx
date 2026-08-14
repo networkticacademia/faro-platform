@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import DashboardProyecto from "./DashboardProyecto";
 
+export const dynamic = "force-dynamic";
+
 interface ActividadOpenRouter {
   date: string;
   model: string;
