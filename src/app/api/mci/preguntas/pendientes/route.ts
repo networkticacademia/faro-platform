@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+/**
+ * GET /api/mci/preguntas/pendientes?project_id=...
+ *
+ * Devuelve solo las preguntas raíz (pregunta_raiz_id is null), cada una
+ * anotada con cuántas preguntas agrupa (agrupa_count) y en qué nodos (nodos_involucrados).
+ * Use ?incluir_detalle=true para traer también las preguntas agrupadas bajo cada raíz.
+ */
 export async function GET(request: Request) {
   const supabase = await createClient();
   const {
@@ -12,35 +19,55 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const project_id = searchParams.get("project_id");
-  const nodo_tipo = searchParams.get("nodo_tipo"); // opcional
+  const incluirDetalle = searchParams.get("incluir_detalle") === "true";
 
   if (!project_id) {
     return NextResponse.json({ error: "Falta project_id." }, { status: 400 });
   }
 
-  let query = supabase
+  const { data: raices, error } = await supabase
     .from("preguntas_pendientes")
     .select("*")
     .eq("project_id", project_id)
     .eq("estado", "abierta")
-    .order("prioridad", { ascending: true }) // P0 < P1 < P2 < P3 alfabéticamente
+    .is("pregunta_raiz_id", null)
+    .order("prioridad", { ascending: true })
     .order("created_at", { ascending: true });
-
-  if (nodo_tipo) {
-    query = query.eq("nodo_tipo", nodo_tipo);
-  }
-
-  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const { data: agrupadas } = await supabase
+    .from("preguntas_pendientes")
+    .select("id, pregunta_raiz_id, nodo_tipo, texto_pregunta")
+    .eq("project_id", project_id)
+    .eq("estado", "abierta")
+    .not("pregunta_raiz_id", "is", null);
+
+  const hijasPorRaiz = new Map<string, { id: string; nodo_tipo: string; texto_pregunta: string }[]>();
+  for (const h of agrupadas ?? []) {
+    const lista = hijasPorRaiz.get(h.pregunta_raiz_id) ?? [];
+    lista.push({ id: h.id, nodo_tipo: h.nodo_tipo, texto_pregunta: h.texto_pregunta });
+    hijasPorRaiz.set(h.pregunta_raiz_id, lista);
+  }
+
+  const preguntas = (raices ?? []).map((r) => {
+    const hijas = hijasPorRaiz.get(r.id) ?? [];
+    const nodosInvolucrados = Array.from(new Set([r.nodo_tipo, ...hijas.map((h) => h.nodo_tipo)]));
+    return {
+      ...r,
+      agrupa_count: hijas.length,
+      nodos_involucrados: nodosInvolucrados,
+      ...(incluirDetalle ? { agrupadas: hijas } : {}),
+    };
+  });
+
   const conteo = {
-    P1: data?.filter((p) => p.prioridad === "P1").length ?? 0,
-    P2: data?.filter((p) => p.prioridad === "P2").length ?? 0,
-    P3: data?.filter((p) => p.prioridad === "P3").length ?? 0,
+    P1: preguntas.filter((p) => p.prioridad === "P1").length,
+    P2: preguntas.filter((p) => p.prioridad === "P2").length,
+    P3: preguntas.filter((p) => p.prioridad === "P3").length,
   };
 
-  return NextResponse.json({ preguntas: data ?? [], conteo });
+  return NextResponse.json({ preguntas, conteo });
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { llamarOrquestador, parsearJsonRespuesta } from "@/lib/openrouter/client";
 import {
   construirPromptMarcoReferencial,
@@ -13,18 +14,11 @@ import {
 } from "@/lib/faro/mci";
 import { sincronizarPreguntasPendientes } from "@/lib/faro/preguntas";
 
-export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Debe iniciar sesión." }, { status: 401 });
-  }
-
-  const body = await request.json();
-  const { project_id, feedback, fuentes_externas_verificadas } = body;
-  if (!project_id) {
-    return NextResponse.json({ error: "Falta project_id." }, { status: 400 });
-  }
+export async function generarMarcoReferencialCore(
+  supabase: SupabaseClient,
+  params: { project_id: string; feedback?: string; fuentes_externas_verificadas?: string }
+) {
+  const { project_id, feedback, fuentes_externas_verificadas } = params;
 
   const { data: project, error: projectError } = await supabase
     .from("projects")
@@ -33,7 +27,7 @@ export async function POST(request: Request) {
     .single();
 
   if (projectError || !project) {
-    return NextResponse.json({ error: "Proyecto no encontrado." }, { status: 404 });
+    throw new Error("Proyecto no encontrado.");
   }
 
   const { data: nodoRuta, error: errRuta } = await supabase
@@ -47,10 +41,7 @@ export async function POST(request: Request) {
     .single();
 
   if (errRuta || !nodoRuta) {
-    return NextResponse.json(
-      { error: "Se requiere un nodo RUTA confirmado antes de generar Marco Referencial" },
-      { status: 400 }
-    );
+    throw new Error("Se requiere un nodo RUTA confirmado antes de generar Marco Referencial.");
   }
 
   const { data: nodoNova, error: errNova } = await supabase
@@ -64,10 +55,7 @@ export async function POST(request: Request) {
     .single();
 
   if (errNova || !nodoNova) {
-    return NextResponse.json(
-      { error: "Se requiere un nodo NOVA confirmado antes de generar Marco Referencial" },
-      { status: 400 }
-    );
+    throw new Error("Se requiere un nodo NOVA confirmado antes de generar Marco Referencial.");
   }
 
   const { data: nodoObjetivos, error: errObjetivos } = await supabase
@@ -81,10 +69,7 @@ export async function POST(request: Request) {
     .single();
 
   if (errObjetivos || !nodoObjetivos) {
-    return NextResponse.json(
-      { error: "Se requiere un nodo OBJETIVOS confirmado antes de generar Marco Referencial" },
-      { status: 400 }
-    );
+    throw new Error("Se requiere un nodo OBJETIVOS confirmado antes de generar Marco Referencial.");
   }
 
   const rutaOutput = nodoRuta.contenido;
@@ -134,13 +119,8 @@ export async function POST(request: Request) {
   });
 
   const inicio = Date.now();
-  let marcoOutput: MarcoReferencialOutput;
-  try {
-    const respuestaCruda = await llamarOrquestador(prompt);
-    marcoOutput = parsearJsonRespuesta<MarcoReferencialOutput>(respuestaCruda);
-  } catch (e) {
-    return NextResponse.json({ error: `Error del orquestador: ${(e as Error).message}` }, { status: 502 });
-  }
+  const respuestaCruda = await llamarOrquestador(prompt);
+  const marcoOutput = parsearJsonRespuesta<MarcoReferencialOutput>(respuestaCruda);
   const tiempoMs = Date.now() - inicio;
 
   const { data: contradiccionesEstructurales } = await supabase.rpc("detectar_contradicciones", {
@@ -173,7 +153,7 @@ export async function POST(request: Request) {
     .single();
 
   if (nodoError) {
-    return NextResponse.json({ error: nodoError.message }, { status: 500 });
+    throw new Error(`Error al guardar nodo MARCO_REFERENCIAL: ${nodoError.message}`);
   }
 
   await supabase.from("sesiones_mci_log").insert({
@@ -196,8 +176,29 @@ export async function POST(request: Request) {
     contenido: nodo.contenido,
   });
 
-  return NextResponse.json({
+  return {
     nodo,
     metrica: { deltaI, omega, deltaModulada, lFaro, seTau, tauC, convergio, contradicciones: contradiccionesTyped },
-  });
+  };
+}
+
+export async function POST(request: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Debe iniciar sesión." }, { status: 401 });
+  }
+
+  const body = await request.json();
+  const { project_id, feedback, fuentes_externas_verificadas } = body;
+  if (!project_id) {
+    return NextResponse.json({ error: "Falta project_id." }, { status: 400 });
+  }
+
+  try {
+    const resultado = await generarMarcoReferencialCore(supabase, { project_id, feedback, fuentes_externas_verificadas });
+    return NextResponse.json(resultado);
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
 }

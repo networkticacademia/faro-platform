@@ -15,6 +15,7 @@ import {
   obtenerNodosAfectados,
   type NodoTipo,
 } from "./clasificacionPreguntas";
+import { reagruparPreguntasAbiertas } from "./agrupamiento";
 
 interface PreguntaExtraida {
   campo_origen: string | null;
@@ -86,5 +87,13 @@ export async function sincronizarPreguntasPendientes(
   }
 
   const insertadas = data?.length ?? 0;
+  if (insertadas > 0) {
+    try {
+      await reagruparPreguntasAbiertas(supabase, project_id);
+    } catch (e) {
+      console.error("[sincronizarPreguntasPendientes] error al reagrupar:", e);
+    }
+  }
+
   return { insertadas, omitidas_duplicadas: filas.length - insertadas };
 }

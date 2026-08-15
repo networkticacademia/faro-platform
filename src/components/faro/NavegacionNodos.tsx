@@ -120,6 +120,7 @@ export default function NavegacionNodos({ projectId }: { projectId: string }) {
 
       {gateState?.bloqueado && (
         <GateOverlay
+          projectId={projectId}
           checkpoint={gateState.checkpoint}
           preguntasBloqueantes={gateState.preguntas}
           onCerrarSinResolver={() => setGateState(null)}

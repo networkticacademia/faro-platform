@@ -8,7 +8,7 @@
  * solo bloquea el avance de navegación.
  */
 
-import { useState } from "react";
+import TriagePregunta from "./TriagePregunta";
 
 interface PreguntaBloqueante {
   id: string;
@@ -19,58 +19,20 @@ interface PreguntaBloqueante {
 }
 
 interface GateOverlayProps {
+  projectId: string;
   checkpoint: string;
   preguntasBloqueantes: PreguntaBloqueante[];
-  onCerrarSinResolver: () => void; // permite cancelar el intento de avanzar
-  onPreguntaResuelta: (preguntaId: string) => void; // refresca el Gate tras responder
+  onCerrarSinResolver: () => void;
+  onPreguntaResuelta: (preguntaId: string) => void;
 }
 
 export default function GateOverlay({
+  projectId,
   checkpoint,
   preguntasBloqueantes,
   onCerrarSinResolver,
   onPreguntaResuelta,
 }: GateOverlayProps) {
-  const [preguntaActiva, setPreguntaActiva] = useState<string | null>(null);
-  const [respuestaTexto, setRespuestaTexto] = useState("");
-  const [explicacion, setExplicacion] = useState<Record<string, string>>({});
-  const [cargandoExplicacion, setCargandoExplicacion] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
-
-  async function pedirAyuda(preguntaId: string) {
-    setCargandoExplicacion(preguntaId);
-    try {
-      const res = await fetch("/api/mci/preguntas/explicar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pregunta_id: preguntaId }),
-      });
-      const data = await res.json();
-      setExplicacion((prev) => ({ ...prev, [preguntaId]: data.explicacion }));
-    } finally {
-      setCargandoExplicacion(null);
-    }
-  }
-
-  async function enviarRespuesta(preguntaId: string) {
-    if (!respuestaTexto.trim()) return;
-    setEnviando(true);
-    try {
-      const res = await fetch("/api/mci/preguntas/responder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pregunta_id: preguntaId, respuesta: respuestaTexto }),
-      });
-      if (res.ok) {
-        setRespuestaTexto("");
-        setPreguntaActiva(null);
-        onPreguntaResuelta(preguntaId);
-      }
-    } finally {
-      setEnviando(false);
-    }
-  }
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
@@ -97,54 +59,12 @@ export default function GateOverlay({
                 </p>
               )}
 
-              {explicacion[p.id] && (
-                <div className="mb-3 whitespace-pre-wrap rounded-md border border-blue-100 bg-blue-50/50 p-3 text-xs text-gray-700 leading-relaxed">
-                  {explicacion[p.id]}
-                </div>
-              )}
-
-              {preguntaActiva === p.id ? (
-                <div className="space-y-2">
-                  <textarea
-                    className="w-full rounded-md border border-gray-300 p-2.5 text-xs text-gray-900 focus:border-faro-navy focus:outline-none focus:ring-1 focus:ring-faro-navy"
-                    rows={3}
-                    value={respuestaTexto}
-                    onChange={(e) => setRespuestaTexto(e.target.value)}
-                    placeholder="Escriba su respuesta o aclaración aquí..."
-                  />
-                  <div className="flex gap-2 justify-end">
-                    <button
-                      className="rounded-md bg-faro-navy px-3 py-1.5 text-xs font-medium text-white hover:bg-opacity-90 disabled:opacity-50 transition-colors"
-                      disabled={enviando}
-                      onClick={() => enviarRespuesta(p.id)}
-                    >
-                      {enviando ? "Guardando..." : "Guardar respuesta"}
-                    </button>
-                    <button
-                      className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-                      onClick={() => setPreguntaActiva(null)}
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    className="rounded-md bg-faro-navy px-3 py-1.5 text-xs font-medium text-white hover:bg-opacity-90 transition-colors"
-                    onClick={() => setPreguntaActiva(p.id)}
-                  >
-                    Responder
-                  </button>
-                  <button
-                    className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                    disabled={cargandoExplicacion === p.id}
-                    onClick={() => pedirAyuda(p.id)}
-                  >
-                    {cargandoExplicacion === p.id ? "Consultando..." : "💡 No entiendo esta pregunta"}
-                  </button>
-                </div>
-              )}
+              <TriagePregunta
+                preguntaId={p.id}
+                projectId={projectId}
+                textoPregunta={p.texto_pregunta}
+                onResuelta={() => onPreguntaResuelta(p.id)}
+              />
             </div>
           ))}
         </div>
