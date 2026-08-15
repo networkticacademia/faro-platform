@@ -19,6 +19,7 @@ import {
   calcularSeTauCompleto, calcularTauC, haConvergido,
   type ContradiccionDetectada,
 } from "@/lib/faro/mci";
+import { sincronizarPreguntasPendientes } from "@/lib/faro/preguntas";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -166,6 +167,13 @@ export async function POST(request: Request) {
     convergio,
     tiempo_ms: tiempoMs,
     modelo_usado: process.env.OPENROUTER_MODEL ?? "anthropic/claude-sonnet-4.6",
+  });
+
+  await sincronizarPreguntasPendientes(supabase, {
+    project_id,
+    nodo_id: nodo.id,
+    nodo_tipo: "NOVA",
+    contenido: nodo.contenido,
   });
 
   return NextResponse.json({
