@@ -1,9 +1,12 @@
 /**
- * lib/faro/agrupamiento.ts
+ * PARCHE para lib/faro/agrupamiento.ts
  *
- * Agrupamiento semántico de preguntas abiertas (P0) — AUTO-PERSISTE el
- * resultado. Incluye la función extraeArrayJSON para aislar el array JSON
- * balanceado de corchetes ignorando cualquier texto explicativo adicional.
+ * Reemplaza el bloque de parseo dentro de reagruparPreguntasAbiertas()
+ * (el try/catch que hace JSON.parse) por esto. La causa del error real:
+ * el LLM devolvió el array JSON correcto pero agregó texto explicativo
+ * después, pese a la instrucción de "solo JSON, sin texto adicional".
+ * JSON.parse no tolera nada extra al final — hay que extraer solo el
+ * array balanceado de corchetes, ignorando lo que venga después.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -29,6 +32,8 @@ function extraerArrayJSON(texto: string): string {
       if (profundidad === 0) return limpio.slice(inicio, i + 1);
     }
   }
+  // Si nunca cerró (respuesta truncada), devuelve lo que haya para que
+  // JSON.parse falle de forma clara en vez de silenciosa.
   return limpio.slice(inicio);
 }
 
