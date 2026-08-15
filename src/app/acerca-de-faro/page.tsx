@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AcercaFaroDefinicion from "@/components/faro/AcercaFaroDefinicion";
 
 const FASES = [
   { num: "F1", nombre: "Reflexividad", detalle: "Tema + viabilidad · entrada al sistema", color: "#0F6E56" },
@@ -87,6 +88,8 @@ export default function AcercaDeFaroPage() {
           Coherente · trazable · validado · listo para convocatoria
         </p>
       </div>
+
+      <AcercaFaroDefinicion />
 
       <div className="rounded-lg bg-gray-50 border p-4 text-center">
         <p className="text-sm font-semibold text-faro-navy">Principio rector</p>

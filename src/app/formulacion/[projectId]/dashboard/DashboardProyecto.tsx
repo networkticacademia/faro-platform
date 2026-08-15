@@ -7,6 +7,7 @@ import {
 } from "recharts";
 import NavegacionNodos from "@/components/faro/NavegacionNodos";
 import TarjetaConvergencia from "./TarjetaConvergencia";
+import ContadorPreguntasPrioridad from "@/components/faro/ContadorPreguntasPrioridad";
 
 interface SesionMci {
   id: string;
@@ -283,6 +284,8 @@ export default function DashboardProyecto({
           </p>
         )}
       </div>
+
+      <ContadorPreguntasPrioridad projectId={project.id} />
 
       <TarjetaConvergencia projectId={project.id} brechasCriticas={resumen.criticas} />
 
