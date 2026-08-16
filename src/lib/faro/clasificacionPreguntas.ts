@@ -16,65 +16,124 @@ export type NodoTipo =
   | "IMPACTOS";
 
 /**
- * Campos cuya incertidumbre es estructural (P1: puede cambiar la forma del
- * proyecto) vs. operativa (P2: se resuelve en la etapa correspondiente) vs.
- * diferible a fase posterior (P3).
+ * `preguntas_para_el_usuario` llega desde el LLM como `string[]` plano (ver
+ * los prompts en ruta.ts, nova.ts, objetivos.ts, metodologia.ts,
+ * marcoReferencial.ts, impactosDelimitacion.ts — todos declaran
+ * `"preguntas_para_el_usuario": ["string"]`, nunca `{campo, pregunta}`).
+ * Verificado también contra filas reales de `grafo_nodos`. Por lo tanto
+ * `campo_origen` siempre es `null` y clasificar por ese campo caía siempre
+ * en el default P2. En su lugar, clasificamos por palabras clave presentes
+ * en el propio texto de la pregunta.
  *
- * Ajustado a los nombres reales de los tipos de salida de FARO:
- * RutaOutput, NovaOutput, ObjetivosOutput, MetodologiaOutput, MarcoReferencialOutput, ImpactosDelimitacionOutput.
+ * Reglas por tipo de nodo, ordenadas de más a menos crítica (primera regla
+ * cuyo patrón matchee gana). Ajustado a los campos reales de los esquemas de
+ * salida de FARO: RutaOutput, NovaOutput, ObjetivosOutput, MetodologiaOutput,
+ * MarcoReferencialOutput, ImpactosDelimitacionOutput.
  */
-export const CAMPOS_CRITICOS_POR_NODO: Record<string, Partial<Record<string, Prioridad>>> = {
-  RUTA: {
-    problema: "P1",
-    pregunta_investigacion: "P1",
-    objeto_estudio: "P1",
-    poblacion_contexto: "P1",
-    alcance_espacial: "P2",
-    alcance_temporal: "P1",
-    tema: "P1",
-  },
-  NOVA: {
-    nucleo_causa_raiz: "P1",
-    nucleo_brecha_conocimiento: "P1",
-    onda_consecuencias: "P2",
-    onda_efectos_arbol_problema: "P2",
-    avance_novedad_estado_arte: "P1",
-    cifra_contexto_pendiente_fuente: "P3",
-  },
-  OBJETIVOS: {
-    objetivo_general: "P1",
-    objetivos_especificos: "P1",
-    enfoque_metodologico: "P1",
-    verbo_bloom_general: "P2",
-  },
-  METODOLOGIA: {
-    enfoque_metodologico: "P1",
-    diseno_metodologico: "P1",
-    tecnicas_instrumentos: "P2",
-    plan_por_objetivo: "P1",
-    poblacion: "P1",
-    muestra: "P1",
-  },
-  MARCO_REFERENCIAL: {
-    marco_teorico: "P1",
-    marco_conceptual: "P2",
-    marco_legal: "P2",
-    marco_contextual: "P2",
-  },
-  IMPACTOS: {
-    impactos: "P2",
-    limitaciones: "P1",
-    riesgos: "P1",
-    recursos: "P2",
-  },
+interface ReglaClasificacion {
+  prioridad: Prioridad;
+  patrones: RegExp[];
+}
+
+export const PALABRAS_CLAVE_POR_NODO: Record<NodoTipo, ReglaClasificacion[]> = {
+  RUTA: [
+    {
+      prioridad: "P1",
+      patrones: [
+        /\bproblema\b/,
+        /pregunta de investigaci[oó]n/,
+        /objeto de estudio/,
+        /poblaci[oó]n/,
+        /alcance temporal/,
+        /\btema\b/,
+        /\bcontexto\b/,
+      ],
+    },
+    {
+      prioridad: "P2",
+      patrones: [/alcance espacial/, /ubicaci[oó]n/, /\bregi[oó]n\b/, /\bzona\b/, /geogr[aá]fic/],
+    },
+  ],
+  NOVA: [
+    {
+      prioridad: "P1",
+      patrones: [
+        /causa ra[ií]z/,
+        /\bcausa\b/,
+        /\bbrecha\b/,
+        /vac[ií]o de conocimiento/,
+        /\bnovedad\b/,
+        /estado del arte/,
+        /\baporte\b/,
+      ],
+    },
+    { prioridad: "P2", patrones: [/consecuencia/, /\befecto/, /[aá]rbol de problema/] },
+    { prioridad: "P3", patrones: [/\bcifra\b/, /estad[ií]stic/, /\bfuente\b/] },
+  ],
+  OBJETIVOS: [
+    {
+      prioridad: "P1",
+      patrones: [
+        /objetivo general/,
+        /objetivos? espec[ií]fico/,
+        /enfoque metodol[oó]gico/,
+        /\benfoque\b/,
+      ],
+    },
+    { prioridad: "P2", patrones: [/\bverbo\b/, /taxonom[ií]a de bloom/, /\bbloom\b/] },
+  ],
+  METODOLOGIA: [
+    {
+      prioridad: "P1",
+      patrones: [
+        /enfoque metodol[oó]gico/,
+        /dise[nñ]o metodol[oó]gico/,
+        /\bdise[nñ]o\b/,
+        /plan por objetivo/,
+        /poblaci[oó]n/,
+        /\bmuestra\b/,
+      ],
+    },
+    { prioridad: "P2", patrones: [/t[eé]cnica/, /instrumento/] },
+  ],
+  MARCO_REFERENCIAL: [
+    { prioridad: "P1", patrones: [/marco te[oó]rico/, /\bteor[ií]a\b/, /te[oó]ric/] },
+    {
+      prioridad: "P2",
+      patrones: [
+        /marco conceptual/,
+        /\bconcepto\b/,
+        /marco legal/,
+        /\blegal\b/,
+        /normativ/,
+        /marco contextual/,
+        /\bcontextual\b/,
+      ],
+    },
+  ],
+  IMPACTOS: [
+    { prioridad: "P1", patrones: [/limitaci[oó]n/, /\briesgo/] },
+    { prioridad: "P2", patrones: [/\bimpacto/, /\brecurso/] },
+  ],
 };
 
-/** Default seguro cuando el campo no está mapeado explícitamente. */
+/** Default seguro cuando ningún patrón matchea el texto de la pregunta. */
 const PRIORIDAD_DEFAULT: Prioridad = "P2";
 
-export function clasificarPrioridad(nodoTipo: NodoTipo, campoOrigen?: string | null): Prioridad {
-  if (!campoOrigen) return PRIORIDAD_DEFAULT;
-  return CAMPOS_CRITICOS_POR_NODO[nodoTipo]?.[campoOrigen] ?? PRIORIDAD_DEFAULT;
+function normalizar(texto: string): string {
+  return texto.toLowerCase();
+}
+
+export function clasificarPrioridad(nodoTipo: NodoTipo, textoPregunta?: string | null): Prioridad {
+  if (!textoPregunta) return PRIORIDAD_DEFAULT;
+  const normalizado = normalizar(textoPregunta);
+  const reglas = PALABRAS_CLAVE_POR_NODO[nodoTipo] ?? [];
+  for (const regla of reglas) {
+    if (regla.patrones.some((patron) => patron.test(normalizado))) {
+      return regla.prioridad;
+    }
+  }
+  return PRIORIDAD_DEFAULT;
 }
 
 /**

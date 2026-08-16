@@ -12,6 +12,7 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
 import { sincronizarPreguntasPendientes } from "../src/lib/faro/preguntas";
+import { reagruparPreguntasAbiertas } from "../src/lib/faro/agrupamiento";
 import type { NodoTipo } from "../src/lib/faro/clasificacionPreguntas";
 
 // Cargar .env.local de forma nativa si no están en process.env
@@ -79,6 +80,7 @@ async function main() {
   console.log(`Nodos vigentes tras deduplicar por última iteración: ${nodosVigentes.length}`);
 
   let totalInsertadas = 0;
+  const proyectosConInsertadas = new Set<string>();
   for (const nodo of nodosVigentes) {
     const nodoTipo = mapearTipoNodo(nodo.tipo);
     if (!nodoTipo) {
@@ -86,20 +88,42 @@ async function main() {
       continue;
     }
 
-    const resultado = await sincronizarPreguntasPendientes(supabase, {
-      project_id: nodo.project_id,
-      nodo_id: nodo.id,
-      nodo_tipo: nodoTipo,
-      contenido: nodo.contenido,
-    });
+    // reagrupar: false — reagruparPreguntasAbiertas llama al LLM orquestador;
+    // durante el backfill se corre UNA sola vez por proyecto al final
+    // (ver bucle debajo), no una vez por cada nodo sincronizado aquí.
+    const resultado = await sincronizarPreguntasPendientes(
+      supabase,
+      {
+        project_id: nodo.project_id,
+        nodo_id: nodo.id,
+        nodo_tipo: nodoTipo,
+        contenido: nodo.contenido,
+      },
+      { reagrupar: false }
+    );
 
     totalInsertadas += resultado.insertadas;
+    if (resultado.insertadas > 0) {
+      proyectosConInsertadas.add(nodo.project_id);
+    }
     console.log(
       `Nodo ${nodo.id} (${nodoTipo}, iteración vigente): ${resultado.insertadas} insertadas, ${resultado.omitidas_duplicadas} omitidas.`
     );
   }
 
   console.log(`\nTotal preguntas sincronizadas: ${totalInsertadas}`);
+
+  console.log(
+    `\nReagrupando preguntas abiertas para ${proyectosConInsertadas.size} proyecto(s) con preguntas nuevas...`
+  );
+  for (const projectId of Array.from(proyectosConInsertadas)) {
+    try {
+      const { gruposCreados } = await reagruparPreguntasAbiertas(supabase, projectId);
+      console.log(`Proyecto ${projectId}: ${gruposCreados} grupo(s) creados.`);
+    } catch (e) {
+      console.error(`Proyecto ${projectId}: error al reagrupar:`, e);
+    }
+  }
 }
 
 main();

@@ -7,6 +7,13 @@
  * NO genera preguntas nuevas. NO llama al LLM. Es un post-step de lectura
  * que se invoca UNA VEZ al final de cada endpoint /api/mci/{nodo}/generar
  * ya existente.
+ *
+ * Por defecto, si insertó preguntas nuevas, dispara reagruparPreguntasAbiertas
+ * (llamada al LLM orquestador) para ese proyecto. Al procesar muchos nodos en
+ * lote (ver scripts/backfill_preguntas_pendientes.ts) pasar
+ * `{ reagrupar: false }` para evitar una llamada al LLM por cada nodo — el
+ * caller debe invocar reagruparPreguntasAbiertas manualmente una sola vez al
+ * final, por proyecto.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -54,9 +61,11 @@ function extraerPreguntasDelNodo(contenido: unknown): PreguntaExtraida[] {
 
 export async function sincronizarPreguntasPendientes(
   supabase: SupabaseClient,
-  params: { project_id: string; nodo_id: string; nodo_tipo: NodoTipo; contenido: unknown }
+  params: { project_id: string; nodo_id: string; nodo_tipo: NodoTipo; contenido: unknown },
+  opciones?: { reagrupar?: boolean }
 ): Promise<{ insertadas: number; omitidas_duplicadas: number }> {
   const { project_id, nodo_id, nodo_tipo, contenido } = params;
+  const reagrupar = opciones?.reagrupar ?? true;
   const extraidas = extraerPreguntasDelNodo(contenido);
 
   if (extraidas.length === 0) {
@@ -70,7 +79,7 @@ export async function sincronizarPreguntasPendientes(
     campo_origen: p.campo_origen,
     texto_pregunta: p.texto_pregunta,
     texto_hash: hashTexto(p.texto_pregunta),
-    prioridad: clasificarPrioridad(nodo_tipo, p.campo_origen),
+    prioridad: clasificarPrioridad(nodo_tipo, p.texto_pregunta),
     nodos_afectados: obtenerNodosAfectados(nodo_tipo),
   }));
 
@@ -87,7 +96,7 @@ export async function sincronizarPreguntasPendientes(
   }
 
   const insertadas = data?.length ?? 0;
-  if (insertadas > 0) {
+  if (insertadas > 0 && reagrupar) {
     try {
       await reagruparPreguntasAbiertas(supabase, project_id);
     } catch (e) {
