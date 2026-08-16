@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import GateOverlay from "./GateOverlay";
+import InsigniaCheckpoint from "./InsigniaCheckpoint";
 
 const NODOS = [
   { slug: "/dashboard", label: "📊 Dashboard" },
@@ -17,6 +18,13 @@ const NODOS = [
   { slug: "/presupuesto", label: "💰 Presupuesto" },
 ] as const;
 
+// Checkpoint evaluado al intentar navegar a cada pestaña. Solo estas dos
+// pestañas disparan verificación de gate hoy — el resto navega libre.
+const CHECKPOINT_POR_SLUG: Record<string, "C0" | "C1"> = {
+  "/objetivos": "C0",
+  "/metodologia": "C1",
+};
+
 export default function NavegacionNodos({ projectId }: { projectId: string }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -25,6 +33,7 @@ export default function NavegacionNodos({ projectId }: { projectId: string }) {
     bloqueado: boolean;
     checkpoint: string;
     preguntas: any[];
+    contradiccionesSemanticas: any[];
     targetHref: string;
   } | null>(null);
   const [verificando, setVerificando] = useState(false);
@@ -33,28 +42,35 @@ export default function NavegacionNodos({ projectId }: { projectId: string }) {
     const href = `/formulacion/${projectId}${slug}`;
     if (pathname === href) return;
 
-    // Solo se evalúa C0 en la navegación hacia /objetivos por ahora
-    if (slug === "/objetivos") {
+    const checkpoint = CHECKPOINT_POR_SLUG[slug];
+    if (checkpoint) {
       e.preventDefault();
       setVerificando(true);
       try {
         const res = await fetch("/api/mci/gate/verificar", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ project_id: projectId, checkpoint: "C0" }),
+          body: JSON.stringify({
+            project_id: projectId,
+            checkpoint,
+            // C1 compone verificación semántica (LLM) — este es exactamente
+            // el momento "intenta avanzar a Metodología" del control de costo.
+            incluir_verificacion_semantica: checkpoint === "C1",
+          }),
         });
         const data = await res.json();
         if (data.bloqueado) {
           setGateState({
             bloqueado: true,
-            checkpoint: "C0",
+            checkpoint,
             preguntas: data.preguntas_bloqueantes ?? [],
+            contradiccionesSemanticas: data.contradicciones_semanticas ?? [],
             targetHref: href,
           });
           return;
         }
       } catch (err) {
-        console.error("Error al verificar gate C0:", err);
+        console.error(`Error al verificar gate ${checkpoint}:`, err);
       } finally {
         setVerificando(false);
       }
@@ -68,7 +84,11 @@ export default function NavegacionNodos({ projectId }: { projectId: string }) {
       const res = await fetch("/api/mci/gate/verificar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project_id: projectId, checkpoint: gateState.checkpoint }),
+        body: JSON.stringify({
+          project_id: projectId,
+          checkpoint: gateState.checkpoint,
+          incluir_verificacion_semantica: gateState.checkpoint === "C1",
+        }),
       });
       const data = await res.json();
       if (!data.bloqueado) {
@@ -77,7 +97,13 @@ export default function NavegacionNodos({ projectId }: { projectId: string }) {
         router.push(target);
       } else {
         setGateState((prev) =>
-          prev ? { ...prev, preguntas: data.preguntas_bloqueantes ?? [] } : null
+          prev
+            ? {
+                ...prev,
+                preguntas: data.preguntas_bloqueantes ?? [],
+                contradiccionesSemanticas: data.contradicciones_semanticas ?? [],
+              }
+            : null
         );
       }
     } catch (err) {
@@ -104,7 +130,7 @@ export default function NavegacionNodos({ projectId }: { projectId: string }) {
                       : "text-faro-navy border border-transparent hover:border-faro-navy"
                   }`}
                 >
-                  {n.label} {verificando && n.slug === "/objetivos" ? "⌛" : ""}
+                  {n.label} {verificando && CHECKPOINT_POR_SLUG[n.slug] ? "⌛" : ""}
                 </Link>
               );
             })}
@@ -123,10 +149,13 @@ export default function NavegacionNodos({ projectId }: { projectId: string }) {
           projectId={projectId}
           checkpoint={gateState.checkpoint}
           preguntasBloqueantes={gateState.preguntas}
+          contradiccionesSemanticas={gateState.contradiccionesSemanticas}
           onCerrarSinResolver={() => setGateState(null)}
           onPreguntaResuelta={() => reVerificarGate()}
         />
       )}
+
+      <InsigniaCheckpoint projectId={projectId} />
     </>
   );
 }
