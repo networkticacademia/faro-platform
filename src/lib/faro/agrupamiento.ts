@@ -7,7 +7,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { llamarOrquestador } from "@/lib/openrouter/client";
+import { llamarModeloLigero } from "@/lib/openrouter/client";
 
 interface GrupoPropuesto {
   pregunta_raiz_sugerida: string;
@@ -51,7 +51,7 @@ export async function reagruparPreguntasAbiertas(
   let grupos: GrupoPropuesto[];
   let respuestaCruda = "";
   try {
-    respuestaCruda = await llamarOrquestador(prompt);
+    respuestaCruda = await llamarModeloLigero(prompt);
     grupos = JSON.parse(extraerArrayJSON(respuestaCruda));
   } catch (e) {
     console.error("[reagruparPreguntasAbiertas] error al interpretar respuesta:", e);

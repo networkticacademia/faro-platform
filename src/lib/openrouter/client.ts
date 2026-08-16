@@ -8,13 +8,11 @@ interface OpenRouterMessage {
   content: string;
 }
 
-export async function llamarOrquestador(prompt: string): Promise<string> {
+async function llamarModelo(prompt: string, modelo: string): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error("OPENROUTER_API_KEY no está configurada en el entorno del servidor.");
   }
-
-  const modelo = process.env.OPENROUTER_MODEL ?? "anthropic/claude-sonnet-4.6";
 
   const messages: OpenRouterMessage[] = [{ role: "user", content: prompt }];
 
@@ -44,6 +42,29 @@ export async function llamarOrquestador(prompt: string): Promise<string> {
     throw new Error("OpenRouter no devolvió contenido en la respuesta.");
   }
   return contenido;
+}
+
+/**
+ * Modelo "orquestador" de calidad completa — usado por la generación de
+ * nodos (generar*Core()) y RSL. NO cambiar su modelo por defecto ni su
+ * firma sin evaluar el impacto en esos flujos.
+ */
+export async function llamarOrquestador(prompt: string): Promise<string> {
+  const modelo = process.env.OPENROUTER_MODEL ?? "anthropic/claude-sonnet-4.6";
+  return llamarModelo(prompt, modelo);
+}
+
+/**
+ * Modelo económico para tareas ligeras (clasificación/agrupamiento de
+ * texto corto, explicaciones cortas) que no requieren el razonamiento
+ * profundo del Orquestador. Verificado 2026-08-15 contra el prompt real
+ * de reagruparPreguntasAbiertas() sobre datos reales del proyecto piña:
+ * JSON válido, 0 IDs alucinados, agrupamiento correcto. Ver
+ * openrouter.ai/deepseek/deepseek-v4-flash para precio/specs vigentes.
+ */
+export async function llamarModeloLigero(prompt: string): Promise<string> {
+  const modelo = process.env.OPENROUTER_MODEL_LIGERO ?? "deepseek/deepseek-v4-flash";
+  return llamarModelo(prompt, modelo);
 }
 
 /**

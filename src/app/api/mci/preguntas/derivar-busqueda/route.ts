@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { llamarOrquestador } from "@/lib/openrouter/client";
+import { llamarModeloLigero } from "@/lib/openrouter/client";
 
 /**
  * "No sé dónde conseguirla" — genera orientación + prompts estandarizados.
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   }
 
   const prompt = construirPromptDerivacion(pregunta);
-  const respuesta = await llamarOrquestador(prompt);
+  const respuesta = await llamarModeloLigero(prompt);
 
   let parsed: { orientacion: string; prompt_busqueda: string; prompt_retorno: string };
   try {

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatearActividadReciente } from "@/lib/faro/formatearActividad";
+import EliminarProyectoBoton from "./EliminarProyectoBoton";
 
 const ESTADO_ETIQUETA: Record<string, string> = {
   diagnostico: "Diagnóstico",
@@ -57,30 +58,31 @@ export default async function ProyectosPage() {
           </div>
         ) : (
           <div className="grid gap-3">
-            {proyectos.map((p) => (
-              <Link
-                key={p.id}
-                href={`/formulacion/${p.id}`}
-                className="bg-white rounded-lg border p-5 flex items-center justify-between hover:border-faro-blue transition-colors"
-              >
-                <div>
-                  <p className="font-medium text-faro-navy">
-                    {p.titulo_provisional || p.alpha_area || "Proyecto sin título"}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {p.nu} · {p.tau} · U₀={p.u0_initial?.toFixed(3)}
-                  </p>
+            {proyectos.map((p) => {
+              const titulo = p.titulo_provisional || p.alpha_area || "Proyecto sin título";
+              return (
+                <div
+                  key={p.id}
+                  className="group bg-white rounded-lg border p-5 flex items-center justify-between hover:border-faro-blue transition-colors"
+                >
+                  <Link href={`/formulacion/${p.id}`} className="flex-1 min-w-0">
+                    <p className="font-medium text-faro-navy">{titulo}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {p.nu} · {p.tau} · U₀={p.u0_initial?.toFixed(3)}
+                    </p>
+                  </Link>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-gray-500">
+                      Última actividad: {formatearActividadReciente(p.ultima_actividad)}
+                    </span>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-faro-blue/10 text-faro-blue">
+                      {ESTADO_ETIQUETA[p.estado] ?? p.estado}
+                    </span>
+                    <EliminarProyectoBoton projectId={p.id} tituloProyecto={titulo} />
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-500">
-                    Última actividad: {formatearActividadReciente(p.ultima_actividad)}
-                  </span>
-                  <span className="text-xs px-2.5 py-1 rounded-full bg-faro-blue/10 text-faro-blue">
-                    {ESTADO_ETIQUETA[p.estado] ?? p.estado}
-                  </span>
-                </div>
-              </Link>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

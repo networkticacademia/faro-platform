@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { llamarOrquestador } from "@/lib/openrouter/client";
+import { llamarModeloLigero } from "@/lib/openrouter/client";
 
 /**
  * "Llamada a un amigo" — el formulador no entiende una pregunta del agente.
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   }
 
   const prompt = construirPromptAyudaContextual(pregunta);
-  const explicacion = await llamarOrquestador(prompt);
+  const explicacion = await llamarModeloLigero(prompt);
 
   return NextResponse.json({ explicacion });
 }
