@@ -41,7 +41,9 @@ export default function ContadorPreguntasPrioridad({ projectId }: { projectId: s
     >
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-semibold text-faro-navy">Preguntas pendientes</h3>
-        <span className="text-xs text-gray-400">Ver todas →</span>
+        <span className="text-xs font-semibold text-white bg-faro-navy px-3 py-1.5 rounded-lg hover:bg-faro-navy/90 transition-colors whitespace-nowrap">
+          Responder preguntas críticas →
+        </span>
       </div>
       {totalAbiertas === 0 ? (
         <p className="text-xs text-green-600 font-medium">✅ Sin preguntas abiertas pendientes en el proyecto</p>

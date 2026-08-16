@@ -23,6 +23,7 @@ interface SesionMci {
 }
 
 import { verificarHiloConductor, resumenBrechas } from "@/lib/faro/verificadorEstructural";
+import { NODOS_REQUERIDOS } from "@/lib/faro/resumenNodos";
 import type { NovaOutput } from "@/lib/faro/nova";
 import type { ObjetivosOutput } from "@/lib/faro/objetivos";
 import type { MetodologiaOutput } from "@/lib/faro/metodologia";
@@ -69,16 +70,26 @@ interface ActividadOpenRouter {
   reasoning_tokens: number;
 }
 
+interface UltimaConvergencia {
+  convergio: boolean;
+  es_provisional: boolean;
+  l_faro_proyecto: number | null;
+  tau_c_proyecto: number | null;
+  calculado_en: string;
+}
+
 export default function DashboardProyecto({
   project,
   sesiones,
   nodosConfirmados,
   actividadOpenRouter,
+  ultimaConvergencia,
 }: {
   project: ProjectRow;
   sesiones: SesionMci[];
   nodosConfirmados: NodoConfirmado[];
   actividadOpenRouter: ActividadOpenRouter[] | null;
+  ultimaConvergencia: UltimaConvergencia | null;
 }) {
   const router = useRouter();
   const ultimaPorModulo: Record<string, SesionMci | undefined> = {};
@@ -109,8 +120,10 @@ export default function DashboardProyecto({
     fecha: new Date(s.created_at).toLocaleDateString("es-CO", { day: "2-digit", month: "short" }),
   }));
 
-  const nodosCompletados = NODOS_ORDEN.filter((n) => confirmadoPorTipo[n]).length;
-  const progresoPct = Math.round((nodosCompletados / NODOS_ORDEN.length) * 100);
+  // Para la tarjeta de "Progreso": los 6 nodos requeridos (misma fuente
+  // que usa TarjetaConvergencia/el endpoint de convergencia), NO los 4 de
+  // NODOS_ORDEN (que solo maneja las tarjetas de sesión de abajo).
+  const nodosRequeridosConfirmados = NODOS_REQUERIDOS.filter((n) => confirmadoPorTipo[n]).length;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -132,10 +145,37 @@ export default function DashboardProyecto({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
-        <div className="sm:col-span-1 rounded-2xl bg-faro-navy text-white p-6 flex flex-col items-center justify-center">
-          <span className="text-4xl font-black">{progresoPct}%</span>
-          <span className="text-[11px] uppercase tracking-widest opacity-70 mt-1">Progreso</span>
-          <span className="text-[11px] opacity-70">{nodosCompletados}/{NODOS_ORDEN.length} nodos confirmados</span>
+        <div className="sm:col-span-1 rounded-2xl bg-faro-navy text-white p-6 flex flex-col items-center justify-center text-center">
+          <span className="text-3xl font-black">
+            {nodosRequeridosConfirmados}/{NODOS_REQUERIDOS.length}
+          </span>
+          <span className="text-[11px] uppercase tracking-widest opacity-70 mt-1">Nodos confirmados</span>
+          {/* Deliberadamente NO se muestra como "% de progreso" — completitud
+              de nodos y convergencia (L_FARO ≤ τc) son cosas distintas; un
+              proyecto puede tener los 6 nodos confirmados y seguir sin
+              converger. El estado de abajo viene de la última verificación
+              real (tabla convergencia_proyecto), no se recalcula aquí. */}
+          {ultimaConvergencia ? (
+            <span
+              className={`mt-2 text-[10px] px-2 py-0.5 rounded-full ${
+                ultimaConvergencia.es_provisional
+                  ? "bg-amber-400/20 text-amber-200"
+                  : ultimaConvergencia.convergio
+                  ? "bg-green-400/20 text-green-200"
+                  : "bg-red-400/20 text-red-200"
+              }`}
+            >
+              {ultimaConvergencia.es_provisional
+                ? "Convergencia provisional"
+                : ultimaConvergencia.convergio
+                ? "Convergió"
+                : "Aún no converge"}
+            </span>
+          ) : (
+            <span className="mt-2 text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/60">
+              Convergencia: sin verificar
+            </span>
+          )}
         </div>
 
         {NODOS_ORDEN.map((tipo) => {
@@ -246,7 +286,7 @@ export default function DashboardProyecto({
 
       <div id="integridad-hilo-conductor" className="rounded-2xl border bg-white p-6">
         <div className="flex items-center justify-between mb-1">
-          <h3 className="text-sm font-semibold text-faro-navy">Integridad del hilo conductor</h3>
+          <h3 className="text-sm font-semibold text-faro-navy">Integridad referencial</h3>
           {resumen.total === 0 ? (
             <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
               sin brechas detectadas

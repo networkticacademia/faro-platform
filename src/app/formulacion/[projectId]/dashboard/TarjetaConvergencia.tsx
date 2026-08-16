@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import type { ResultadoConvergenciaProyecto, CondicionConvergencia } from "@/lib/faro/convergenciaProyecto";
 import type { ResultadoCoherenciaPar } from "@/lib/faro/verificadorSemantico";
+import HiloConductorDiagrama from "./HiloConductorDiagrama";
 
 interface ResultadoCompleto extends ResultadoConvergenciaProyecto {
   deltas_ij: ResultadoCoherenciaPar[] | null;
@@ -16,16 +17,6 @@ const CONDICION_ICONO: Record<CondicionConvergencia["id"], string> = {
   estructural:     "🔗",
   contradicciones: "⚡",
   cronograma:      "📅",
-};
-
-const NODO_SLUG_MAP: Record<string, string> = {
-  RUTA: "",
-  NOVA: "/nova",
-  OBJETIVOS: "/objetivos",
-  MARCO_REFERENCIAL: "/marco-referencial",
-  METODOLOGIA: "/metodologia",
-  IMPACTOS_DELIMITACION: "/impactos-delimitacion",
-  PRESUPUESTO: "/presupuesto",
 };
 
 const NODO_LABEL_MAP: Record<string, string> = {
@@ -97,7 +88,7 @@ export default function TarjetaConvergencia({
         <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-700">
           Corrija las {brechasCriticas} brecha{brechasCriticas !== 1 ? "s" : ""} crítica{brechasCriticas !== 1 ? "s" : ""} de{" "}
           <a href="#integridad-hilo-conductor" className="underline font-semibold hover:text-red-900">
-            Integridad del hilo conductor
+            Integridad referencial
           </a>{" "}
           antes de verificar convergencia (evita gastar tokens en una verificación que ya sabemos que va a fallar).
         </div>
@@ -200,80 +191,53 @@ export default function TarjetaConvergencia({
                     </p>
                     <div className="space-y-1.5">
                       {resultado.detalle_l_faro_por_nodo.map((d) => {
-                        const slug = NODO_SLUG_MAP[d.nodo] ?? "";
                         const label = NODO_LABEL_MAP[d.nodo] ?? d.nodo;
+                        // La sugerencia "Tiene N pregunta(s) sin resolver..." queda cubierta
+                        // por el enlace único de abajo — mostrarla aquí por nodo es redundante.
+                        // Las demás variantes (confianza baja/media, L_FARO alto sin causa) sí
+                        // aportan información distinta y se conservan.
                         return (
                           <div
                             key={d.nodo}
-                            className="flex items-start justify-between gap-2 bg-white/80 rounded p-2 border border-red-200/50"
+                            className="bg-white/80 rounded p-2 border border-red-200/50"
                           >
-                            <div className="space-y-0.5 flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-faro-navy">{label}</span>
-                                <span className="font-mono text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded">
-                                  L_FARO: {d.l_faro.toFixed(3)}
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-gray-700">{d.sugerencia}</p>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-faro-navy">{label}</span>
+                              <span className="font-mono text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded">
+                                L_FARO: {d.l_faro.toFixed(3)}
+                              </span>
                             </div>
-                            <Link
-                              href={`/formulacion/${projectId}${slug}`}
-                              className="text-[11px] font-medium text-faro-navy hover:underline whitespace-nowrap bg-faro-navy/5 px-2 py-1 rounded"
-                            >
-                              Ir a {label} →
-                            </Link>
+                            {d.num_preguntas_pendientes === 0 && (
+                              <p className="text-[11px] text-gray-700 mt-0.5">{d.sugerencia}</p>
+                            )}
                           </div>
                         );
                       })}
                     </div>
+                    {resultado.detalle_l_faro_por_nodo.some((d) => d.num_preguntas_pendientes > 0) && (
+                      <Link
+                        href={`/formulacion/${projectId}/preguntas`}
+                        className="mt-2 inline-block text-[11px] font-semibold text-faro-navy hover:underline"
+                      >
+                        Responda las preguntas críticas →
+                      </Link>
+                    )}
                   </div>
                 )}
               </li>
             ))}
           </ul>
 
-          {/* Tabla de δᵢⱼ */}
-          {resultado.deltas_ij && resultado.deltas_ij.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-faro-navy mb-2">
-                Coherencia semántica entre nodos (δᵢⱼ)
-                {resultado.promedio_delta_ij !== null && (
-                  <span className="ml-2 font-normal text-gray-500">
-                    promedio: <span className="font-mono">{resultado.promedio_delta_ij.toFixed(3)}</span>
-                  </span>
-                )}
-              </p>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="text-left text-gray-500 border-b">
-                    <th className="pr-2 py-1">Par</th>
-                    <th className="pr-2 py-1 text-right">δᵢⱼ</th>
-                    <th className="py-1">Resumen</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {resultado.deltas_ij.map((d, i) => (
-                    <tr key={i} className="border-b last:border-0 align-top">
-                      <td className="pr-2 py-1 font-mono text-[10px] whitespace-nowrap">
-                        {d.nodoOrigen} → {d.nodoDestino}
-                      </td>
-                      <td
-                        className={`pr-2 py-1 text-right font-mono font-semibold ${
-                          d.delta_ij <= 0.2
-                            ? "text-green-600"
-                            : d.delta_ij <= 0.5
-                            ? "text-amber-600"
-                            : "text-red-600"
-                        }`}
-                      >
-                        {d.delta_ij.toFixed(3)}
-                      </td>
-                      <td className="py-1 text-gray-600">{d.resumen}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {/* Hilo conductor — reemplaza la tabla de texto de δᵢⱼ por un
+              diagrama; mismo dato (resultado.deltas_ij / detalle_l_faro_por_nodo),
+              sin llamada nueva. */}
+          {resultado.detalle_l_faro_por_nodo.length > 0 && (
+            <HiloConductorDiagrama
+              projectId={projectId}
+              detalleLFaroPorNodo={resultado.detalle_l_faro_por_nodo}
+              deltasIj={resultado.deltas_ij}
+              tauCProyecto={resultado.tau_c_proyecto}
+            />
           )}
         </div>
       )}
