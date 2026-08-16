@@ -30,7 +30,7 @@ interface PreguntaExtraida {
 }
 
 /** Hash simple y determinístico (no criptográfico) para deduplicar por nodo. */
-function hashTexto(texto: string): string {
+export function hashTexto(texto: string): string {
   const normalizado = texto.trim().toLowerCase();
   let hash = 0;
   for (let i = 0; i < normalizado.length; i++) {
@@ -63,13 +63,13 @@ export async function sincronizarPreguntasPendientes(
   supabase: SupabaseClient,
   params: { project_id: string; nodo_id: string; nodo_tipo: NodoTipo; contenido: unknown },
   opciones?: { reagrupar?: boolean }
-): Promise<{ insertadas: number; omitidas_duplicadas: number }> {
+): Promise<{ insertadas: number; omitidas_duplicadas: number; idsInsertados: string[] }> {
   const { project_id, nodo_id, nodo_tipo, contenido } = params;
   const reagrupar = opciones?.reagrupar ?? true;
   const extraidas = extraerPreguntasDelNodo(contenido);
 
   if (extraidas.length === 0) {
-    return { insertadas: 0, omitidas_duplicadas: 0 };
+    return { insertadas: 0, omitidas_duplicadas: 0, idsInsertados: [] };
   }
 
   const filas = extraidas.map((p) => ({
@@ -92,10 +92,11 @@ export async function sincronizarPreguntasPendientes(
 
   if (error) {
     console.error("[sincronizarPreguntasPendientes] error:", error.message);
-    return { insertadas: 0, omitidas_duplicadas: 0 };
+    return { insertadas: 0, omitidas_duplicadas: 0, idsInsertados: [] };
   }
 
-  const insertadas = data?.length ?? 0;
+  const idsInsertados = (data ?? []).map((d) => d.id as string);
+  const insertadas = idsInsertados.length;
   if (insertadas > 0 && reagrupar) {
     try {
       await reagruparPreguntasAbiertas(supabase, project_id);
@@ -104,5 +105,5 @@ export async function sincronizarPreguntasPendientes(
     }
   }
 
-  return { insertadas, omitidas_duplicadas: filas.length - insertadas };
+  return { insertadas, omitidas_duplicadas: filas.length - insertadas, idsInsertados };
 }

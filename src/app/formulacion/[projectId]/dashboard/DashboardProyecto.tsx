@@ -8,6 +8,7 @@ import {
 import NavegacionNodos from "@/components/faro/NavegacionNodos";
 import TarjetaConvergencia from "./TarjetaConvergencia";
 import ContadorPreguntasPrioridad from "@/components/faro/ContadorPreguntasPrioridad";
+import ContadorProcedenciaDebil from "@/components/faro/ContadorProcedenciaDebil";
 
 interface SesionMci {
   id: string;
@@ -326,6 +327,8 @@ export default function DashboardProyecto({
       </div>
 
       <ContadorPreguntasPrioridad projectId={project.id} />
+
+      <ContadorProcedenciaDebil projectId={project.id} />
 
       <TarjetaConvergencia projectId={project.id} brechasCriticas={resumen.criticas} />
 
