@@ -28,6 +28,8 @@ export async function POST(request: Request) {
 
   // Solo persistimos cuando esta llamada REALMENTE recalculó (LLM), no
   // cuando devolvió el valor cacheado — evita escrituras redundantes.
+  // Incluye el snapshot de iteraciones usadas, para poder detectar
+  // después si el caché quedó desactualizado (ver gate.ts).
   if (incluir_verificacion_semantica === true && resultado.contradicciones_semanticas !== null) {
     await supabase
       .from("projects")
@@ -36,6 +38,7 @@ export async function POST(request: Request) {
           checkpoint,
           pares: resultado.contradicciones_semanticas,
           evaluado_en: resultado.semantico_evaluado_en,
+          iteraciones: resultado.semantico_iteraciones,
         },
       })
       .eq("id", project_id);

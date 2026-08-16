@@ -117,6 +117,41 @@ export async function evaluarCoherenciaSemanticaCheckpoint(
 }
 
 /**
+ * Última iteración CONFIRMADA de cada nodo relevante. Se usa dos veces:
+ * (1) al calcular fresco, para dejar constancia de qué contenido exacto
+ * se comparó; (2) al leer el caché, para detectar si algún nodo se
+ * reabrió/regeneró/reconfirmó después de ese cálculo — sin esto, la
+ * insignia podría mostrar "todo bien" con contenido que ya cambió.
+ */
+export async function obtenerIteracionesConfirmadas(
+  supabase: SupabaseClient,
+  project_id: string,
+  nodosEvaluados: NodoTipo[]
+): Promise<Record<string, number>> {
+  const { data } = await supabase
+    .from("grafo_nodos")
+    .select("tipo, iteracion")
+    .eq("project_id", project_id)
+    .eq("confirmado_humano", true)
+    .in("tipo", nodosEvaluados)
+    .order("iteracion", { ascending: false });
+
+  const iteraciones: Record<string, number> = {};
+  for (const row of data ?? []) {
+    if (!(row.tipo in iteraciones)) iteraciones[row.tipo] = row.iteracion;
+  }
+  return iteraciones;
+}
+
+/** true si ambos snapshots de iteración por nodo son idénticos (mismas claves, mismos valores). */
+export function iteracionesCoinciden(a: Record<string, number>, b: Record<string, number>): boolean {
+  const clavesA = Object.keys(a);
+  const clavesB = Object.keys(b);
+  if (clavesA.length !== clavesB.length) return false;
+  return clavesA.every((k) => a[k] === b[k]);
+}
+
+/**
  * NOTA DE DISEÑO — mapeo a "bloqueante":
  *
  * verificadorSemantico.ts usa una escala de 2 niveles por hallazgo

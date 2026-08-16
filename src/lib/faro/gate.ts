@@ -10,13 +10,23 @@
  * explícitamente (opts.incluirVerificacionSemantica=true), hace 1-2
  * llamadas LLM y persiste el resultado (lo hace el caller, no esta
  * función); si no se pide, lee el último resultado cacheado en
- * projects.gate_semantico_ultimo (lectura barata, sin LLM). Ver
- * gateSemantico.ts para el detalle de esa composición.
+ * projects.gate_semantico_ultimo (lectura barata, sin LLM) — y lo
+ * invalida (semantico_desactualizado=true) si algún nodo relevante fue
+ * reabierto/regenerado/reconfirmado después de ese cálculo, comparando
+ * iteraciones confirmadas. Importante: esto solo afecta la INSIGNIA
+ * ambiental — el gate real que bloquea el avance de pestaña siempre pide
+ * incluirVerificacionSemantica=true y por lo tanto recalcula fresco, sin
+ * depender nunca del caché.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NodoTipo } from "./clasificacionPreguntas";
-import { evaluarCoherenciaSemanticaCheckpoint, hayContradiccionCritica } from "./gateSemantico";
+import {
+  evaluarCoherenciaSemanticaCheckpoint,
+  hayContradiccionCritica,
+  obtenerIteracionesConfirmadas,
+  iteracionesCoinciden,
+} from "./gateSemantico";
 import type { ResultadoCoherenciaPar } from "./verificadorSemantico";
 
 export type Checkpoint = "C0" | "C1" | "C2" | "C3";
@@ -51,6 +61,7 @@ interface CacheSemanticoGate {
   checkpoint: Checkpoint;
   pares: ResultadoCoherenciaPar[];
   evaluado_en: string;
+  iteraciones: Record<string, number>; // snapshot de iteración confirmada por nodo, al momento del cálculo
 }
 
 export interface ResultadoGate {
@@ -58,9 +69,18 @@ export interface ResultadoGate {
   bloqueado: boolean;
   activo: boolean; // si el checkpoint todavía no está activado, bloqueado siempre es false
   preguntas_bloqueantes: PreguntaBloqueante[];
-  // null = no aplica a este checkpoint, o no se ha evaluado/cacheado todavía
+  // null = no aplica a este checkpoint, o no se ha evaluado/cacheado todavía,
+  // o el caché existente quedó desactualizado (ver semantico_desactualizado)
   contradicciones_semanticas: ResultadoCoherenciaPar[] | null;
   semantico_evaluado_en: string | null;
+  // true = había un resultado cacheado pero algún nodo relevante cambió
+  // desde entonces (reabierto/regenerado/reconfirmado) — el caché se
+  // descarta en vez de mostrarse como si siguiera vigente.
+  semantico_desactualizado: boolean;
+  // snapshot de iteraciones usado en ESTE cálculo fresco (solo presente
+  // cuando opts.incluirVerificacionSemantica=true) — el caller lo persiste
+  // junto con contradicciones_semanticas para poder detectar staleness después.
+  semantico_iteraciones: Record<string, number> | null;
 }
 
 export async function verificarGate(
@@ -79,6 +99,8 @@ export async function verificarGate(
       preguntas_bloqueantes: [],
       contradicciones_semanticas: null,
       semantico_evaluado_en: null,
+      semantico_desactualizado: false,
+      semantico_iteraciones: null,
     };
   }
 
@@ -100,6 +122,8 @@ export async function verificarGate(
       preguntas_bloqueantes: [],
       contradicciones_semanticas: null,
       semantico_evaluado_en: null,
+      semantico_desactualizado: false,
+      semantico_iteraciones: null,
     };
   }
 
@@ -111,25 +135,43 @@ export async function verificarGate(
   // completos, no falta de dato.
   let contradiccionesSemanticas: ResultadoCoherenciaPar[] | null = null;
   let semanticoEvaluadoEn: string | null = null;
+  let semanticoDesactualizado = false;
+  let semanticoIteraciones: Record<string, number> | null = null;
 
   if (checkpoint === "C1") {
     if (opts.incluirVerificacionSemantica) {
-      contradiccionesSemanticas = await evaluarCoherenciaSemanticaCheckpoint(
-        supabase,
-        project_id,
-        config.nodosEvaluados
-      );
+      const [pares, iteraciones] = await Promise.all([
+        evaluarCoherenciaSemanticaCheckpoint(supabase, project_id, config.nodosEvaluados),
+        obtenerIteracionesConfirmadas(supabase, project_id, config.nodosEvaluados),
+      ]);
+      contradiccionesSemanticas = pares;
       semanticoEvaluadoEn = new Date().toISOString();
+      semanticoIteraciones = iteraciones;
     } else {
-      const { data: proyecto } = await supabase
+      const { data: proyecto, error: errorCache } = await supabase
         .from("projects")
         .select("gate_semantico_ultimo")
         .eq("id", project_id)
         .maybeSingle();
+      if (errorCache) {
+        // Fail-open deliberado, igual que con las preguntas P1: si no se
+        // puede leer el caché (p.ej. la columna aún no existe porque la
+        // migración no se ha aplicado), se trata como "sin caché" — no
+        // se bloquea ni se marca desactualizado por un error de lectura.
+        console.error("[verificarGate] error leyendo gate_semantico_ultimo:", errorCache.message);
+      }
       const cache = (proyecto?.gate_semantico_ultimo ?? null) as CacheSemanticoGate | null;
+
       if (cache && cache.checkpoint === checkpoint) {
-        contradiccionesSemanticas = cache.pares;
-        semanticoEvaluadoEn = cache.evaluado_en;
+        const iteracionesActuales = await obtenerIteracionesConfirmadas(supabase, project_id, config.nodosEvaluados);
+        if (iteracionesCoinciden(cache.iteraciones ?? {}, iteracionesActuales)) {
+          contradiccionesSemanticas = cache.pares;
+          semanticoEvaluadoEn = cache.evaluado_en;
+        } else {
+          // Algún nodo cambió desde que se calculó el caché — no lo
+          // presentamos como vigente (evita el falso "todo bien").
+          semanticoDesactualizado = true;
+        }
       }
     }
   }
@@ -145,5 +187,7 @@ export async function verificarGate(
     preguntas_bloqueantes: preguntas,
     contradicciones_semanticas: contradiccionesSemanticas,
     semantico_evaluado_en: semanticoEvaluadoEn,
+    semantico_desactualizado: semanticoDesactualizado,
+    semantico_iteraciones: semanticoIteraciones,
   };
 }

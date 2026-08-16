@@ -15,6 +15,14 @@
  * LLM). El botón "Revisar coherencia semántica ahora" es el disparador
  * manual explícito para esa llamada — el mismo patrón de costo que el
  * resto de la plataforma.
+ *
+ * Dos estados visuales distintos, a propósito — no colapsar en uno:
+ * - Rojo (bloqueado): hay preguntas P1 o una contradicción semántica
+ *   CONFIRMADA (caché vigente, sin cambios desde que se calculó).
+ * - Ámbar (desactualizado): el caché semántico existía pero algún nodo
+ *   (RUTA/NOVA/OBJETIVOS) se reabrió/regeneró/reconfirmó después — no se
+ *   sabe si sigue coherente. Mostrar esto como "sin bloqueos" sería un
+ *   falso "todo bien" con contenido que ya cambió.
  */
 
 import { useEffect, useState } from "react";
@@ -50,6 +58,7 @@ interface ResultadoGate {
   activo: boolean;
   preguntas_bloqueantes: PreguntaBloqueante[];
   contradicciones_semanticas: ResultadoCoherenciaPar[] | null;
+  semantico_desactualizado: boolean;
 }
 
 export default function InsigniaCheckpoint({ projectId }: { projectId: string }) {
@@ -112,30 +121,43 @@ export default function InsigniaCheckpoint({ projectId }: { projectId: string })
     .flatMap((r) => r.contradicciones_semanticas ?? [])
     .filter((c) => c.hallazgos.some((h) => h.severidad === "critica"));
 
-  const bloqueado = preguntas.length > 0 || contradiccionesCriticas.length > 0;
-  if (!bloqueado) return null;
+  const hayDesactualizado = resultados.some((r) => r.semantico_desactualizado);
 
+  const bloqueado = preguntas.length > 0 || contradiccionesCriticas.length > 0;
   const total = preguntas.length + contradiccionesCriticas.length;
+
+  if (!bloqueado && !hayDesactualizado) return null;
+
+  const colorBoton = bloqueado
+    ? "bg-red-600 hover:bg-red-700"
+    : "bg-amber-500 hover:bg-amber-600";
+  const etiquetaBoton = bloqueado
+    ? `${total} bloqueo(s) crítico(s) pendiente(s) — abrir detalle`
+    : "Hay cambios sin verificar desde el último análisis de coherencia — abrir detalle";
 
   return (
     <>
       <button
         type="button"
         onClick={() => setAbierto((v) => !v)}
-        aria-label={`${total} bloqueo(s) crítico(s) pendiente(s) — abrir detalle`}
-        title="Hay bloqueos críticos pendientes"
-        className="fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white text-lg shadow-lg hover:bg-red-700 transition-colors"
+        aria-label={etiquetaBoton}
+        title={etiquetaBoton}
+        className={`fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full text-white text-lg shadow-lg transition-colors ${colorBoton}`}
       >
-        <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[10px] font-bold text-red-600 border border-red-600">
-          {total}
-        </span>
-        ⚠️
+        {bloqueado && (
+          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[10px] font-bold text-red-600 border border-red-600">
+            {total}
+          </span>
+        )}
+        {bloqueado ? "⚠️" : "🔄"}
       </button>
 
       {abierto && (
         <div className="fixed bottom-20 right-5 z-40 w-[calc(100vw-2.5rem)] max-w-sm rounded-xl bg-white border shadow-2xl max-h-[70vh] overflow-y-auto p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-faro-navy">Pendientes críticos</h3>
+            <h3 className="text-sm font-bold text-faro-navy">
+              {bloqueado ? "Pendientes críticos" : "Coherencia sin verificar"}
+            </h3>
             <button
               type="button"
               onClick={() => setAbierto(false)}
@@ -146,8 +168,9 @@ export default function InsigniaCheckpoint({ projectId }: { projectId: string })
             </button>
           </div>
           <p className="text-xs text-gray-500">
-            Puede seguir trabajando normalmente — esto no interrumpe la pantalla actual, solo
-            recuerda que hay algo crítico pendiente.
+            {bloqueado
+              ? "Puede seguir trabajando normalmente — esto no interrumpe la pantalla actual, solo recuerda que hay algo crítico pendiente."
+              : "RUTA, NOVA u OBJETIVOS cambiaron desde el último análisis de coherencia semántica — el resultado anterior ya no se puede dar por vigente. No se sabe si sigue habiendo (o si ahora hay) una contradicción."}
           </p>
 
           {preguntas.map((p) => (
