@@ -11,6 +11,13 @@
  * reemplaza su contenido— para que cualquier estado en curso (borrador de
  * respuesta, procedencia elegida, previsualización de nodos afectados)
  * quede intacto debajo mientras el modal está abierto.
+ *
+ * "No sé dónde conseguirla" YA NO es un callejón sin salida: bajo los dos
+ * prompts hay un textarea para pegar lo que se consiguió afuera. Si es JSON
+ * con un campo de dato reconocible, se extrae y se preselecciona (nunca se
+ * fuerza) la procedencia según nivel_confianza; si no es JSON válido, se
+ * trata como texto libre — en ambos casos pasa al mismo camino
+ * "tengo_dato" ya existente (mismo componente, sin navegar a otro lado).
  */
 
 import { useEffect, useState } from "react";
@@ -32,6 +39,55 @@ interface Props {
   onResuelta: () => void;
 }
 
+/** Búsqueda de campo case/formato-insensible — el nombre exacto de las
+ * claves en el JSON pegado depende de cómo el modelo redactó prompt_retorno
+ * (texto libre pidiéndole a OTRA herramienta ese formato), no es un
+ * contrato fijo. */
+function obtenerCampoJSON(obj: Record<string, unknown>, claves: string[]): unknown {
+  const normalizar = (s: string) => s.toLowerCase().replace(/[\s_-]/g, "");
+  const entradas = Object.entries(obj);
+
+  // 1) match exacto normalizado (ignora espacios/guiones/guion_bajo)
+  for (const clave of claves) {
+    const claveNorm = normalizar(clave);
+    const encontrada = entradas.find(([k]) => normalizar(k) === claveNorm);
+    if (encontrada) return encontrada[1];
+  }
+
+  // 2) fallback por contención de palabras — tolera conectores intercalados
+  // como "nivel_DE_confianza" en vez de "nivel_confianza" (variación real
+  // observada: el nombre de campo lo redacta el LLM en prompt_retorno,
+  // no es un contrato fijo).
+  for (const clave of claves) {
+    const palabras = clave.toLowerCase().split(/[\s_-]+/).filter(Boolean);
+    if (palabras.length === 0) continue;
+    const encontrada = entradas.find(([k]) => {
+      const kLower = k.toLowerCase();
+      return palabras.every((p) => kLower.includes(p));
+    });
+    if (encontrada) return encontrada[1];
+  }
+
+  return undefined;
+}
+
+/**
+ * alto→fuente_oficial, medio→estimacion, bajo→supuesto — PRESELECCIÓN, no
+ * forzada. El valor real casi nunca es un enum limpio: el propio
+ * prompt_retorno le pide a la herramienta externa "alto/medio/bajo,
+ * especificando si es oficial", así que llega como frase ("alto, dato
+ * oficial del DANE"). Se busca la palabra de nivel al INICIO del valor,
+ * no igualdad exacta — variación real observada en prueba, no hipotética.
+ */
+function mapearNivelConfianza(valor: unknown): Procedencia | "" {
+  if (typeof valor !== "string") return "";
+  const v = valor.trim().toLowerCase();
+  if (/^(alto|alta|high)\b/.test(v)) return "fuente_oficial";
+  if (/^(medio|media|medium)\b/.test(v)) return "estimacion";
+  if (/^(bajo|baja|low)\b/.test(v)) return "supuesto";
+  return "";
+}
+
 export default function TriagePregunta({ preguntaId, projectId, textoPregunta, onResuelta }: Props) {
   const [camino, setCamino] = useState<Camino>("inicial");
   const [respuestaTexto, setRespuestaTexto] = useState("");
@@ -43,6 +99,10 @@ export default function TriagePregunta({ preguntaId, projectId, textoPregunta, o
   } | null>(null);
   const [nodosAfectados, setNodosAfectados] = useState<NodoAfectado[] | null>(null);
   const [cargando, setCargando] = useState(false);
+
+  // "No sé dónde conseguirla" — pegar la respuesta obtenida afuera, sin salir de esta tarjeta.
+  const [pegadoTexto, setPegadoTexto] = useState("");
+  const [intentoRegistrado, setIntentoRegistrado] = useState(false);
 
   // Modal "No entiendo la pregunta" — independiente de `camino`, para que
   // abrirlo/cerrarlo nunca desmonte ni reinicie el resto de la tarjeta.
@@ -91,6 +151,59 @@ export default function TriagePregunta({ preguntaId, projectId, textoPregunta, o
       });
       const data = await res.json();
       setDerivacion(data);
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  /** Procesa lo pegado en el textarea de "No sé dónde conseguirla". */
+  async function procesarRespuestaPegada() {
+    const texto = pegadoTexto.trim();
+    if (!texto) return;
+
+    let json: Record<string, unknown> | null = null;
+    try {
+      const parsed = JSON.parse(texto);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        json = parsed as Record<string, unknown>;
+      }
+    } catch {
+      json = null;
+    }
+
+    if (json) {
+      const dato = obtenerCampoJSON(json, ["dato", "valor", "respuesta"]);
+      if (typeof dato === "string" && dato.trim()) {
+        const datoTexto = dato.trim();
+        if (datoTexto.toLowerCase().replace(/[\s_]/g, "_") === "no_encontrado") {
+          await registrarIntentoSinResultado();
+          return;
+        }
+        const nivelConfianza = obtenerCampoJSON(json, ["nivel_confianza", "confianza", "nivel de confianza"]);
+        setRespuestaTexto(datoTexto);
+        setProcedencia(mapearNivelConfianza(nivelConfianza));
+        setCamino("tengo_dato");
+        return;
+      }
+    }
+
+    // No es JSON con 'dato' reconocible — texto libre, mismo flujo que
+    // "Sí tengo esta información", procedencia queda para elegir a mano.
+    setRespuestaTexto(texto);
+    setProcedencia("");
+    setCamino("tengo_dato");
+  }
+
+  async function registrarIntentoSinResultado() {
+    setCargando(true);
+    try {
+      await fetch("/api/mci/preguntas/registrar-intento", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pregunta_id: preguntaId }),
+      });
+      setIntentoRegistrado(true);
+      setPegadoTexto("");
     } finally {
       setCargando(false);
     }
@@ -162,8 +275,8 @@ export default function TriagePregunta({ preguntaId, projectId, textoPregunta, o
     );
   } else if (camino === "no_se_donde") {
     contenidoCamino = (
-      <div className="space-y-2">
-        {cargando && <p className="text-xs text-gray-500">Preparando orientación de búsqueda...</p>}
+      <div className="space-y-3">
+        {cargando && !derivacion && <p className="text-xs text-gray-500">Preparando orientación de búsqueda...</p>}
         {derivacion && (
           <div className="space-y-2 rounded-lg border bg-white p-3 text-xs sm:text-sm">
             <p className="text-gray-700 font-medium">{derivacion.orientacion}</p>
@@ -189,13 +302,45 @@ export default function TriagePregunta({ preguntaId, projectId, textoPregunta, o
                 value={derivacion.prompt_retorno}
               />
             </div>
-            <p className="text-[11px] text-amber-700 italic">
-              Esta pregunta ha quedado registrada en estado de espera — vuelva cuando disponga del dato.
-            </p>
           </div>
         )}
-        <button className="text-xs font-medium text-faro-navy hover:underline" onClick={() => setCamino("inicial")}>
-          ← Volver a las opciones
+
+        {derivacion && (
+          <div className="space-y-2 rounded-lg border border-faro-blue/30 bg-faro-blue/5 p-3">
+            <p className="text-[11px] font-semibold text-faro-navy uppercase tracking-wide">
+              ¿Ya consiguió el dato afuera? Péguelo aquí, sin salir de esta pregunta:
+            </p>
+            <textarea
+              className="w-full rounded-lg border p-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-faro-navy/20"
+              rows={4}
+              value={pegadoTexto}
+              onChange={(e) => {
+                setPegadoTexto(e.target.value);
+                setIntentoRegistrado(false);
+              }}
+              placeholder="Pegue aquí la respuesta que obtuvo (JSON estructurado o texto libre)"
+            />
+            <button
+              className="rounded bg-faro-navy px-3 py-1.5 text-xs sm:text-sm font-medium text-white disabled:opacity-50 shadow-sm"
+              disabled={!pegadoTexto.trim() || cargando}
+              onClick={procesarRespuestaPegada}
+            >
+              {cargando ? "Procesando..." : "Ya tengo la respuesta, continuar"}
+            </button>
+            {intentoRegistrado && (
+              <p className="text-[11px] text-emerald-700">
+                Quedó registrado que intentó buscar esto sin encontrar un dato concreto — la
+                pregunta sigue en espera, puede volver a intentarlo cuando tenga más pistas.
+              </p>
+            )}
+          </div>
+        )}
+
+        <button
+          className="text-[11px] font-normal text-gray-400 hover:text-gray-600 hover:underline"
+          onClick={() => setCamino("inicial")}
+        >
+          ← Volver a las opciones (abandonar por ahora)
         </button>
       </div>
     );
