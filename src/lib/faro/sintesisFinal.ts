@@ -19,6 +19,14 @@
  *   estado-del-arte-q1 — SOLO cuando la afirmación esté genuinamente
  *   respaldada por una entrada real de B (autor/año verbatim, nunca
  *   inventados).
+ *   EXTENSIÓN (sesión posterior): el prompt original solo entregaba D(θ) y
+ *   N-O-V-A sin forzar orden narrativo — el LLM decidía la secuencia. Se
+ *   agregó orden explícito de 3 movimientos (modelo CARS — Create a
+ *   Research Space): contexto amplio→local (RUTA + cifras por nivel) →
+ *   brecha específica (NOVA) → cierre con el objetivo general. Esto ES un
+ *   cambio de alcance, no solo de formato: Objetivos pasa a ser precondición
+ *   de generarIntroduccion(), algo que la fórmula original P=N(D(θ),B,ρ) no
+ *   incluía.
  * - Resumen: estructura C-G-O-M-R-I de la skill abstract-q1, ADAPTADA:
  *   esa skill define R (Resultados) e I (Implicación) para abstracts de
  *   estudios YA EJECUTADOS, con magnitudes numéricas medidas — aquí el
@@ -85,6 +93,23 @@ function exigirNodos(faltantes: string[]): void {
   if (faltantes.length > 0) {
     throw new Error(
       `No se puede generar: falta(n) confirmar ${faltantes.join(", ")} (confirmado_humano=true) antes de sintetizar esta sección.`
+    );
+  }
+}
+
+/**
+ * Bloquea si algún nodo requerido tiene su hipótesis marcada
+ * estado_evidencia="contradicho_por_rsl" — no tiene sentido sintetizar
+ * prosa académica presentando como vigente una brecha/afirmación que la
+ * revisión sistemática de literatura ya refutó. RUTA lo declara anidado
+ * en vacio_conocimiento_hipotesis; NOVA/Objetivos/Metodología/Impactos lo
+ * declaran a nivel de nodo completo — ambas formas se revisan aquí.
+ */
+function exigirSinContradiccionRSL(hallazgos: { nodo: string; estadoEvidencia: string | null | undefined }[]): void {
+  const contradichos = hallazgos.filter((h) => h.estadoEvidencia === "contradicho_por_rsl").map((h) => h.nodo);
+  if (contradichos.length > 0) {
+    throw new Error(
+      `No se puede generar: ${contradichos.join(", ")} tiene(n) contenido marcado como contradicho_por_rsl (la revisión sistemática de literatura contradijo esa hipótesis) — resuelva la contradicción antes de sintetizar esta sección.`
     );
   }
 }
@@ -210,19 +235,52 @@ inventes una. Prosa continua, sin viñetas, sin negritas, sin encabezados,
 sin guiones largos, sin meta-discurso ("en esta sección...", "cabe
 destacar...").`;
 
+const INSTRUCCION_ORDEN_CARS = `ORDEN NARRATIVO OBLIGATORIO — modelo CARS (Create
+a Research Space), estructura estándar de introducción científica. Esto rige
+la SECUENCIA de exposición, no los datos: no omitas ni agregues nada por
+seguir esta instrucción, solo ordénalo así.
+
+Movimiento 1 — Establecer el territorio (contexto amplio → local): abre con
+D(θ)/RUTA y las cifras de contexto de NOVA ordenadas de mayor a menor escala
+según su campo "nivel" (mundial → continental → nacional → regional →
+específico) — nunca empieces por el dato específico/local ni mezcles el
+orden de escalas.
+
+Movimiento 2 — Establecer el nicho (la brecha específica y su
+justificación): sigue con N-O-V-A de NOVA en su propio orden — núcleo
+(brecha/causa raíz) → onda (consecuencias/efectos) → valor
+(contribución/justificación) → avance (novedad frente al estado del arte) —
+apoyado en B donde corresponda.
+
+Movimiento 3 — Ocupar el nicho (cierre): el último párrafo debe presentar el
+objetivo general del proyecto (dado abajo) como la respuesta que este
+proyecto propone a la brecha ya establecida en el Movimiento 2 — no lo
+repitas literalmente palabra por palabra, intégralo como cierre natural de
+la introducción.
+
+No reordenes los campos dentro de cada movimiento salvo que la fluidez de
+la prosa lo requiera — lo que importa es el orden entre los 3 movimientos.`;
+
 export async function generarIntroduccion(
   supabase: SupabaseClient,
   project_id: string
 ): Promise<ResultadoSintesis> {
-  const [ruta, nova] = await Promise.all([
+  const [ruta, nova, objetivos] = await Promise.all([
     obtenerNodoConfirmado<RutaOutput>(supabase, project_id, "RUTA"),
     obtenerNodoConfirmado<NovaOutput>(supabase, project_id, "NOVA"),
+    obtenerNodoConfirmado<ObjetivosOutput>(supabase, project_id, "OBJETIVOS"),
   ]);
 
   const faltantes: string[] = [];
   if (!ruta) faltantes.push("RUTA");
   if (!nova) faltantes.push("NOVA");
+  if (!objetivos) faltantes.push("OBJETIVOS"); // precondición nueva — cierre CARS Movimiento 3
   exigirNodos(faltantes);
+  exigirSinContradiccionRSL([
+    { nodo: "RUTA (vacío de conocimiento)", estadoEvidencia: ruta!.vacio_conocimiento_hipotesis.estado_evidencia },
+    { nodo: "NOVA", estadoEvidencia: nova!.estado_evidencia },
+    { nodo: "OBJETIVOS", estadoEvidencia: objetivos!.estado_evidencia },
+  ]);
 
   const [fuentes, { provisional, motivo }, { data: project }] = await Promise.all([
     obtenerBibliografiaVerificada(supabase, project_id),
@@ -244,6 +302,8 @@ existen (ρ).
 ${INSTRUCCION_HONESTIDAD}
 
 ${INSTRUCCION_CITACION}
+
+${INSTRUCCION_ORDEN_CARS}
 
 === D(θ) — Delimitación confirmada por RUTA ===
 Tema: ${ruta!.tema}
@@ -278,11 +338,15 @@ ${bloqueBibliografia(fuentes)}
 
 ${tieneRho ? `=== ρ — Términos de referencia / convocatoria ===\n${JSON.stringify(rho, null, 2)}` : "No hay términos de referencia/convocatoria cargados para este proyecto — omite ρ."}
 
+=== Objetivo general confirmado (Objetivos) — para el cierre del Movimiento 3 ===
+${objetivos!.objetivo_general}
+
 Redacta la Introducción como prosa académica continua (3-5 párrafos), en
-español, integrando D(θ) y N-O-V-A de forma fluida (no los presentes como
-lista de campos), citando B donde corresponda con el patrón indicado.
-Responde ÚNICAMENTE con el texto de la introducción, sin título, sin
-comentarios sobre lo que hiciste.`;
+español, siguiendo ESTRICTAMENTE el orden narrativo de 3 movimientos
+indicado arriba, integrando los campos de cada movimiento de forma fluida
+(no los presentes como lista de campos), citando B donde corresponda con
+el patrón indicado. Responde ÚNICAMENTE con el texto de la introducción,
+sin título, sin comentarios sobre lo que hiciste.`;
 
   const texto = await llamarOrquestador(prompt);
   return { texto: texto.trim(), provisional, motivo_provisional: motivo };
@@ -307,6 +371,13 @@ export async function generarResumen(
   if (!metodologia) faltantes.push("METODOLOGIA");
   if (!impactos) faltantes.push("IMPACTOS");
   exigirNodos(faltantes);
+  exigirSinContradiccionRSL([
+    { nodo: "RUTA (vacío de conocimiento)", estadoEvidencia: ruta!.vacio_conocimiento_hipotesis.estado_evidencia },
+    { nodo: "NOVA", estadoEvidencia: nova!.estado_evidencia },
+    { nodo: "OBJETIVOS", estadoEvidencia: objetivos!.estado_evidencia },
+    { nodo: "METODOLOGIA", estadoEvidencia: metodologia!.estado_evidencia },
+    { nodo: "IMPACTOS", estadoEvidencia: impactos!.estado_evidencia },
+  ]);
 
   const [{ provisional, motivo }, rango] = await Promise.all([
     obtenerProvisionalidad(supabase, project_id),
