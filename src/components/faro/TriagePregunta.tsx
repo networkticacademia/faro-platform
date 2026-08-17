@@ -224,7 +224,7 @@ export default function TriagePregunta({ preguntaId, projectId, textoPregunta, o
         </select>
 
         {!nodosAfectados ? (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               className="rounded bg-faro-navy px-3 py-1.5 text-xs sm:text-sm font-medium text-white disabled:opacity-50 shadow-sm"
               disabled={!respuestaTexto.trim() || !procedencia || cargando}
@@ -234,6 +234,12 @@ export default function TriagePregunta({ preguntaId, projectId, textoPregunta, o
             </button>
             <button className="rounded border px-3 py-1.5 text-xs sm:text-sm text-gray-600 hover:bg-gray-50" onClick={() => setCamino("inicial")}>
               Cancelar
+            </button>
+            <button
+              className="text-xs font-medium text-faro-navy hover:underline"
+              onClick={pedirExplicacion}
+            >
+              No entiendo la pregunta
             </button>
           </div>
         ) : (
