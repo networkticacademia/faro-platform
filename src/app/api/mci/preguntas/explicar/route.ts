@@ -68,5 +68,17 @@ innecesaria:
 No decidas por el formulador. No inventes datos del proyecto que no estén
 en el contexto de arriba. Si el contexto es insuficiente para dar un
 ejemplo específico, dilo explícitamente y da el ejemplo con el tipo de
-proyecto más genérico posible.`;
+proyecto más genérico posible.
+
+FORMATO DE SALIDA — esto es obligatorio, no una preferencia de estilo:
+tu respuesta se muestra tal cual, como texto plano, en una pantalla que NO
+interpreta Markdown. Por lo tanto NO uses absolutamente ningún símbolo de
+sintaxis Markdown: nada de #, ##, ### para encabezados, nada de ** ni * para
+negrita o cursiva, nada de guiones ni asteriscos como viñetas, nada de
+backticks. Escribe como si estuvieras hablando con la persona en una
+conversación real: párrafos cortos en prosa corriente. Para los 4 puntos de
+arriba, si quieres numerarlos, usa únicamente el número seguido de un punto
+en texto plano ("1.", "2.", "3.", "4.") al inicio de cada párrafo — nunca un
+encabezado Markdown ni texto en negrita para el número o el título del
+punto.`;
 }
