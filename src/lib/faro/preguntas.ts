@@ -59,17 +59,22 @@ function extraerPreguntasDelNodo(contenido: unknown): PreguntaExtraida[] {
     .filter((p): p is PreguntaExtraida => p !== null && p.texto_pregunta.trim().length > 0);
 }
 
+export interface PreguntaSincronizada {
+  id: string;
+  texto_pregunta: string;
+}
+
 export async function sincronizarPreguntasPendientes(
   supabase: SupabaseClient,
   params: { project_id: string; nodo_id: string; nodo_tipo: NodoTipo; contenido: unknown },
   opciones?: { reagrupar?: boolean }
-): Promise<{ insertadas: number; omitidas_duplicadas: number; idsInsertados: string[] }> {
+): Promise<{ insertadas: number; omitidas_duplicadas: number; preguntas: PreguntaSincronizada[] }> {
   const { project_id, nodo_id, nodo_tipo, contenido } = params;
   const reagrupar = opciones?.reagrupar ?? true;
   const extraidas = extraerPreguntasDelNodo(contenido);
 
   if (extraidas.length === 0) {
-    return { insertadas: 0, omitidas_duplicadas: 0, idsInsertados: [] };
+    return { insertadas: 0, omitidas_duplicadas: 0, preguntas: [] };
   }
 
   const filas = extraidas.map((p) => ({
@@ -88,15 +93,25 @@ export async function sincronizarPreguntasPendientes(
   const { data, error } = await supabase
     .from("preguntas_pendientes")
     .upsert(filas, { onConflict: "nodo_id,texto_hash", ignoreDuplicates: true })
-    .select("id");
+    .select("id, texto_pregunta");
 
   if (error) {
     console.error("[sincronizarPreguntasPendientes] error:", error.message);
-    return { insertadas: 0, omitidas_duplicadas: 0, idsInsertados: [] };
+    return { insertadas: 0, omitidas_duplicadas: 0, preguntas: [] };
   }
 
-  const idsInsertados = (data ?? []).map((d) => d.id as string);
-  const insertadas = idsInsertados.length;
+  // Devuelve las filas reales insertadas (id + texto_pregunta), no solo ids —
+  // así el caller (las pantallas FormulacionXxx.tsx) puede renderizar
+  // TriagePregunta directamente por pregunta_id sin adivinar la
+  // correspondencia por posición/texto. Si el upsert descartó un duplicado
+  // (ignoreDuplicates, mismo nodo_id+texto_hash), esa pregunta simplemente no
+  // aparece aquí — el caller debe tratar `preguntas` como la fuente de
+  // verdad, no asumir que su longitud coincide con la del array embebido.
+  const preguntas: PreguntaSincronizada[] = (data ?? []).map((d) => ({
+    id: d.id as string,
+    texto_pregunta: d.texto_pregunta as string,
+  }));
+  const insertadas = preguntas.length;
   if (insertadas > 0 && reagrupar) {
     try {
       await reagruparPreguntasAbiertas(supabase, project_id);
@@ -105,5 +120,5 @@ export async function sincronizarPreguntasPendientes(
     }
   }
 
-  return { insertadas, omitidas_duplicadas: filas.length - insertadas, idsInsertados };
+  return { insertadas, omitidas_duplicadas: filas.length - insertadas, preguntas };
 }

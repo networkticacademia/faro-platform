@@ -13,11 +13,11 @@ import {
   type ContradiccionDetectada,
 } from "@/lib/faro/mci";
 import { sincronizarPreguntasPendientes } from "@/lib/faro/preguntas";
-import { verificarCircuitoAntesDeRegenerar } from "@/lib/faro/circuitoConvergencia";
+import { verificarCircuitoAntesDeRegenerar, CircuitoDetenidoError, type BypassCircuito } from "@/lib/faro/circuitoConvergencia";
 
 export async function generarImpactosCore(
   supabase: SupabaseClient,
-  params: { project_id: string; feedback?: string }
+  params: { project_id: string; feedback?: string; bypassCircuito?: BypassCircuito }
 ) {
   const { project_id, feedback } = params;
 
@@ -25,7 +25,7 @@ export async function generarImpactosCore(
   // IMPACTOS_DELIMITACION para este proyecto) — la primera generación no
   // tiene nada que comparar todavía. Ver circuitoConvergencia.ts para
   // por qué NO se usa "feedback presente" como discriminador.
-  await verificarCircuitoAntesDeRegenerar(supabase, project_id, "IMPACTOS_DELIMITACION");
+  await verificarCircuitoAntesDeRegenerar(supabase, project_id, "IMPACTOS_DELIMITACION", params.bypassCircuito);
 
   const { data: project, error: projectError } = await supabase
     .from("projects")
@@ -171,7 +171,7 @@ export async function generarImpactosCore(
     modelo_usado: process.env.OPENROUTER_MODEL ?? "anthropic/claude-sonnet-4.6",
   });
 
-  await sincronizarPreguntasPendientes(supabase, {
+  const { preguntas: preguntasSincronizadas } = await sincronizarPreguntasPendientes(supabase, {
     project_id,
     nodo_id: nodo.id,
     nodo_tipo: "IMPACTOS",
@@ -181,6 +181,7 @@ export async function generarImpactosCore(
   return {
     nodo,
     metrica: { deltaI, omega, deltaModulada, lFaro, seTau, tauC, convergio, contradicciones: contradiccionesTyped },
+    preguntas_sincronizadas: preguntasSincronizadas,
   };
 }
 
@@ -192,15 +193,26 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { project_id, feedback } = body;
+  const { project_id, feedback, bypass_circuito } = body;
   if (!project_id) {
     return NextResponse.json({ error: "Falta project_id." }, { status: 400 });
   }
 
   try {
-    const resultado = await generarImpactosCore(supabase, { project_id, feedback });
+    const resultado = await generarImpactosCore(supabase, {
+      project_id,
+      feedback,
+      bypassCircuito: bypass_circuito ? { confirmadoPor: user.email ?? user.id } : undefined,
+    });
     return NextResponse.json(resultado);
   } catch (e) {
+    if (e instanceof CircuitoDetenidoError) {
+      return NextResponse.json({
+        circuito_detenido: true,
+        motivo_circuito: e.circuito.motivo,
+        detalle_l_faro_por_nodo: e.circuito.ultimo_detalle_l_faro_por_nodo,
+      });
+    }
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
 }

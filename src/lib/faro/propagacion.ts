@@ -31,7 +31,7 @@ import type { NodoTipo } from "./clasificacionPreguntas";
 import { esProcedenciaConfirmada, type Procedencia } from "./procedencia";
 import { hashTexto } from "./preguntas";
 import { obtenerNodosAfectados } from "./clasificacionPreguntas";
-import { evaluarCircuitoConvergencia, registrarOverrideCircuito, type DetalleLFaroNodoResumen } from "./circuitoConvergencia";
+import { evaluarCircuitoConvergencia, type DetalleLFaroNodoResumen, type BypassCircuito } from "./circuitoConvergencia";
 import { generarRutaCore } from "@/app/api/mci/ruta/generar/route";
 import { generarNovaCore } from "@/app/api/mci/nova/generar/route";
 import { generarObjetivosCore } from "@/app/api/mci/objetivos/generar/route";
@@ -150,14 +150,19 @@ export async function ejecutarPropagacion(
       detalle_l_faro_por_nodo: circuito.ultimo_detalle_l_faro_por_nodo,
     };
   }
-  if (circuito.detenido && bypassCircuito) {
-    await registrarOverrideCircuito(supabase, {
-      project_id,
-      confirmado_por: bypassCircuito.confirmadoPor,
-      pregunta_raiz_id,
-      motivo_circuito_original: circuito.motivo,
-    });
-  }
+  // El registro de auditoría del override YA NO se hace aquí a nivel de
+  // toda la operación — se delega a verificarCircuitoAntesDeRegenerar()
+  // (circuitoConvergencia.ts), llamada dentro de cada generarXCore() más
+  // abajo, pasando `bypassCircuito`. Antes, ese registro solo pasaba a
+  // nivel general y esta bandera nunca llegaba a la llamada interna de
+  // verificarCircuitoAntesDeRegenerar() de cada nodo — esa llamada volvía a
+  // evaluar el circuito sin saber que hubo bypass, lo encontraba detenido
+  // otra vez (la fila de auditoría se excluye a propósito del cálculo de
+  // mejora) y volvía a lanzar. Resultado real: cada nodo fallaba en
+  // silencio dentro del try/catch de abajo, pero la pregunta se marcaba
+  // "resuelta" igual — el override nunca regeneraba nada. Corregido
+  // pasando bypassCircuito explícitamente hasta el nivel que de verdad
+  // ejecuta la regeneración.
 
   const confiable = esProcedenciaConfirmada(procedencia);
 
@@ -179,7 +184,13 @@ export async function ejecutarPropagacion(
 
   for (const nodo of nodosConfirmados) {
     try {
-      const resultadoNodo = await regenerarNodoConFeedback(supabase, nodo.nodo_tipo, project_id, feedback);
+      const resultadoNodo = await regenerarNodoConFeedback(
+        supabase,
+        nodo.nodo_tipo,
+        project_id,
+        feedback,
+        bypassCircuito ? { confirmadoPor: bypassCircuito.confirmadoPor, preguntaRaizId: pregunta_raiz_id } : undefined
+      );
       resultados.push({ nodo_tipo: nodo.nodo_tipo, exito: true });
       idsResueltos.push(...nodo.preguntas_que_resuelve);
 
@@ -282,23 +293,24 @@ async function regenerarNodoConFeedback(
   supabase: SupabaseClient,
   nodoTipo: string,
   project_id: string,
-  feedback: string
+  feedback: string,
+  bypassCircuito?: BypassCircuito
 ): Promise<{ nodo: { id: string } }> {
   const tipoUpper = nodoTipo.toUpperCase();
   switch (tipoUpper) {
     case "RUTA":
-      return await generarRutaCore(supabase, { project_id, feedback });
+      return await generarRutaCore(supabase, { project_id, feedback, bypassCircuito });
     case "NOVA":
-      return await generarNovaCore(supabase, { project_id, feedback });
+      return await generarNovaCore(supabase, { project_id, feedback, bypassCircuito });
     case "OBJETIVOS":
-      return await generarObjetivosCore(supabase, { project_id, feedback });
+      return await generarObjetivosCore(supabase, { project_id, feedback, bypassCircuito });
     case "METODOLOGIA":
-      return await generarMetodologiaCore(supabase, { project_id, feedback });
+      return await generarMetodologiaCore(supabase, { project_id, feedback, bypassCircuito });
     case "MARCO_REFERENCIAL":
-      return await generarMarcoReferencialCore(supabase, { project_id, feedback });
+      return await generarMarcoReferencialCore(supabase, { project_id, feedback, bypassCircuito });
     case "IMPACTOS":
     case "IMPACTOS_DELIMITACION":
-      return await generarImpactosCore(supabase, { project_id, feedback });
+      return await generarImpactosCore(supabase, { project_id, feedback, bypassCircuito });
     default:
       throw new Error(`Tipo de nodo desconocido para regeneración: ${nodoTipo}`);
   }

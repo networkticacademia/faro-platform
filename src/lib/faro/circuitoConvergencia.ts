@@ -268,15 +268,53 @@ export async function evaluarCircuitoConvergencia(
  * duplicada (la evaluación en sí vive solo ahí, en evaluarCircuitoConvergencia),
  * es para poder devolver el diagnóstico completo (detalle_l_faro_por_nodo,
  * etc.) de una sola vez a TriagePregunta.tsx en vez de un simple error de
- * texto por nodo. Para ese camino, esta función corre una segunda vez
- * como backstop (redundante pero barata, sin costo LLM extra) — el
- * camino que SÍ depende de esta función en exclusiva es el directo desde
- * las 6 pantallas de nodo.
+ * texto por nodo, Y para poder cortar ANTES de intentar regenerar ningún
+ * nodo cuando NO hay bypass (evita tocar la BD si de todas formas se va a
+ * bloquear). El camino que SÍ depende de esta función en exclusiva es el
+ * directo desde las 6 pantallas de nodo.
+ *
+ * BUG REAL CORREGIDO (19-ago-2026, hallado al construir el camino directo
+ * de item 3): la nota anterior de este comentario llamaba a la doble
+ * evaluación "redundante pero barata" — cierto solo en el caso SIN bypass
+ * (ambas coinciden en bloquear). Cuando SÍ había bypass, ejecutarPropagacion
+ * registraba el override y avanzaba, pero esta función volvía a evaluar el
+ * circuito SIN saber que hubo bypass —seguía viendo la misma tendencia sin
+ * mejora, porque la fila de auditoría del override se excluye a propósito
+ * del cálculo— y volvía a lanzar. El resultado real en producción: cada
+ * regeneración de cada nodo dentro de un "Ya revisé, continuar de todas
+ * formas" fallaba en silencio (regenerarNodoConFeedback la atrapaba como
+ * exito:false por nodo), pero la pregunta se marcaba "resuelta" igual
+ * (ejecutarPropagacion añade pregunta_raiz_id a idsResueltos sin condicionar
+ * al éxito de la regeneración) — el override nunca regeneraba nada, y no
+ * había ninguna señal de que había fallado. Corregido pasando `bypass`
+ * explícitamente desde el nivel que autorizó el override (ejecutarPropagacion
+ * o, ahora, cada POST /api/mci/{nodo}/generar) hasta aquí.
  */
+// Compartido entre propagacion.ts y los 6 {nodo}/generar/route.ts — evita
+// repetir el tipo inline en cada uno con riesgo de que diverjan.
+export interface BypassCircuito {
+  confirmadoPor: string;
+  preguntaRaizId?: string | null;
+}
+
+export class CircuitoDetenidoError extends Error {
+  circuito: ResultadoCircuito;
+  constructor(circuito: ResultadoCircuito) {
+    super(circuito.motivo ?? "Convergencia automática detenida — revise manualmente antes de continuar.");
+    this.name = "CircuitoDetenidoError";
+    this.circuito = circuito;
+  }
+}
+
 export async function verificarCircuitoAntesDeRegenerar(
   supabase: SupabaseClient,
   project_id: string,
-  nodo_tipo: string
+  nodo_tipo: string,
+  // Presente = quien llamó YA autorizó saltar el bloqueo para este intento
+  // puntual. Registra la auditoría aquí mismo — es el único punto que sabe
+  // con certeza que el bloqueo se saltó de verdad para ESTE nodo_tipo (a
+  // diferencia de un registro genérico a nivel de toda la operación).
+  bypass?: BypassCircuito
 ): Promise<void> {
   const { data: previos } = await supabase
     .from("grafo_nodos")
@@ -289,19 +327,32 @@ export async function verificarCircuitoAntesDeRegenerar(
   if (!esRegeneracion) return; // primera generación real del nodo — nada que comparar, nunca se bloquea
 
   const circuito = await evaluarCircuitoConvergencia(supabase, project_id);
-  if (circuito.detenido) {
-    throw new Error(circuito.motivo ?? "Convergencia automática detenida — revise manualmente antes de continuar.");
+  if (!circuito.detenido) return;
+
+  if (bypass) {
+    await registrarOverrideCircuito(supabase, {
+      project_id,
+      confirmado_por: bypass.confirmadoPor,
+      pregunta_raiz_id: bypass.preguntaRaizId ?? null,
+      motivo_circuito_original: circuito.motivo,
+    });
+    return;
   }
+
+  throw new CircuitoDetenidoError(circuito);
 }
 
 /**
  * Registra que un humano revisó el bloqueo y decidió continuar de todas
  * formas — auditoría insertada en convergencia_proyecto (sin tabla
  * nueva), excluida del cálculo de mejora por no tener l_faro_proyecto.
+ * pregunta_raiz_id es null cuando el override ocurre en el camino directo
+ * de regeneración (pantallas FormulacionXxx.tsx, sin responder una
+ * pregunta puntual) en vez de vía propagación.
  */
 export async function registrarOverrideCircuito(
   supabase: SupabaseClient,
-  params: { project_id: string; confirmado_por: string; pregunta_raiz_id: string; motivo_circuito_original: string | null }
+  params: { project_id: string; confirmado_por: string; pregunta_raiz_id: string | null; motivo_circuito_original: string | null }
 ): Promise<void> {
   await supabase.from("convergencia_proyecto").insert({
     project_id: params.project_id,

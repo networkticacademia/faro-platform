@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import NavegacionNodos from "@/components/faro/NavegacionNodos";
 import { IndicadorGenerando } from "@/components/faro/IndicadorGenerando";
-import { PreguntasPendientes, ensamblarFeedbackDesdeRespuestas } from "@/components/faro/PreguntasPendientes";
+import TriagePregunta from "@/components/faro/TriagePregunta";
 import type {
   ImpactosDelimitacionOutput,
   TipoImpacto,
@@ -44,6 +45,20 @@ interface ProjectRow {
   alpha_area: string; u0_initial: number; estado: string;
 }
 
+/**
+ * Fila REAL de preguntas_pendientes (no el snapshot de texto embebido en
+ * grafo_nodos.preguntas_pendientes). Es lo que TriagePregunta necesita para
+ * poder capturar procedencia, marcar la fila resuelta y propagar a los nodos
+ * afectados — el mismo mecanismo que usa la página de Preguntas Pendientes,
+ * en vez del textarea suelto que esta pantalla tenía antes (que ensamblaba
+ * texto en el feedback y nunca resolvía la fila ni registraba procedencia).
+ */
+interface PreguntaReal {
+  id: string;
+  texto_pregunta: string;
+  prioridad: string;
+}
+
 const CATEGORIA_RECURSO_LABEL: Record<CategoriaRecurso, string> = {
   humano: "Talento Humano",
   material_infraestructura: "Material e Infraestructura",
@@ -52,9 +67,11 @@ const CATEGORIA_RECURSO_LABEL: Record<CategoriaRecurso, string> = {
 };
 
 export default function FormulacionImpactosDelimitacion({
-  project, nodosIniciales,
-}: { project: ProjectRow; nodosIniciales: NodoGrafo[] }) {
+  project, nodosIniciales, preguntasIniciales,
+}: { project: ProjectRow; nodosIniciales: NodoGrafo[]; preguntasIniciales: PreguntaReal[] }) {
+  const router = useRouter();
   const [nodos, setNodos] = useState<NodoGrafo[]>(nodosIniciales);
+  const [preguntas, setPreguntas] = useState<PreguntaReal[]>(preguntasIniciales);
   const [metrica, setMetrica] = useState<Metrica | null>(null);
   const [generando, setGenerando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +80,13 @@ export default function FormulacionImpactosDelimitacion({
   const [ed, setEd] = useState<ImpactosDelimitacionOutput | null>(null);
   const [confirmando, setConfirmando] = useState(false);
   const [reabriendo, setReabriendo] = useState(false);
-  const [respuestasPreguntas, setRespuestasPreguntas] = useState<Record<number, string>>({});
+
+  // Resolver una pregunta vía TriagePregunta regenera el nodo en el servidor
+  // (ejecutarPropagacion), así que la copia en este estado queda vieja. Tras
+  // router.refresh() el componente servidor vuelve a correr y manda props
+  // nuevas — useState las ignora por sí solo, de ahí esta sincronización.
+  useEffect(() => { setNodos(nodosIniciales); }, [nodosIniciales]);
+  useEffect(() => { setPreguntas(preguntasIniciales); }, [preguntasIniciales]);
 
   const nodoActual = nodos[0] ?? null;
   const c = nodoActual?.contenido;
@@ -79,22 +102,28 @@ export default function FormulacionImpactosDelimitacion({
         }),
       });
       const data = await res.json();
+      // El endpoint ahora responde con la misma forma que /preguntas/propagar
+      // cuando el circuito de convergencia bloquea (200 + circuito_detenido)
+      // en vez de un 500 genérico — ver circuitoConvergencia.ts.
+      if (data.circuito_detenido) {
+        setError(data.motivo_circuito ?? "Regeneración automática detenida por el circuito de convergencia.");
+        return;
+      }
       if (!res.ok) throw new Error(data.error ?? "Error generando la propuesta.");
       setNodos((prev) => [data.nodo, ...prev]);
-      setMetrica(data.metrica); setFeedback(""); setRespuestasPreguntas({}); setEditando(false);
+      // Filas reales recién sincronizadas para el nodo nuevo — reemplazan a
+      // las del nodo anterior, que ya no aplican a la iteración en pantalla.
+      setPreguntas(data.preguntas_sincronizadas ?? []);
+      setMetrica(data.metrica); setFeedback(""); setEditando(false);
     } catch (e) { setError(e instanceof Error ? e.message : "Error desconocido."); }
     finally { setGenerando(false); }
   }
 
   async function confirmar(editado: boolean) {
     if (!nodoActual) return;
-    const hayRespuestasSinGuardar = Object.values(respuestasPreguntas).some((v) => v.trim().length > 0);
-    if (hayRespuestasSinGuardar) {
-      const continuar = window.confirm(
-        "Tiene respuestas sin guardar en las preguntas de arriba — se perderán si continúa. ¿Confirma?"
-      );
-      if (!continuar) return;
-    }
+    // Ya no hace falta advertir por "respuestas sin guardar": cada pregunta
+    // se responde y persiste por su propio flujo explícito (TriagePregunta),
+    // no en un borrador local que se pudiera perder al confirmar el nodo.
     setConfirmando(true); setError(null);
     try {
       const contenidoEditado = editado && ed ? ed : undefined;
@@ -106,7 +135,6 @@ export default function FormulacionImpactosDelimitacion({
       if (!res.ok) throw new Error(data.error ?? "Error al confirmar.");
       setNodos((prev) => [data.nodo, ...prev.slice(1)]);
       setEditando(false);
-      setRespuestasPreguntas({});
     } catch (e) { setError(e instanceof Error ? e.message : "Error desconocido."); }
     finally { setConfirmando(false); }
   }
@@ -360,13 +388,33 @@ export default function FormulacionImpactosDelimitacion({
               )}
             </div>
 
-            {nodoActual.preguntas_pendientes?.length > 0 && (
-              <div className="border-t pt-4">
-                <PreguntasPendientes
-                  preguntas={nodoActual.preguntas_pendientes}
-                  respuestas={respuestasPreguntas}
-                  onCambiarRespuesta={(i, v) => setRespuestasPreguntas((prev) => ({ ...prev, [i]: v }))}
-                />
+            {preguntas.length > 0 && (
+              <div className="border-t pt-4 space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-amber-800">
+                    El agente necesita que usted aclare esto — responda las que apliquen:
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Cada respuesta se registra con su procedencia y actualiza los nodos que
+                    dependan de ella. No es obligatorio responder todas.
+                  </p>
+                </div>
+                {preguntas.map((p) => (
+                  <div key={p.id} className="rounded-lg border border-amber-200 bg-amber-50/60 p-4">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <p className="text-sm font-medium text-gray-900 leading-relaxed">{p.texto_pregunta}</p>
+                      <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                        {p.prioridad}
+                      </span>
+                    </div>
+                    <TriagePregunta
+                      preguntaId={p.id}
+                      projectId={project.id}
+                      textoPregunta={p.texto_pregunta}
+                      onResuelta={() => router.refresh()}
+                    />
+                  </div>
+                ))}
               </div>
             )}
             <p className="text-xs text-gray-400">Confianza del agente: {nodoActual.confianza_agente}</p>
@@ -409,16 +457,11 @@ export default function FormulacionImpactosDelimitacion({
             <textarea className="w-full border rounded-md p-2 text-gray-900 bg-white text-sm" rows={2}
               value={feedback} onChange={(e) => setFeedback(e.target.value)}
               placeholder="Ej. Debería incluirse el impacto ambiental tecnológico de reducción de CO2..." />
-            <button onClick={() => {
-              const feedbackPreguntas = ensamblarFeedbackDesdeRespuestas(
-                nodoActual.preguntas_pendientes ?? [],
-                respuestasPreguntas
-              );
-              const feedbackLibre = feedback.trim();
-              const partes = [feedbackPreguntas, feedbackLibre].filter(Boolean);
-              const feedbackCompleto = partes.join("\n\n");
-              generar(feedbackCompleto || undefined);
-            }} disabled={generando}
+            {/* Ya NO ensambla las respuestas de las preguntas en el feedback:
+                esas viajan por TriagePregunta (con procedencia y resolución
+                real de la fila). Este botón regenera solo con la instrucción
+                libre de arriba, que es lo que su nombre siempre implicó. */}
+            <button onClick={() => generar(feedback.trim() || undefined)} disabled={generando}
               className="border border-faro-navy text-faro-navy rounded-md px-5 py-2.5 font-medium hover:bg-faro-navy hover:text-white transition-colors disabled:opacity-40">
               {generando ? "Generando nueva iteración..." : "Regenerar propuesta →"}
             </button>
