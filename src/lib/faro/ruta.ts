@@ -62,11 +62,14 @@ export function construirPromptRuta(params: {
   fuentesContextoOficial?: string | null;
   tituloProvisional?: string;
   feedbackIteracionAnterior?: string;
+  /** Hechos ya respondidos por el formulador en iteraciones previas de
+   *  ESTE nodo — ver lib/faro/contextoAcumulado.ts. */
+  hechosVerificados?: string;
 }): string {
   const {
     nu, tau, mu, alphaArea, lambdaTrl, u0,
     region, poblacionUsuarios, tecnologiaInteres, palabrasClave, fuentesContextoOficial,
-    tituloProvisional, feedbackIteracionAnterior,
+    tituloProvisional, feedbackIteracionAnterior, hechosVerificados,
   } = params;
 
   const rigor =
@@ -97,6 +100,7 @@ ${tecnologiaInteres ? `- Tecnología o enfoque de interés (pista, no decisión 
 ${palabrasClave && palabrasClave.length > 0 ? `- Palabras clave: ${palabrasClave.join(", ")}` : ""}
 ${fuentesContextoOficial ? `- Fuentes de contexto oficial que el formulador ya conoce (datos/estadísticas, no literatura científica): "${fuentesContextoOficial}" — puede mencionarlas como referencia de contexto, pero no invente cifras específicas que no le fueron dadas.` : ""}
 ${tituloProvisional ? `- Nota adicional del formulador: "${tituloProvisional}"` : ""}
+${hechosVerificados ? `\n${hechosVerificados}\n` : ""}
 ${feedbackIteracionAnterior ? `\nRETROALIMENTACIÓN DE LA ITERACIÓN ANTERIOR (corrige esto):\n${feedbackIteracionAnterior}\n\nREGLA ANTI-PREGUNTAS-INFINITAS — esta es una iteración de REFINAMIENTO, no la primera vez: el formulador ya respondió preguntas anteriores. NO generes una nueva ronda extensa de preguntas de la misma naturaleza que las que ya respondió. Genera como máximo 1-2 preguntas NUEVAS, y solo si son genuinamente distintas, críticas e insalvables sin esa información específica. Para cualquier otra incertidumbre menor, haz el supuesto más razonable, decláralo EXPLÍCITAMENTE en el texto generado, y avanza — no lo conviertas en otra pregunta.` : ""}
 
 TU TAREA: producir una delimitación RUTA (Región, Usuarios, Tema, Alcance) siguiendo el operador D(θ)=(R,U,T,A), tomando como base real la región, población y palabras clave que el formulador ya declaró arriba — no las reemplace por otras, aunque estén formuladas de manera imprecisa; su trabajo es precisarlas y estructurarlas en un tema coherente, no sustituirlas.

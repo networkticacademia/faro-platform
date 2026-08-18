@@ -10,6 +10,7 @@ import {
 } from "@/lib/faro/mci";
 import { proponerCadenaBusqueda } from "@/lib/faro/rsl/cadenaBusqueda";
 import { sincronizarPreguntasPendientes } from "@/lib/faro/preguntas";
+import { construirContextoAcumulado } from "@/lib/faro/contextoAcumulado";
 import { verificarCircuitoAntesDeRegenerar, CircuitoDetenidoError, type BypassCircuito } from "@/lib/faro/circuitoConvergencia";
 
 export async function generarRutaCore(
@@ -44,6 +45,11 @@ export async function generarRutaCore(
 
   const iteracion = (nodosPrevios?.[0]?.iteracion ?? -1) + 1;
 
+  // Memoria entre iteraciones: sin esto, cada regeneración arranca de
+  // cero y pierde las respuestas que el formulador ya dio a este nodo
+  // (ver lib/faro/contextoAcumulado.ts).
+  const hechosVerificados = await construirContextoAcumulado(supabase, project_id, "RUTA");
+
   const prompt = construirPromptRuta({
     nu: project.nu,
     tau: project.tau,
@@ -58,6 +64,7 @@ export async function generarRutaCore(
     fuentesContextoOficial: project.fuentes_contexto_oficial,
     tituloProvisional: project.titulo_provisional,
     feedbackIteracionAnterior: feedback,
+    hechosVerificados,
   });
 
   const inicio = Date.now();

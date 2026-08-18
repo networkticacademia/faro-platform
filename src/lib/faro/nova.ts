@@ -181,12 +181,15 @@ export function construirPromptNova(params: {
   cifrasContextoAportadasPorFormulador?: CifraContexto[];
   cadenaCausalAportada?: PreguntaRespuesta[]; // si el formulador ya avanzó los 5 porqués antes de generar
   feedbackIteracionAnterior?: string;
+  /** Hechos ya respondidos por el formulador en iteraciones previas de
+   *  ESTE nodo — ver lib/faro/contextoAcumulado.ts. */
+  hechosVerificados?: string;
 }): string {
   const {
     nu, tau, subtipoDti, mu, alphaArea, rutaOutput,
     sintesisRSL, vacioDetectadoRSL,
     cifrasContextoAportadasPorFormulador, cadenaCausalAportada,
-    feedbackIteracionAnterior,
+    feedbackIteracionAnterior, hechosVerificados,
   } = params;
 
   const rigor =
@@ -269,6 +272,7 @@ Además de nucleo_causa_raiz y onda_efectos_arbol_problema en prosa, debes desco
 No inventes causas o efectos que no se deriven de lo que ya construiste en prosa — es la misma información, reorganizada para el diagrama.
 
 REGLA CRÍTICA — misma honestidad epistémica que RUTA: no inventes cifras, no afirmes brechas de conocimiento como hechos sin evidencia, no inventes una cadena causal completa sin el formulador. Si te falta información en cualquier componente, decláralo en preguntas_para_el_usuario en vez de rellenar con suposiciones.
+${hechosVerificados ? `\n${hechosVerificados}\n` : ""}
 ${feedbackIteracionAnterior ? `\nRETROALIMENTACIÓN DE LA ITERACIÓN ANTERIOR (corrige esto):\n${feedbackIteracionAnterior}\n\nREGLA ANTI-PREGUNTAS-INFINITAS — esta es una iteración de REFINAMIENTO, no la primera vez: el formulador ya respondió preguntas anteriores. NO generes una nueva ronda extensa de preguntas de la misma naturaleza que las que ya respondió. Genera como máximo 1-2 preguntas NUEVAS, y solo si son genuinamente distintas, críticas e insalvables sin esa información específica. Para cualquier otra incertidumbre menor, haz el supuesto más razonable, decláralo EXPLÍCITAMENTE en el texto generado, y avanza — no lo conviertas en otra pregunta.` : ""}
 
 Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, con esta forma exacta:

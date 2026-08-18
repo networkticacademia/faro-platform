@@ -220,8 +220,11 @@ export function construirPromptMarcoReferencial(params: {
   corpusRSL?: string;
   fuentesExternasVerificadas?: string;
   feedbackIteracionAnterior?: string;
+  /** Hechos ya respondidos por el formulador en iteraciones previas de
+   *  ESTE nodo — ver lib/faro/contextoAcumulado.ts. */
+  hechosVerificados?: string;
 }): string {
-  const { nu, tau, subtipoDti, rutaOutput, novaOutput, objetivosOutput, corpusRSL, fuentesExternasVerificadas, feedbackIteracionAnterior } = params;
+  const { nu, tau, subtipoDti, rutaOutput, novaOutput, objetivosOutput, corpusRSL, fuentesExternasVerificadas, feedbackIteracionAnterior, hechosVerificados } = params;
 
   const aplicables = marcosAplicablesParaProyecto(tau, subtipoDti);
 
@@ -281,6 +284,7 @@ MARCO HISTÓRICO (el menos frecuente) — solo si el problema está históricame
 SUGERENCIAS DE FIGURAS — 0 a 3, nunca obligatorias, solo cuando un concepto se explicaría genuinamente mejor con un diagrama que con más texto (ej. relación entre varias teorías, un proceso con etapas, una comparación). NO generes la imagen — FARO no gasta tokens en esto porque otras herramientas externas lo hacen mejor y gratis. En su lugar, para cada sugerencia entrega un prompt_imagen COMPLETO y específico, listo para pegar directamente en un generador de imágenes externo (ChatGPT/DALL-E, Gemini/Nano Banana, u otro) — debe describir composición, elementos exactos a mostrar, y estilo (ej. "diagrama técnico limpio", "esquema de flujo"), no una idea vaga. El formulador copia ese prompt, genera la imagen donde quiera, y la inserta manualmente al exportar a LaTeX/Word — FARO solo deja el marcador de dónde debería ir.
 
 REGLA CRÍTICA — honestidad epistémica: no inventes normas legales, teorías o cifras sin certeza real. Si te falta información para construir bien alguna sección, decláralo en preguntas_para_el_usuario.
+${hechosVerificados ? `\n${hechosVerificados}\n` : ""}
 ${feedbackIteracionAnterior ? `\nRETROALIMENTACIÓN DE LA ITERACIÓN ANTERIOR (corrige esto):\n${feedbackIteracionAnterior}\n\nREGLA ANTI-PREGUNTAS-INFINITAS — esta es una iteración de REFINAMIENTO, no la primera vez: el formulador ya respondió preguntas anteriores. NO generes una nueva ronda extensa de preguntas de la misma naturaleza que las que ya respondió. Genera como máximo 1-2 preguntas NUEVAS, y solo si son genuinamente distintas, críticas e insalvables sin esa información específica. Para cualquier otra incertidumbre menor, haz el supuesto más razonable, decláralo EXPLÍCITAMENTE en el texto generado, y avanza — no lo conviertas en otra pregunta.` : ""}
 
 Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, con esta forma exacta:

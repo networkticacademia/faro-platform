@@ -13,6 +13,7 @@ import {
   type ContradiccionDetectada,
 } from "@/lib/faro/mci";
 import { sincronizarPreguntasPendientes } from "@/lib/faro/preguntas";
+import { construirContextoAcumulado } from "@/lib/faro/contextoAcumulado";
 import { verificarCircuitoAntesDeRegenerar, CircuitoDetenidoError, type BypassCircuito } from "@/lib/faro/circuitoConvergencia";
 
 export async function generarMarcoReferencialCore(
@@ -113,6 +114,11 @@ export async function generarMarcoReferencialCore(
           .join("\n")
       : undefined;
 
+  // Memoria entre iteraciones: sin esto, cada regeneración arranca de
+  // cero y pierde las respuestas que el formulador ya dio a este nodo
+  // (ver lib/faro/contextoAcumulado.ts).
+  const hechosVerificados = await construirContextoAcumulado(supabase, project_id, "MARCO_REFERENCIAL");
+
   const prompt = construirPromptMarcoReferencial({
     nu: project.nu,
     tau: project.tau,
@@ -123,6 +129,7 @@ export async function generarMarcoReferencialCore(
     corpusRSL,
     fuentesExternasVerificadas: fuentes_externas_verificadas,
     feedbackIteracionAnterior: feedback,
+    hechosVerificados,
   });
 
   const inicio = Date.now();

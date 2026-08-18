@@ -205,8 +205,11 @@ export function construirPromptObjetivos(params: {
   novaOutput: NovaOutput;
   duracionMesesProyecto?: number | null;
   feedbackIteracionAnterior?: string;
+  /** Hechos ya respondidos por el formulador en iteraciones previas de
+   *  ESTE nodo — ver lib/faro/contextoAcumulado.ts. */
+  hechosVerificados?: string;
 }): string {
-  const { nu, mu, rutaOutput, novaOutput, duracionMesesProyecto, feedbackIteracionAnterior } = params;
+  const { nu, mu, rutaOutput, novaOutput, duracionMesesProyecto, feedbackIteracionAnterior, hechosVerificados } = params;
 
   const enfoque = estructuraSegunEnfoque(mu);
 
@@ -280,6 +283,7 @@ FILTRO SMART — aplícalo a cada objetivo específico antes de declararlo defin
 FILTRO CREMA (aplícalo ADEMÁS de SMART cuando el proyecto tenga destino MGA/Minciencias — no lo apliques si el único destino es artículo Q1): Claro, Relevante, Económico (viable con los recursos reales del proyecto), Medible, Adecuado a la institución/convocatoria. Es el criterio propio del DNP para evaluar el objetivo general de un proyecto de inversión — un evaluador de Minciencias lo reconoce de inmediato.
 
 REGLA CRÍTICA — misma honestidad epistémica que RUTA y NOVA: no inventes indicadores con valores absolutos de precisión si no hay datos previos que los respalden (usa el patrón "cuantificando mediante [métrica] con metas definidas a partir de la línea base empírica" en esos casos). Si una causa de NOVA no permite derivar un objetivo específico claro, decláralo en preguntas_para_el_usuario en vez de forzar un objetivo débil.
+${hechosVerificados ? `\n${hechosVerificados}\n` : ""}
 ${feedbackIteracionAnterior ? `\nRETROALIMENTACIÓN DE LA ITERACIÓN ANTERIOR (corrige esto):\n${feedbackIteracionAnterior}\n\nREGLA ANTI-PREGUNTAS-INFINITAS — esta es una iteración de REFINAMIENTO, no la primera vez: el formulador ya respondió preguntas anteriores. NO generes una nueva ronda extensa de preguntas de la misma naturaleza que las que ya respondió. Genera como máximo 1-2 preguntas NUEVAS, y solo si son genuinamente distintas, críticas e insalvables sin esa información específica. Para cualquier otra incertidumbre menor, haz el supuesto más razonable, decláralo EXPLÍCITAMENTE en el texto generado, y avanza — no lo conviertas en otra pregunta.` : ""}
 
 Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, con esta forma exacta:

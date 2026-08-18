@@ -16,6 +16,7 @@ import {
   type ContradiccionDetectada,
 } from "@/lib/faro/mci";
 import { sincronizarPreguntasPendientes } from "@/lib/faro/preguntas";
+import { construirContextoAcumulado } from "@/lib/faro/contextoAcumulado";
 import { verificarCircuitoAntesDeRegenerar, CircuitoDetenidoError, type BypassCircuito } from "@/lib/faro/circuitoConvergencia";
 
 export async function generarObjetivosCore(
@@ -81,6 +82,11 @@ export async function generarObjetivosCore(
 
   const iteracion = (nodosPrevios?.[0]?.iteracion ?? -1) + 1;
 
+  // Memoria entre iteraciones: sin esto, cada regeneración arranca de
+  // cero y pierde las respuestas que el formulador ya dio a este nodo
+  // (ver lib/faro/contextoAcumulado.ts).
+  const hechosVerificados = await construirContextoAcumulado(supabase, project_id, "OBJETIVOS");
+
   const prompt = construirPromptObjetivos({
     nu: project.nu,
     mu: project.mu,
@@ -88,6 +94,7 @@ export async function generarObjetivosCore(
     novaOutput,
     duracionMesesProyecto: project.duracion_meses_proyecto ?? null,
     feedbackIteracionAnterior: feedback,
+    hechosVerificados,
   });
 
   const inicio = Date.now();
