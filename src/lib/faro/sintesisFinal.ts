@@ -50,11 +50,28 @@ import type { NovaOutput } from "./nova";
 import type { ObjetivosOutput } from "./objetivos";
 import type { MetodologiaOutput } from "./metodologia";
 import type { ImpactosDelimitacionOutput } from "./impactosDelimitacion";
+import { construirBibliografiaConClaves, type EntradaBibliografica, type FuenteConId } from "./corpus/exportarBib";
 
 export interface ResultadoSintesis {
   texto: string;
   provisional: boolean;
   motivo_provisional: string | null;
+}
+
+/**
+ * formato='latex': el texto se devuelve con \citep{clave}/\citet{clave} en
+ * vez de "(Autor, Año)", usando claves reales de corpus_fuentes. Si no se
+ * pasa bibliografiaConClaves explícitamente, esta función la calcula ella
+ * misma (una consulta a corpus_fuentes + una pasada por
+ * construirBibliografiaConClaves) — pero cuando se ensambla el documento
+ * completo (Introducción + Resumen + futuras secciones) hay que pasar el
+ * MISMO array ya calculado una sola vez a cada función, para garantizar
+ * que las claves usadas en el texto coincidan exactamente con las del
+ * .bib final (ver scripts/exportar_documento_latex.ts).
+ */
+export interface OpcionesSintesis {
+  formato?: "md" | "latex";
+  bibliografiaConClaves?: EntradaBibliografica[];
 }
 
 interface FuenteVerificada {
@@ -168,6 +185,29 @@ async function obtenerBibliografiaVerificada(
   return (data ?? []) as FuenteVerificada[];
 }
 
+/**
+ * Igual que obtenerBibliografiaVerificada, pero además calcula las claves
+ * BibTeX reales (reutilizando exactamente el algoritmo de
+ * corpus/exportarBib.ts — Apellido+Año con auto-desambiguación, el mismo
+ * que ya usa /api/mci/corpus/exportar-bib). Implica una consulta a
+ * Crossref/DataCite por cada fuente con DOI, igual que la exportación de
+ * .bib ya existente — por eso es más lenta que el modo 'md'.
+ */
+async function obtenerBibliografiaVerificadaConClaves(
+  supabase: SupabaseClient,
+  project_id: string
+): Promise<EntradaBibliografica[]> {
+  const { data } = await supabase
+    .from("corpus_fuentes")
+    .select("id, titulo, autores, doi, anio, revista, resumen_hallazgo")
+    .eq("project_id", project_id)
+    .eq("estado_verificacion", "verificado")
+    .order("anio", { ascending: false });
+  const fuentes = (data ?? []) as FuenteConId[];
+  const { entradas } = await construirBibliografiaConClaves(fuentes);
+  return entradas;
+}
+
 async function obtenerRangoPalabrasResumen(
   supabase: SupabaseClient,
   project_id: string
@@ -209,6 +249,18 @@ function bloqueBibliografia(fuentes: FuenteVerificada[]): string {
     .join("\n");
 }
 
+function bloqueBibliografiaLatex(entradas: EntradaBibliografica[]): string {
+  if (entradas.length === 0) {
+    return "No hay bibliografía verificada cargada todavía para este proyecto (tabla corpus_fuentes, estado_verificacion='verificado' vacía). NO cites ninguna fuente con \\citep{}/\\citet{} — no inventes una clave bajo ninguna circunstancia.";
+  }
+  return entradas
+    .map(
+      (e) =>
+        `[clave: ${e.clave}] Autor(es): ${e.autoresBibtex} | Año: ${e.anio ?? "no registrado"} | Título: ${e.titulo} | Revista: ${e.revista ?? "no registrada"}${e.resumen_hallazgo ? ` | Hallazgo: ${e.resumen_hallazgo}` : ""}`
+    )
+    .join("\n");
+}
+
 const INSTRUCCION_HONESTIDAD = `REGLA CRÍTICA — no negociable: usa ÚNICAMENTE la información entregada abajo.
 No agregues ningún dato, cifra, porcentaje, autor, año, comparación o
 afirmación que no esté explícitamente en el extracto — NI SIQUIERA si te
@@ -234,6 +286,35 @@ no tiene fuente que la respalde en la lista, exprésala sin cita — no le
 inventes una. Prosa continua, sin viñetas, sin negritas, sin encabezados,
 sin guiones largos, sin meta-discurso ("en esta sección...", "cabe
 destacar...").`;
+
+const INSTRUCCION_CITACION_LATEX = `Patrón de citación LaTeX (cuando cites la bibliografía de abajo): usa
+\\citep{clave} para una cita parentética normal (equivalente a "(Autor,
+Año)" — ej. "...la piña es susceptible a X \\citep{lopez2023}") o
+\\citet{clave} cuando el autor es sujeto gramatical de la oración
+(equivalente a "Autor (Año) demostró que..." — ej. "\\citet{lopez2023}
+demostró que..."). Usa EXACTAMENTE la clave dada entre corchetes en la
+lista de fuentes de abajo (ej. "[clave: lopez2023]" → \\citep{lopez2023}),
+nunca inventes una clave nueva ni la modifiques. Cita solo cuando una
+fuente listada respalde genuinamente esa afirmación específica. Si una
+idea no tiene fuente que la respalde en la lista, exprésala sin cita — no
+le inventes una clave. Prosa continua, sin viñetas, sin negritas, sin
+encabezados, sin guiones largos, sin meta-discurso ("en esta sección...",
+"cabe destacar..."). No uses ningún otro comando LaTeX aparte de
+\\citep{}/\\citet{} — el resto es texto plano, sin \\textbf, \\emph, ni
+símbolos de formato.
+
+ADVERTENCIA ESPECÍFICA — NO confundas la bibliografía (B, abajo) con el
+bloque "Onda — cifras de contexto" (NOVA): ese bloque de cifras suele
+mencionar autor/año dentro de su propio texto (ej. "...(Liang et al.,
+2022; Yao et al., 2024)") porque así quedó registrado en NOVA, pero esas
+menciones NO tienen clave BibTeX real a menos que ese mismo autor/año
+tenga también una entrada en la lista de bibliografía (B) de abajo con su
+"[clave: ...]". Si el autor/año que ves en una cifra de contexto NO
+aparece en la lista de B, reproduce esa mención tal cual, como texto
+plano, SIN envolverla en \\citep{}/\\citet{} — inventar una clave a partir
+de un nombre que solo aparece en las cifras es exactamente el error que
+esta regla prohíbe. Solo usa \\citep{}/\\citet{} para las claves que
+literalmente aparecen en la lista de B.`;
 
 const INSTRUCCION_ORDEN_CARS = `ORDEN NARRATIVO OBLIGATORIO — modelo CARS (Create
 a Research Space), estructura estándar de introducción científica. Esto rige
@@ -263,8 +344,10 @@ la prosa lo requiera — lo que importa es el orden entre los 3 movimientos.`;
 
 export async function generarIntroduccion(
   supabase: SupabaseClient,
-  project_id: string
+  project_id: string,
+  opciones: OpcionesSintesis = {}
 ): Promise<ResultadoSintesis> {
+  const formato = opciones.formato ?? "md";
   const [ruta, nova, objetivos] = await Promise.all([
     obtenerNodoConfirmado<RutaOutput>(supabase, project_id, "RUTA"),
     obtenerNodoConfirmado<NovaOutput>(supabase, project_id, "NOVA"),
@@ -282,8 +365,15 @@ export async function generarIntroduccion(
     { nodo: "OBJETIVOS", estadoEvidencia: objetivos!.estado_evidencia },
   ]);
 
-  const [fuentes, { provisional, motivo }, { data: project }] = await Promise.all([
-    obtenerBibliografiaVerificada(supabase, project_id),
+  const [bibliografiaTexto, { provisional, motivo }, { data: project }] = await Promise.all([
+    (async () => {
+      if (formato === "latex") {
+        const entradas = opciones.bibliografiaConClaves ?? (await obtenerBibliografiaVerificadaConClaves(supabase, project_id));
+        return bloqueBibliografiaLatex(entradas);
+      }
+      const fuentes = await obtenerBibliografiaVerificada(supabase, project_id);
+      return bloqueBibliografia(fuentes);
+    })(),
     obtenerProvisionalidad(supabase, project_id),
     supabase.from("projects").select("rho").eq("id", project_id).maybeSingle(),
   ]);
@@ -301,7 +391,7 @@ existen (ρ).
 
 ${INSTRUCCION_HONESTIDAD}
 
-${INSTRUCCION_CITACION}
+${formato === "latex" ? INSTRUCCION_CITACION_LATEX : INSTRUCCION_CITACION}
 
 ${INSTRUCCION_ORDEN_CARS}
 
@@ -334,7 +424,7 @@ encontró evidencia o que falta verificar, repórtala con esa reserva
 explícita — nunca la presentes como confirmada solo porque aparece aquí.
 
 === B — Bibliografía verificada del proyecto ===
-${bloqueBibliografia(fuentes)}
+${bibliografiaTexto}
 
 ${tieneRho ? `=== ρ — Términos de referencia / convocatoria ===\n${JSON.stringify(rho, null, 2)}` : "No hay términos de referencia/convocatoria cargados para este proyecto — omite ρ."}
 
@@ -354,8 +444,15 @@ sin título, sin comentarios sobre lo que hiciste.`;
 
 export async function generarResumen(
   supabase: SupabaseClient,
-  project_id: string
+  project_id: string,
+  opciones: OpcionesSintesis = {}
 ): Promise<ResultadoSintesis> {
+  // El Resumen (C-G-O-M-R-I) no cita bibliografía en ningún formato — es
+  // un abstract autocontenido (mismo criterio de abstract-q1). opciones
+  // se acepta solo por simetría de interfaz con generarIntroduccion(); si
+  // en el futuro el Resumen empieza a citar, aquí es donde se debe leer
+  // opciones.formato/opciones.bibliografiaConClaves.
+  void opciones;
   const [ruta, nova, objetivos, metodologia, impactos] = await Promise.all([
     obtenerNodoConfirmado<RutaOutput>(supabase, project_id, "RUTA"),
     obtenerNodoConfirmado<NovaOutput>(supabase, project_id, "NOVA"),

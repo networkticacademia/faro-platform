@@ -117,7 +117,7 @@ function formatearAutoresBibtex(autores: AutorCrossref[]): string {
     .join(" and ");
 }
 
-function escaparLatex(texto: string): string {
+export function escaparLatex(texto: string): string {
   return texto
     .replace(/\\/g, "\\textbackslash{}")
     .replace(/([&%$#_{}])/g, "\\$1")
@@ -165,47 +165,111 @@ export interface FuenteParaExportar {
   revista: string | null;
 }
 
+/**
+ * Versión con id, para poder devolver un mapa {id -> clave} junto con el
+ * .bib. Necesaria porque generarClaveBibtex desambigua (sufijo a/b/c...)
+ * según el orden de procesamiento dentro de UNA sola pasada — si se
+ * generaran las claves para el .bib y para las citas del texto en dos
+ * llamadas separadas, el orden/resultado de Crossref podría no coincidir
+ * y las claves divergirían. construirBibliografiaConClaves() es la única
+ * fuente de verdad: se llama UNA vez y su resultado se reutiliza en ambos
+ * lugares (ver sintesisFinal.ts, formato='latex').
+ */
+export interface FuenteConId extends FuenteParaExportar {
+  id: string;
+  resumen_hallazgo?: string | null;
+}
+
+export interface EntradaBibliografica {
+  id: string;
+  clave: string;
+  autoresBibtex: string;
+  anio: number | null;
+  titulo: string;
+  revista: string | null;
+  resumen_hallazgo?: string | null;
+}
+
+interface EntradaConstruida {
+  entrada: EntradaBibliografica;
+  bibtex: string;
+}
+
+async function construirEntrada(fuente: FuenteConId, clavesUsadas: Set<string>): Promise<EntradaConstruida> {
+  let autoresBibtex = fuente.autores ?? "no disponible";
+  let tipo = "article";
+  let registro: RegistroCrossrefCompleto | null = null;
+
+  if (fuente.doi) {
+    registro = await obtenerRegistroCompleto(fuente.doi);
+    if (registro && registro.autores.length > 0) {
+      autoresBibtex = formatearAutoresBibtex(registro.autores);
+      tipo = tipoBibtex(registro.tipo);
+    }
+  }
+
+  const primerApellido =
+    registro && autoresBibtex !== "no disponible"
+      ? autoresBibtex.split(",")[0].trim()
+      : (fuente.autores ?? "SinAutor").split(/[,;]/)[0].trim().split(" ").pop() ?? "SinAutor";
+
+  const clave = generarClaveBibtex(primerApellido, fuente.anio, clavesUsadas);
+
+  const campos: string[] = [
+    `title = {{${escaparLatex(fuente.titulo)}}}`,
+    `year = {${fuente.anio ?? "s.f."}}`,
+    `author = {${autoresBibtex}}`,
+  ];
+  if (fuente.revista || registro) campos.push(`journal = {${escaparLatex(fuente.revista ?? "")}}`);
+  if (registro?.numero) campos.push(`number = {${registro.numero}}`);
+  if (registro?.mes) campos.push(`month = {${registro.mes}}`);
+  if (registro?.paginas) campos.push(`pages = {${registro.paginas}}`);
+  if (registro?.volumen) campos.push(`volume = {${registro.volumen}}`);
+  if (registro?.editorial) campos.push(`publisher = {${escaparLatex(registro.editorial)}}`);
+  if (registro?.url) campos.push(`url = {${registro.url}}`);
+  if (fuente.doi) campos.push(`doi = {${fuente.doi}}`);
+  if (registro?.issn) campos.push(`issn = {${registro.issn}}`);
+
+  return {
+    bibtex: `@${tipo}{${clave},\n    ${campos.join(",\n    ")}\n}`,
+    entrada: {
+      id: fuente.id,
+      clave,
+      autoresBibtex,
+      anio: fuente.anio,
+      titulo: fuente.titulo,
+      revista: fuente.revista,
+      resumen_hallazgo: fuente.resumen_hallazgo ?? null,
+    },
+  };
+}
+
 export async function generarBibtex(fuentes: FuenteParaExportar[]): Promise<string> {
   const clavesUsadas = new Set<string>();
   const entradas: string[] = [];
-
   for (const fuente of fuentes) {
-    let autoresBibtex = fuente.autores ?? "no disponible";
-    let tipo = "article";
-    let registro: RegistroCrossrefCompleto | null = null;
-
-    if (fuente.doi) {
-      registro = await obtenerRegistroCompleto(fuente.doi);
-      if (registro && registro.autores.length > 0) {
-        autoresBibtex = formatearAutoresBibtex(registro.autores);
-        tipo = tipoBibtex(registro.tipo);
-      }
-    }
-
-    const primerApellido =
-      registro && autoresBibtex !== "no disponible"
-        ? autoresBibtex.split(",")[0].trim()
-        : (fuente.autores ?? "SinAutor").split(/[,;]/)[0].trim().split(" ").pop() ?? "SinAutor";
-
-    const clave = generarClaveBibtex(primerApellido, fuente.anio, clavesUsadas);
-
-    const campos: string[] = [
-      `title = {{${escaparLatex(fuente.titulo)}}}`,
-      `year = {${fuente.anio ?? "s.f."}}`,
-      `author = {${autoresBibtex}}`,
-    ];
-    if (fuente.revista || registro) campos.push(`journal = {${escaparLatex(fuente.revista ?? "")}}`);
-    if (registro?.numero) campos.push(`number = {${registro.numero}}`);
-    if (registro?.mes) campos.push(`month = {${registro.mes}}`);
-    if (registro?.paginas) campos.push(`pages = {${registro.paginas}}`);
-    if (registro?.volumen) campos.push(`volume = {${registro.volumen}}`);
-    if (registro?.editorial) campos.push(`publisher = {${escaparLatex(registro.editorial)}}`);
-    if (registro?.url) campos.push(`url = {${registro.url}}`);
-    if (fuente.doi) campos.push(`doi = {${fuente.doi}}`);
-    if (registro?.issn) campos.push(`issn = {${registro.issn}}`);
-
-    entradas.push(`@${tipo}{${clave},\n    ${campos.join(",\n    ")}\n}`);
+    const { bibtex } = await construirEntrada({ ...fuente, id: "" }, clavesUsadas);
+    entradas.push(bibtex);
   }
-
   return entradas.join("\n\n");
+}
+
+/**
+ * Fuente única para el .bib final Y para las claves que se le pasan al
+ * LLM al generar prosa en formato 'latex' (sintesisFinal.ts) — llamar UNA
+ * vez por exportación, no una vez por sección, para que las claves usadas
+ * en \citep{}/\citet{} coincidan exactamente con las del .bib generado.
+ */
+export async function construirBibliografiaConClaves(
+  fuentes: FuenteConId[]
+): Promise<{ bibtex: string; entradas: EntradaBibliografica[] }> {
+  const clavesUsadas = new Set<string>();
+  const bibtexPorEntrada: string[] = [];
+  const entradas: EntradaBibliografica[] = [];
+  for (const fuente of fuentes) {
+    const { bibtex, entrada } = await construirEntrada(fuente, clavesUsadas);
+    bibtexPorEntrada.push(bibtex);
+    entradas.push(entrada);
+  }
+  return { bibtex: bibtexPorEntrada.join("\n\n"), entradas };
 }

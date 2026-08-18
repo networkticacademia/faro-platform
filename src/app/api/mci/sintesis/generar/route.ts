@@ -19,7 +19,11 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { project_id, nodo } = body as { project_id?: string; nodo?: "introduccion" | "resumen" };
+  const { project_id, nodo, formato } = body as {
+    project_id?: string;
+    nodo?: "introduccion" | "resumen";
+    formato?: "md" | "latex";
+  };
 
   if (!project_id || !nodo) {
     return NextResponse.json({ error: "Faltan project_id o nodo." }, { status: 400 });
@@ -27,12 +31,16 @@ export async function POST(request: Request) {
   if (nodo !== "introduccion" && nodo !== "resumen") {
     return NextResponse.json({ error: "nodo debe ser 'introduccion' o 'resumen'." }, { status: 400 });
   }
+  if (formato && formato !== "md" && formato !== "latex") {
+    return NextResponse.json({ error: "formato debe ser 'md' o 'latex'." }, { status: 400 });
+  }
 
   try {
+    const opciones = { formato: formato ?? "md" as const };
     const resultado =
       nodo === "introduccion"
-        ? await generarIntroduccion(supabase, project_id)
-        : await generarResumen(supabase, project_id);
+        ? await generarIntroduccion(supabase, project_id, opciones)
+        : await generarResumen(supabase, project_id, opciones);
     return NextResponse.json(resultado);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 422 });

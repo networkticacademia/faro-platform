@@ -1,0 +1,81 @@
+% ============================================================
+% Plantilla base — documento LaTeX de un proyecto FARO individual.
+%
+% IMPORTANTE: esta plantilla es NUEVA y específica por proyecto — NO tiene
+% relación con main.tex / cas-dc-template.tex (esos son exclusivos del
+% paper del propio marco académico FARO). No reutilizar esos archivos
+% aquí ni esta plantilla allá.
+%
+% Bibliografía: biblatex + estilo APA (paquete biblatex-apa, backend=biber).
+% Confirmado disponible en TeX Live estándar / Overleaf sin instalación
+% extra (verificado ago-2026: biblatex-apa v9.20, activo, incluido en
+% TeX Live y MiKTeX, listado por Overleaf como estilo biblatex soportado
+% por defecto).
+%
+% Los placeholders {{...}} los reemplaza scripts/exportar_documento_latex.ts.
+% Este archivo NO se compila en este entorno (no hay toolchain LaTeX local)
+% — basta con que sea válido y compilable en Overleaf.
+% ============================================================
+
+\documentclass[11pt]{article}
+
+% --- Codificación y fuentes ---
+% Si compila con XeLaTeX o LuaLaTeX (no pdflatex), elimine estas 2 líneas
+% — esos motores ya usan UTF-8/fuentes del sistema de forma nativa y
+% \usepackage[utf8]{inputenc} no es compatible con ellos.
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+
+\usepackage[spanish]{babel}
+\usepackage{csquotes}
+\usepackage[margin=2.5cm]{geometry}
+
+% --- Bibliografía ---
+\usepackage[
+  backend=biber,
+  style=apa,
+  sortcites=true,
+  sorting=nyt,
+]{biblatex}
+\addbibresource{{{BIB_FILE}}}
+
+\title{{{TITULO}}}
+\author{{{AUTOR}}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+{{RESUMEN}}
+\end{abstract}
+
+\section{Introducción}
+{{INTRODUCCION}}
+
+% ============================================================
+% Secciones futuras del Documento Consolidado (Fase 3) — agregar aquí, en
+% este orden, cuando cada nodo tenga soporte formato='latex' en
+% src/lib/faro/sintesisFinal.ts (por ahora solo Introducción y Resumen lo
+% tienen):
+%
+%   \section{Marco Referencial}        <- nodo MARCO_REFERENCIAL
+%                                          (tiene su PROPIO mecanismo de
+%                                          citación, distinto de este —
+%                                          mezcla corpus_fuentes con
+%                                          fuentes pegadas manualmente y,
+%                                          en último caso, conocimiento
+%                                          del modelo con confianza baja;
+%                                          requiere una estrategia de
+%                                          conversión aparte, ver nota en
+%                                          la respuesta que acompaña esta
+%                                          plantilla)
+%   \section{Objetivos}                <- nodo OBJETIVOS
+%   \section{Metodología}              <- nodo METODOLOGIA
+%   \section{Impactos y delimitación}  <- nodo IMPACTOS_DELIMITACION
+% ============================================================
+
+\printbibliography
+
+\end{document}

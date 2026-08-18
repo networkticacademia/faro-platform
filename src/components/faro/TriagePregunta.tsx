@@ -27,7 +27,7 @@ import { IndicadorGenerando } from "./IndicadorGenerando";
 type Camino = "inicial" | "tengo_dato" | "no_se_donde";
 
 interface NodoAfectado {
-  nodo_id: string;
+  nodo_ids: string[];
   nodo_tipo: string;
   preguntas_que_resuelve: string[];
 }

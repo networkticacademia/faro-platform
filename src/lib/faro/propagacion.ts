@@ -31,6 +31,7 @@ import type { NodoTipo } from "./clasificacionPreguntas";
 import { esProcedenciaConfirmada, type Procedencia } from "./procedencia";
 import { hashTexto } from "./preguntas";
 import { obtenerNodosAfectados } from "./clasificacionPreguntas";
+import { evaluarCircuitoConvergencia } from "./circuitoConvergencia";
 import { generarRutaCore } from "@/app/api/mci/ruta/generar/route";
 import { generarNovaCore } from "@/app/api/mci/nova/generar/route";
 import { generarObjetivosCore } from "@/app/api/mci/objetivos/generar/route";
@@ -46,7 +47,7 @@ const TOPE_PROFUNDIDAD_CAUSAL = 2;
 const NIVEL_PREGUNTA_VERIFICACION = 3;
 
 interface NodoAfectado {
-  nodo_id: string;
+  nodo_ids: string[]; // todos los grafo_nodos.id históricos que aportaron preguntas a este grupo — solo trazabilidad, ejecutarPropagacion() regenera por nodo_tipo, no por nodo_id
   nodo_tipo: NodoTipo;
   preguntas_que_resuelve: string[]; // ids de preguntas_pendientes
 }
@@ -74,27 +75,47 @@ export async function previsualizarPropagacion(
 
   const todas = [...(raiz ? [raiz] : []), ...(hijas ?? [])];
 
-  const porNodo = new Map<string, NodoAfectado>();
+  // Agrupado por nodo_tipo (no por nodo_id): una respuesta puede resolver
+  // preguntas repartidas en varias iteraciones históricas distintas del
+  // MISMO tipo de nodo (ej. dos preguntas sobre "dron multiespectral"
+  // nacidas en iteraciones diferentes de IMPACTOS_DELIMITACION) — deben
+  // colapsar en UNA sola entrada, porque ejecutarPropagacion() regenera
+  // por nodo_tipo (siempre la última iteración confirmada), no por
+  // nodo_id puntual. Agrupar por nodo_id producía una entrada por cada
+  // iteración histórica tocada, y el formulador terminaba confirmando N
+  // regeneraciones del mismo nodo por una sola respuesta real — bug
+  // confirmado en producción (proyecto piña, madrugada del 18-ago-2026:
+  // IMPACTOS_DELIMITACION y RUTA con iteraciones duplicadas creadas a
+  // segundos de diferencia).
+  const porTipo = new Map<NodoTipo, NodoAfectado>();
   for (const p of todas) {
-    const existente = porNodo.get(p.nodo_id);
+    const tipo = p.nodo_tipo as NodoTipo;
+    const existente = porTipo.get(tipo);
     if (existente) {
       existente.preguntas_que_resuelve.push(p.id);
+      if (!existente.nodo_ids.includes(p.nodo_id)) existente.nodo_ids.push(p.nodo_id);
     } else {
-      porNodo.set(p.nodo_id, {
-        nodo_id: p.nodo_id,
-        nodo_tipo: p.nodo_tipo as NodoTipo,
+      porTipo.set(tipo, {
+        nodo_ids: [p.nodo_id],
+        nodo_tipo: tipo,
         preguntas_que_resuelve: [p.id],
       });
     }
   }
 
-  return { pregunta_raiz_id, nodos_afectados: Array.from(porNodo.values()) };
+  return { pregunta_raiz_id, nodos_afectados: Array.from(porTipo.values()) };
 }
 
 export interface ResultadoPropagacion {
   nodos_regenerados: { nodo_tipo: NodoTipo; exito: boolean; error?: string }[];
   preguntas_marcadas_resueltas: number;
   profundidad_agotada: boolean;
+  // true = el circuito de corte a nivel de proyecto detuvo esta ejecución
+  // ANTES de regenerar nada (ver circuitoConvergencia.ts). Cuando es true,
+  // nodos_regenerados queda vacío y preguntas_marcadas_resueltas es 0 — no
+  // se tocó nada, a propósito.
+  circuito_detenido: boolean;
+  motivo_circuito: string | null;
 }
 
 export async function ejecutarPropagacion(
@@ -108,6 +129,17 @@ export async function ejecutarPropagacion(
   }
 ): Promise<ResultadoPropagacion> {
   const { project_id, pregunta_raiz_id, respuesta, procedencia, nodosConfirmados } = params;
+
+  const circuito = await evaluarCircuitoConvergencia(supabase, project_id);
+  if (circuito.detenido) {
+    return {
+      nodos_regenerados: [],
+      preguntas_marcadas_resueltas: 0,
+      profundidad_agotada: false,
+      circuito_detenido: true,
+      motivo_circuito: circuito.motivo,
+    };
+  }
 
   const confiable = esProcedenciaConfirmada(procedencia);
 
@@ -197,6 +229,8 @@ export async function ejecutarPropagacion(
     nodos_regenerados: resultados,
     preguntas_marcadas_resueltas: idsResueltos.length,
     profundidad_agotada: profundidadAgotada,
+    circuito_detenido: false,
+    motivo_circuito: null,
   };
 }
 

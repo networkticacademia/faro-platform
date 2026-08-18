@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       respuesta?: string;
       procedencia?: Procedencia;
       nodos_confirmados?: {
-        nodo_id: string;
+        nodo_ids: string[];
         nodo_tipo: string;
         preguntas_que_resuelve: string[];
       }[];
