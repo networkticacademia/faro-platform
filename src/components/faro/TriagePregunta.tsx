@@ -21,7 +21,9 @@
  */
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { ETIQUETAS_PROCEDENCIA, type Procedencia } from "@/lib/faro/procedencia";
+import type { DetalleLFaroNodoResumen } from "@/lib/faro/circuitoConvergencia";
 import { IndicadorGenerando } from "./IndicadorGenerando";
 
 type Camino = "inicial" | "tengo_dato" | "no_se_donde";
@@ -31,6 +33,16 @@ interface NodoAfectado {
   nodo_tipo: string;
   preguntas_que_resuelve: string[];
 }
+
+const NODO_LABEL_MAP: Record<string, string> = {
+  RUTA: "RUTA",
+  NOVA: "NOVA",
+  OBJETIVOS: "Objetivos",
+  MARCO_REFERENCIAL: "Marco Referencial",
+  METODOLOGIA: "Metodología",
+  IMPACTOS_DELIMITACION: "Impactos y Delimitación",
+  IMPACTOS: "Impactos y Delimitación",
+};
 
 interface Props {
   preguntaId: string;
@@ -99,7 +111,43 @@ export default function TriagePregunta({ preguntaId, projectId, textoPregunta, o
   } | null>(null);
   const [nodosAfectados, setNodosAfectados] = useState<NodoAfectado[] | null>(null);
   const [circuitoDetenido, setCircuitoDetenido] = useState<string | null>(null);
+  // Diagnóstico mostrado junto al bloqueo — reutiliza datos ya calculados,
+  // sin ninguna llamada LLM (ver detalle en el bloque de render de abajo).
+  const [detalleLFaroPorNodo, setDetalleLFaroPorNodo] = useState<DetalleLFaroNodoResumen[] | null>(null);
+  const [preguntasP1PorNodo, setPreguntasP1PorNodo] = useState<Record<string, number> | null>(null);
+  const [confirmoRevision, setConfirmoRevision] = useState(false);
   const [cargando, setCargando] = useState(false);
+
+  // Cuando aparece el bloqueo, trae el desglose de P1 por nodo del mismo
+  // endpoint que ya usa ContadorPreguntasPrioridad (GET, sin LLM) — el
+  // detalle de L_FARO por nodo ya viene en la respuesta de /propagar
+  // (ejecutarPropagacion reutiliza la última fila de convergencia_proyecto),
+  // así que no hace falta pedirlo aparte.
+  useEffect(() => {
+    if (!circuitoDetenido) {
+      setPreguntasP1PorNodo(null);
+      return;
+    }
+    let cancelado = false;
+    fetch(`/api/mci/preguntas/pendientes?project_id=${projectId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelado) return;
+        const preguntas = (data.preguntas ?? []) as { prioridad: string; nodo_tipo: string }[];
+        const conteo: Record<string, number> = {};
+        for (const p of preguntas) {
+          if (p.prioridad !== "P1") continue;
+          conteo[p.nodo_tipo] = (conteo[p.nodo_tipo] ?? 0) + 1;
+        }
+        setPreguntasP1PorNodo(conteo);
+      })
+      .catch(() => {
+        if (!cancelado) setPreguntasP1PorNodo(null);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [circuitoDetenido, projectId]);
 
   // "No sé dónde conseguirla" — pegar la respuesta obtenida afuera, sin salir de esta tarjeta.
   const [pegadoTexto, setPegadoTexto] = useState("");
@@ -226,7 +274,7 @@ export default function TriagePregunta({ preguntaId, projectId, textoPregunta, o
     }
   }
 
-  async function ejecutar() {
+  async function ejecutar(bypassCircuito = false) {
     if (!nodosAfectados || !procedencia) return;
     setCargando(true);
     try {
@@ -240,17 +288,20 @@ export default function TriagePregunta({ preguntaId, projectId, textoPregunta, o
           respuesta: respuestaTexto,
           procedencia,
           nodos_confirmados: nodosAfectados,
+          bypass_circuito: bypassCircuito,
         }),
       });
       const data = await res.json().catch(() => null);
       if (data?.circuito_detenido) {
         // No se regeneró ni se marcó nada como resuelto (ejecutarPropagacion
         // corta antes de tocar la BD) — no llamar onResuelta(), la pregunta
-        // sigue exactamente como estaba.
+        // sigue exactamente como estaba. respuestaTexto/procedencia quedan
+        // intactos en el estado del componente para el reintento con bypass.
         setCircuitoDetenido(
           data.motivo_circuito ??
             "Convergencia automática detenida — revise manualmente las preguntas críticas restantes antes de continuar."
         );
+        setDetalleLFaroPorNodo(data.detalle_l_faro_por_nodo ?? null);
         return;
       }
       if (res.ok) onResuelta();
@@ -381,18 +432,89 @@ export default function TriagePregunta({ preguntaId, projectId, textoPregunta, o
         </select>
 
         {circuitoDetenido ? (
-          <div className="space-y-2 rounded-lg border border-red-300 bg-red-50 p-3 text-xs sm:text-sm">
-            <p className="font-semibold text-red-900">Regeneración automática detenida</p>
-            <p className="text-red-800">{circuitoDetenido}</p>
-            <button
-              className="rounded border bg-white px-3 py-1.5 text-xs sm:text-sm text-gray-700"
-              onClick={() => {
-                setCircuitoDetenido(null);
-                setNodosAfectados(null);
-              }}
-            >
-              Volver
-            </button>
+          <div className="space-y-3 rounded-lg border border-red-300 bg-red-50 p-3 text-xs sm:text-sm">
+            <div>
+              <p className="font-semibold text-red-900">Regeneración automática detenida</p>
+              <p className="text-red-800">{circuitoDetenido}</p>
+            </div>
+
+            {/* Diagnóstico — mismos datos ya calculados que TarjetaConvergencia
+                y ContadorPreguntasPrioridad, sin ninguna llamada LLM nueva. */}
+            <div className="rounded-md border border-red-200 bg-white/70 p-2.5 space-y-2">
+              {detalleLFaroPorNodo && detalleLFaroPorNodo.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-red-900 mb-1">
+                    Desglose de L_FARO por nodo (mayor a menor incertidumbre):
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[...detalleLFaroPorNodo]
+                      .sort((a, b) => b.l_faro - a.l_faro)
+                      .map((d) => (
+                        <span
+                          key={d.nodo}
+                          className="font-mono text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded border border-red-200"
+                        >
+                          {NODO_LABEL_MAP[d.nodo] ?? d.nodo}: {d.l_faro.toFixed(3)}
+                        </span>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {preguntasP1PorNodo && Object.keys(preguntasP1PorNodo).length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold text-red-900 mb-1">Preguntas críticas (P1) abiertas por nodo:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.entries(preguntasP1PorNodo).map(([nodo, n]) => (
+                      <span
+                        key={nodo}
+                        className="text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded border border-red-200"
+                      >
+                        🔴 {NODO_LABEL_MAP[nodo] ?? nodo}: {n}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <Link
+                href={`/formulacion/${projectId}/dashboard#tarjeta-convergencia`}
+                className="inline-block text-[11px] font-semibold text-faro-navy hover:underline"
+              >
+                Ver diagnóstico completo en el Dashboard →
+              </Link>
+            </div>
+
+            <label className="flex items-start gap-2 text-[11px] text-red-900">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={confirmoRevision}
+                onChange={(e) => setConfirmoRevision(e.target.checked)}
+              />
+              <span>Confirmo que revisé el diagnóstico de arriba y quiero continuar de todas formas.</span>
+            </label>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="rounded border bg-white px-3 py-1.5 text-xs sm:text-sm text-gray-700"
+                onClick={() => {
+                  setCircuitoDetenido(null);
+                  setDetalleLFaroPorNodo(null);
+                  setConfirmoRevision(false);
+                  setNodosAfectados(null);
+                }}
+              >
+                Volver
+              </button>
+              <button
+                className="rounded border border-red-400 bg-white px-3 py-1.5 text-xs sm:text-sm font-medium text-red-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-red-50"
+                disabled={!confirmoRevision || cargando}
+                onClick={() => ejecutar(true)}
+              >
+                {cargando ? "Regenerando..." : "Ya revisé, continuar de todas formas"}
+              </button>
+            </div>
           </div>
         ) : !nodosAfectados ? (
           <div className="flex flex-wrap items-center gap-2">
@@ -424,7 +546,7 @@ export default function TriagePregunta({ preguntaId, projectId, textoPregunta, o
               <button
                 className="rounded bg-faro-navy px-3 py-1.5 text-xs sm:text-sm font-medium text-white disabled:opacity-50 shadow-sm"
                 disabled={cargando}
-                onClick={ejecutar}
+                onClick={() => ejecutar()}
               >
                 {cargando ? "Regenerando en cascada..." : "Confirmar y regenerar"}
               </button>

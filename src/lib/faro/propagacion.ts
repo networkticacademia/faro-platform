@@ -31,7 +31,7 @@ import type { NodoTipo } from "./clasificacionPreguntas";
 import { esProcedenciaConfirmada, type Procedencia } from "./procedencia";
 import { hashTexto } from "./preguntas";
 import { obtenerNodosAfectados } from "./clasificacionPreguntas";
-import { evaluarCircuitoConvergencia } from "./circuitoConvergencia";
+import { evaluarCircuitoConvergencia, registrarOverrideCircuito, type DetalleLFaroNodoResumen } from "./circuitoConvergencia";
 import { generarRutaCore } from "@/app/api/mci/ruta/generar/route";
 import { generarNovaCore } from "@/app/api/mci/nova/generar/route";
 import { generarObjetivosCore } from "@/app/api/mci/objetivos/generar/route";
@@ -116,6 +116,10 @@ export interface ResultadoPropagacion {
   // se tocó nada, a propósito.
   circuito_detenido: boolean;
   motivo_circuito: string | null;
+  // Desglose de L_FARO por nodo (mismo dato que TarjetaConvergencia) — solo
+  // presente cuando circuito_detenido=true, para mostrar diagnóstico en el
+  // mismo bloque de bloqueo sin una llamada nueva. null en el resto de casos.
+  detalle_l_faro_por_nodo: DetalleLFaroNodoResumen[] | null;
 }
 
 export async function ejecutarPropagacion(
@@ -126,19 +130,33 @@ export async function ejecutarPropagacion(
     respuesta: string;
     procedencia: Procedencia;
     nodosConfirmados: NodoAfectado[];
+    // Presente = un humano ya revisó el bloqueo y decidió continuar de
+    // todas formas para ESTE intento puntual ("Ya revisé, continuar de
+    // todas formas" en TriagePregunta.tsx). No desactiva el circuito para
+    // intentos futuros — ver registrarOverrideCircuito().
+    bypassCircuito?: { confirmadoPor: string };
   }
 ): Promise<ResultadoPropagacion> {
-  const { project_id, pregunta_raiz_id, respuesta, procedencia, nodosConfirmados } = params;
+  const { project_id, pregunta_raiz_id, respuesta, procedencia, nodosConfirmados, bypassCircuito } = params;
 
   const circuito = await evaluarCircuitoConvergencia(supabase, project_id);
-  if (circuito.detenido) {
+  if (circuito.detenido && !bypassCircuito) {
     return {
       nodos_regenerados: [],
       preguntas_marcadas_resueltas: 0,
       profundidad_agotada: false,
       circuito_detenido: true,
       motivo_circuito: circuito.motivo,
+      detalle_l_faro_por_nodo: circuito.ultimo_detalle_l_faro_por_nodo,
     };
+  }
+  if (circuito.detenido && bypassCircuito) {
+    await registrarOverrideCircuito(supabase, {
+      project_id,
+      confirmado_por: bypassCircuito.confirmadoPor,
+      pregunta_raiz_id,
+      motivo_circuito_original: circuito.motivo,
+    });
   }
 
   const confiable = esProcedenciaConfirmada(procedencia);
@@ -231,6 +249,7 @@ export async function ejecutarPropagacion(
     profundidad_agotada: profundidadAgotada,
     circuito_detenido: false,
     motivo_circuito: null,
+    detalle_l_faro_por_nodo: null,
   };
 }
 

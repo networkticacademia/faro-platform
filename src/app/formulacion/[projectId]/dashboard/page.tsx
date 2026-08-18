@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import DashboardProyecto from "./DashboardProyecto";
+import { obtenerUltimaConvergenciaReal } from "@/lib/faro/circuitoConvergencia";
 
 export const dynamic = "force-dynamic";
 
@@ -74,25 +75,21 @@ export default async function DashboardPage({
 
   const actividadOpenRouter = await obtenerActividadOpenRouter();
 
-  // Última convergencia YA calculada (histórico insert-always) — lectura
-  // barata, sin LLM. NO dispara una verificación nueva; si nunca se ha
-  // corrido "Verificar convergencia", esto queda null y el dashboard lo
-  // muestra como "sin verificar" en vez de asumir nada.
-  const { data: ultimaConvergenciaRaw } = await supabase
-    .from("convergencia_proyecto")
-    .select("resultado, calculado_en")
-    .eq("project_id", projectId)
-    .order("calculado_en", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Última convergencia REAL ya calculada (histórico insert-always,
+  // excluyendo filas de auditoría de override del circuito de corte —
+  // ver circuitoConvergencia.ts) — lectura barata, sin LLM. NO dispara una
+  // verificación nueva; si nunca se ha corrido "Verificar convergencia",
+  // esto queda null y el dashboard lo muestra como "sin verificar" en vez
+  // de asumir nada.
+  const ultimaConvergenciaRaw = await obtenerUltimaConvergenciaReal(supabase, projectId);
 
   const ultimaConvergencia = ultimaConvergenciaRaw
     ? {
-        convergio: Boolean((ultimaConvergenciaRaw.resultado as { convergio?: boolean })?.convergio),
-        es_provisional: Boolean((ultimaConvergenciaRaw.resultado as { es_provisional?: boolean })?.es_provisional),
-        l_faro_proyecto: (ultimaConvergenciaRaw.resultado as { l_faro_proyecto?: number })?.l_faro_proyecto ?? null,
-        tau_c_proyecto: (ultimaConvergenciaRaw.resultado as { tau_c_proyecto?: number })?.tau_c_proyecto ?? null,
-        calculado_en: ultimaConvergenciaRaw.calculado_en as string,
+        convergio: Boolean(ultimaConvergenciaRaw.resultado.convergio),
+        es_provisional: Boolean(ultimaConvergenciaRaw.resultado.es_provisional),
+        l_faro_proyecto: ultimaConvergenciaRaw.resultado.l_faro_proyecto ?? null,
+        tau_c_proyecto: ultimaConvergenciaRaw.resultado.tau_c_proyecto ?? null,
+        calculado_en: ultimaConvergenciaRaw.calculado_en,
       }
     : null;
 

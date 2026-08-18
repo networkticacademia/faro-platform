@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   }
 
   if (modo === "ejecutar") {
-    const { project_id, pregunta_raiz_id, respuesta, procedencia, nodos_confirmados } = body as {
+    const { project_id, pregunta_raiz_id, respuesta, procedencia, nodos_confirmados, bypass_circuito } = body as {
       project_id?: string;
       pregunta_raiz_id?: string;
       respuesta?: string;
@@ -42,6 +42,7 @@ export async function POST(request: Request) {
         nodo_tipo: string;
         preguntas_que_resuelve: string[];
       }[];
+      bypass_circuito?: boolean;
     };
 
     if (!project_id || !pregunta_raiz_id || !respuesta?.trim() || !procedencia) {
@@ -64,6 +65,7 @@ export async function POST(request: Request) {
       procedencia,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       nodosConfirmados: nodos_confirmados as any,
+      bypassCircuito: bypass_circuito ? { confirmadoPor: user.email ?? user.id } : undefined,
     });
     return NextResponse.json(resultado);
   }

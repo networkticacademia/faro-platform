@@ -330,7 +330,9 @@ export default function DashboardProyecto({
 
       <ContadorProcedenciaDebil projectId={project.id} />
 
-      <TarjetaConvergencia projectId={project.id} brechasCriticas={resumen.criticas} />
+      <div id="tarjeta-convergencia">
+        <TarjetaConvergencia projectId={project.id} brechasCriticas={resumen.criticas} />
+      </div>
 
       {actividadOpenRouter && actividadOpenRouter.length > 0 && (
         <div className="rounded-2xl border bg-white p-6">

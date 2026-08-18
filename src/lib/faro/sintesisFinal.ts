@@ -51,6 +51,7 @@ import type { ObjetivosOutput } from "./objetivos";
 import type { MetodologiaOutput } from "./metodologia";
 import type { ImpactosDelimitacionOutput } from "./impactosDelimitacion";
 import { construirBibliografiaConClaves, type EntradaBibliografica, type FuenteConId } from "./corpus/exportarBib";
+import { obtenerUltimaConvergenciaReal } from "./circuitoConvergencia";
 
 export interface ResultadoSintesis {
   texto: string;
@@ -132,33 +133,25 @@ function exigirSinContradiccionRSL(hallazgos: { nodo: string; estadoEvidencia: s
 }
 
 /**
- * Lee el ÚLTIMO resultado de convergencia YA calculado (tabla
- * convergencia_proyecto, insert-always). Lectura barata, sin LLM — mismo
- * patrón que ya usa la tarjeta "Nodos confirmados" del Dashboard. NO
- * dispara una verificación nueva.
+ * Lee el ÚLTIMO resultado de convergencia REAL ya calculado (tabla
+ * convergencia_proyecto, insert-always) — excluye filas de auditoría de
+ * override del circuito de corte (ver circuitoConvergencia.ts; antes de
+ * este fix, una fila de auditoría sin l_faro_proyecto habría hecho que
+ * esta función reportara "L_FARO_proyecto=undefined > τc=undefined").
+ * Lectura barata, sin LLM — mismo patrón que ya usa la tarjeta "Nodos
+ * confirmados" del Dashboard. NO dispara una verificación nueva.
  */
 async function obtenerProvisionalidad(
   supabase: SupabaseClient,
   project_id: string
 ): Promise<{ provisional: boolean; motivo: string | null }> {
-  const { data } = await supabase
-    .from("convergencia_proyecto")
-    .select("resultado")
-    .eq("project_id", project_id)
-    .order("calculado_en", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const data = await obtenerUltimaConvergenciaReal(supabase, project_id);
 
   if (!data) {
     return { provisional: true, motivo: "Convergencia del proyecto aún no se ha verificado ('Verificar convergencia' en el Dashboard)." };
   }
 
-  const r = data.resultado as {
-    convergio?: boolean;
-    es_provisional?: boolean;
-    l_faro_proyecto?: number;
-    tau_c_proyecto?: number;
-  };
+  const r = data.resultado;
 
   if (r.es_provisional) {
     return { provisional: true, motivo: "La última verificación de convergencia fue provisional (faltaban piezas por calcular: δᵢⱼ y/o Φ)." };
