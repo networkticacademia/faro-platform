@@ -98,6 +98,7 @@ export default function TriagePregunta({ preguntaId, projectId, textoPregunta, o
     prompt_retorno: string;
   } | null>(null);
   const [nodosAfectados, setNodosAfectados] = useState<NodoAfectado[] | null>(null);
+  const [circuitoDetenido, setCircuitoDetenido] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
 
   // "No sé dónde conseguirla" — pegar la respuesta obtenida afuera, sin salir de esta tarjeta.
@@ -241,6 +242,17 @@ export default function TriagePregunta({ preguntaId, projectId, textoPregunta, o
           nodos_confirmados: nodosAfectados,
         }),
       });
+      const data = await res.json().catch(() => null);
+      if (data?.circuito_detenido) {
+        // No se regeneró ni se marcó nada como resuelto (ejecutarPropagacion
+        // corta antes de tocar la BD) — no llamar onResuelta(), la pregunta
+        // sigue exactamente como estaba.
+        setCircuitoDetenido(
+          data.motivo_circuito ??
+            "Convergencia automática detenida — revise manualmente las preguntas críticas restantes antes de continuar."
+        );
+        return;
+      }
       if (res.ok) onResuelta();
     } finally {
       setCargando(false);
@@ -368,7 +380,21 @@ export default function TriagePregunta({ preguntaId, projectId, textoPregunta, o
           ))}
         </select>
 
-        {!nodosAfectados ? (
+        {circuitoDetenido ? (
+          <div className="space-y-2 rounded-lg border border-red-300 bg-red-50 p-3 text-xs sm:text-sm">
+            <p className="font-semibold text-red-900">Regeneración automática detenida</p>
+            <p className="text-red-800">{circuitoDetenido}</p>
+            <button
+              className="rounded border bg-white px-3 py-1.5 text-xs sm:text-sm text-gray-700"
+              onClick={() => {
+                setCircuitoDetenido(null);
+                setNodosAfectados(null);
+              }}
+            >
+              Volver
+            </button>
+          </div>
+        ) : !nodosAfectados ? (
           <div className="flex flex-wrap items-center gap-2">
             <button
               className="rounded bg-faro-navy px-3 py-1.5 text-xs sm:text-sm font-medium text-white disabled:opacity-50 shadow-sm"
