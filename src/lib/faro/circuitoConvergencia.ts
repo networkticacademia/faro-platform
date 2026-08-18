@@ -39,6 +39,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { NODOS_REQUERIDOS } from "./resumenNodos";
 
 // 3 filas = 2 transiciones consecutivas comparables — "2 rondas completas sin mejora".
 const RONDAS_EVALUADAS = 3;
@@ -127,6 +128,38 @@ export async function obtenerUltimaConvergenciaReal(
   return ultima ? { resultado: ultima.resultado as ResultadoConvergenciaAlmacenado, calculado_en: ultima.calculado_en } : null;
 }
 
+/**
+ * Nodos cuya ÚLTIMA iteración generada todavía no está confirmada por un
+ * humano. L_FARO_proyecto solo lee iteraciones CONFIRMADAS (decisión de
+ * diseño correcta, ver convergencia/calcular/route.ts) — así que trabajo
+ * real ya generado (respuestas a preguntas, regeneraciones) no cuenta para
+ * la convergencia hasta que alguien lo confirme en la pantalla del nodo.
+ * Confirmado en producción (proyecto piña, 18-ago-2026): el circuito se
+ * detuvo repetidamente por "sin mejora medible" mientras 4 de 6 nodos
+ * tenían iteraciones más recientes sin confirmar — el mensaje genérico no
+ * lo dejaba ver.
+ */
+async function nodosConIteracionSinConfirmar(
+  supabase: SupabaseClient,
+  project_id: string
+): Promise<string[]> {
+  const sinConfirmar: string[] = [];
+  for (const tipo of NODOS_REQUERIDOS) {
+    const { data: ultima } = await supabase
+      .from("grafo_nodos")
+      .select("confirmado_humano")
+      .eq("project_id", project_id)
+      .eq("tipo", tipo)
+      .order("iteracion", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (ultima && !ultima.confirmado_humano) {
+      sinConfirmar.push(tipo);
+    }
+  }
+  return sinConfirmar;
+}
+
 export async function evaluarCircuitoConvergencia(
   supabase: SupabaseClient,
   project_id: string
@@ -175,12 +208,26 @@ export async function evaluarCircuitoConvergencia(
   if (sinMejoraLFaro || preguntasCreciendo) {
     const serieLFaro = filas.map((f) => f.l_faro_proyecto ?? "?").join(" → ");
     const seriePreguntas = filas.map((f) => f.preguntas_pendientes_netas ?? "?").join(" → ");
-    const motivo = preguntasCreciendo
+    const diagnostico = preguntasCreciendo
       ? `Las últimas ${deltas.length} rondas muestran preguntas pendientes netas creciendo en vez de reducirse (${seriePreguntas}).`
       : `Las últimas ${deltas.length} rondas no muestran mejora medible en L_FARO_proyecto (${serieLFaro}).`;
+
+    // No cambia QUÉ mide el circuito (sigue siendo L_FARO_proyecto de
+    // iteraciones confirmadas) — solo verifica, antes de redactar el
+    // mensaje de bloqueo, si la causa más probable es simplemente que hay
+    // trabajo sin confirmar todavía. Si la hay, esa es la acción correcta a
+    // sugerir primero — forzar "continuar de todas formas" sin haber
+    // confirmado nada no va a mover L_FARO_proyecto en la próxima ronda.
+    const nodosSinConfirmar = await nodosConIteracionSinConfirmar(supabase, project_id);
+
+    const motivo =
+      nodosSinConfirmar.length > 0
+        ? `Convergencia automática detenida — ${diagnostico} Hay trabajo reciente sin confirmar en ${nodosSinConfirmar.join(", ")} — revíselo y confírmelo en la pantalla de cada nodo, puede que eso resuelva la falta de mejora antes de forzar continuar.`
+        : `Convergencia automática detenida — ${diagnostico} Requiere revisión manual antes de seguir regenerando nodos automáticamente.`;
+
     return {
       detenido: true,
-      motivo: `Convergencia automática detenida — ${motivo} Requiere revisión manual antes de seguir regenerando nodos automáticamente.`,
+      motivo,
       rondas_evaluadas: filas.length,
       historial: filas,
       ultimo_detalle_l_faro_por_nodo: ultimoDetalle,

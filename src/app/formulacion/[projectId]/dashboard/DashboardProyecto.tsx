@@ -46,18 +46,30 @@ interface ProjectRow {
   alpha_area: string;
 }
 
-const NODOS_ORDEN = ["RUTA", "NOVA", "OBJETIVOS", "METODOLOGIA"] as const;
+// Los 6 nodos requeridos del proyecto (mismo orden/fuente que
+// NODOS_REQUERIDOS en resumenNodos.ts) — antes solo se mostraban 4 de 6
+// aquí; IMPACTOS_DELIMITACION y MARCO_REFERENCIAL no tenían tarjeta, así
+// que ni siquiera el badge "Converge, sin confirmar" que sí ven los otros
+// 4 existía para ellos en el Dashboard (confirmado en producción, proyecto
+// piña, 18-ago-2026: era el único indicador de iteración sin confirmar
+// visible fuera de la propia pantalla del nodo, y faltaba justo en
+// IMPACTOS).
+const NODOS_ORDEN = ["RUTA", "NOVA", "OBJETIVOS", "METODOLOGIA", "MARCO_REFERENCIAL", "IMPACTOS_DELIMITACION"] as const;
 const NODO_LABEL: Record<string, string> = {
   RUTA: "RUTA",
   NOVA: "NOVA",
   OBJETIVOS: "Objetivos",
   METODOLOGIA: "Metodología",
+  MARCO_REFERENCIAL: "Marco Referencial",
+  IMPACTOS_DELIMITACION: "Impactos y Delimitación",
 };
 const NODO_COLOR: Record<string, string> = {
   RUTA: "#9B4A2E",
   NOVA: "#2B6CB0",
   OBJETIVOS: "#5B6D7A",
   METODOLOGIA: "#0F6E56",
+  MARCO_REFERENCIAL: "#6B46C1",
+  IMPACTOS_DELIMITACION: "#B7791F",
 };
 
 interface ActividadOpenRouter {
@@ -145,8 +157,8 @@ export default function DashboardProyecto({
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
-        <div className="sm:col-span-1 rounded-2xl bg-faro-navy text-white p-6 flex flex-col items-center justify-center text-center">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
+        <div className="col-span-2 sm:col-span-3 lg:col-span-1 rounded-2xl bg-faro-navy text-white p-6 flex flex-col items-center justify-center text-center">
           <span className="text-3xl font-black">
             {nodosRequeridosConfirmados}/{NODOS_REQUERIDOS.length}
           </span>
