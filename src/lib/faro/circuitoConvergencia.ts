@@ -191,6 +191,63 @@ export async function evaluarCircuitoConvergencia(
 }
 
 /**
+ * Punto ÚNICO de aplicación del circuito para TODOS los caminos de
+ * regeneración — no solo TriagePregunta.tsx/propagacion.ts. Descubierto
+ * 18-ago-2026: existe un segundo camino, "Regenerar propuesta →" en las
+ * 6 pantallas FormulacionXxx.tsx (RUTA, NOVA, OBJETIVOS, METODOLOGIA,
+ * MARCO_REFERENCIAL, IMPACTOS_DELIMITACION), que llama directo a
+ * /api/mci/{nodo}/generar sin pasar por ejecutarPropagacion() — ese
+ * camino no tenía NINGUNA protección.
+ *
+ * DISCRIMINADOR — corregido 18-ago-2026: NO es "feedback presente". La
+ * primera versión de este fix usaba `if (feedback)` como proxy, pero eso
+ * deja un hueco real: "Regenerar propuesta →" con la caja de texto y las
+ * preguntas incrustadas vacías manda feedback=undefined (ver
+ * FormulacionImpactosDelimitacion.tsx: `generar(feedbackCompleto ||
+ * undefined)`), y ese es exactamente el caso que MÁS debería bloquearse
+ * — regenerar sin darle ninguna instrucción nueva al agente no tiene
+ * ninguna razón para mejorar. El discriminador real y confiable es si YA
+ * EXISTE una iteración previa de este mismo (project_id, nodo_tipo) en
+ * grafo_nodos — es la misma condición que ya usa cada pantalla para
+ * decidir si mostrar el botón "Generar propuesta" (nodoActual ausente)
+ * o la UI de confirmación/regeneración (nodoActual presente). Si no
+ * existe ninguna iteración previa, es la primera generación real —
+ * nunca hay nada que comparar, nunca se bloquea. Si ya existe al menos
+ * una, CUALQUIER llamada posterior (con o sin feedback) es una
+ * regeneración y se evalúa el circuito.
+ *
+ * ejecutarPropagacion() (propagacion.ts) SIGUE haciendo su propia llamada
+ * explícita a evaluarCircuitoConvergencia() antes de esto — no es lógica
+ * duplicada (la evaluación en sí vive solo ahí, en evaluarCircuitoConvergencia),
+ * es para poder devolver el diagnóstico completo (detalle_l_faro_por_nodo,
+ * etc.) de una sola vez a TriagePregunta.tsx en vez de un simple error de
+ * texto por nodo. Para ese camino, esta función corre una segunda vez
+ * como backstop (redundante pero barata, sin costo LLM extra) — el
+ * camino que SÍ depende de esta función en exclusiva es el directo desde
+ * las 6 pantallas de nodo.
+ */
+export async function verificarCircuitoAntesDeRegenerar(
+  supabase: SupabaseClient,
+  project_id: string,
+  nodo_tipo: string
+): Promise<void> {
+  const { data: previos } = await supabase
+    .from("grafo_nodos")
+    .select("id")
+    .eq("project_id", project_id)
+    .eq("tipo", nodo_tipo)
+    .limit(1);
+
+  const esRegeneracion = (previos?.length ?? 0) > 0;
+  if (!esRegeneracion) return; // primera generación real del nodo — nada que comparar, nunca se bloquea
+
+  const circuito = await evaluarCircuitoConvergencia(supabase, project_id);
+  if (circuito.detenido) {
+    throw new Error(circuito.motivo ?? "Convergencia automática detenida — revise manualmente antes de continuar.");
+  }
+}
+
+/**
  * Registra que un humano revisó el bloqueo y decidió continuar de todas
  * formas — auditoría insertada en convergencia_proyecto (sin tabla
  * nueva), excluida del cálculo de mejora por no tener l_faro_proyecto.

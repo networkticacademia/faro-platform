@@ -13,12 +13,19 @@ import {
   type ContradiccionDetectada,
 } from "@/lib/faro/mci";
 import { sincronizarPreguntasPendientes } from "@/lib/faro/preguntas";
+import { verificarCircuitoAntesDeRegenerar } from "@/lib/faro/circuitoConvergencia";
 
 export async function generarImpactosCore(
   supabase: SupabaseClient,
   params: { project_id: string; feedback?: string }
 ) {
   const { project_id, feedback } = params;
+
+  // Solo aplica a REGENERACIÓN (ya existe una iteración previa de
+  // IMPACTOS_DELIMITACION para este proyecto) — la primera generación no
+  // tiene nada que comparar todavía. Ver circuitoConvergencia.ts para
+  // por qué NO se usa "feedback presente" como discriminador.
+  await verificarCircuitoAntesDeRegenerar(supabase, project_id, "IMPACTOS_DELIMITACION");
 
   const { data: project, error: projectError } = await supabase
     .from("projects")

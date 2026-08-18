@@ -84,6 +84,13 @@ export default function FormulacionMarcoReferencial({
 
   async function confirmar(editado: boolean) {
     if (!nodoActual) return;
+    const hayRespuestasSinGuardar = Object.values(respuestasPreguntas).some((v) => v.trim().length > 0);
+    if (hayRespuestasSinGuardar) {
+      const continuar = window.confirm(
+        "Tiene respuestas sin guardar en las preguntas de arriba — se perderán si continúa. ¿Confirma?"
+      );
+      if (!continuar) return;
+    }
     setConfirmando(true); setError(null);
     try {
       const contenidoEditado = editado && ed ? ed : undefined;

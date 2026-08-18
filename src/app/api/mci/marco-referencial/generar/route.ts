@@ -13,12 +13,19 @@ import {
   type ContradiccionDetectada,
 } from "@/lib/faro/mci";
 import { sincronizarPreguntasPendientes } from "@/lib/faro/preguntas";
+import { verificarCircuitoAntesDeRegenerar } from "@/lib/faro/circuitoConvergencia";
 
 export async function generarMarcoReferencialCore(
   supabase: SupabaseClient,
   params: { project_id: string; feedback?: string; fuentes_externas_verificadas?: string }
 ) {
   const { project_id, feedback, fuentes_externas_verificadas } = params;
+
+  // Solo aplica a REGENERACIÓN (ya existe una iteración previa de
+  // MARCO_REFERENCIAL para este proyecto) — la primera generación no
+  // tiene nada que comparar todavía. Ver circuitoConvergencia.ts para
+  // por qué NO se usa "feedback presente" como discriminador.
+  await verificarCircuitoAntesDeRegenerar(supabase, project_id, "MARCO_REFERENCIAL");
 
   const { data: project, error: projectError } = await supabase
     .from("projects")

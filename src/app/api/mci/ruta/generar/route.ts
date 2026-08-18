@@ -10,12 +10,19 @@ import {
 } from "@/lib/faro/mci";
 import { proponerCadenaBusqueda } from "@/lib/faro/rsl/cadenaBusqueda";
 import { sincronizarPreguntasPendientes } from "@/lib/faro/preguntas";
+import { verificarCircuitoAntesDeRegenerar } from "@/lib/faro/circuitoConvergencia";
 
 export async function generarRutaCore(
   supabase: SupabaseClient,
   params: { project_id: string; feedback?: string }
 ) {
   const { project_id, feedback } = params;
+
+  // Solo aplica a REGENERACIÓN (ya existe una iteración previa de RUTA
+  // para este proyecto) — la primera generación no tiene nada que
+  // comparar todavía. Ver circuitoConvergencia.ts para por qué NO se usa
+  // "feedback presente" como discriminador.
+  await verificarCircuitoAntesDeRegenerar(supabase, project_id, "RUTA");
 
   const { data: project, error: projectError } = await supabase
     .from("projects")

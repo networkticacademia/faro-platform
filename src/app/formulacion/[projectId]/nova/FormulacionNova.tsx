@@ -114,6 +114,13 @@ export default function FormulacionNova({
   // nodo_id, no existe (ni hace falta) /api/mci/nova/confirmar aparte.
   async function confirmar(editado: boolean) {
     if (!nodoActual) return;
+    const hayRespuestasSinGuardar = Object.values(respuestasPreguntas).some((v) => v.trim().length > 0);
+    if (hayRespuestasSinGuardar) {
+      const continuar = window.confirm(
+        "Tiene respuestas sin guardar en las preguntas de arriba — se perderán si continúa. ¿Confirma?"
+      );
+      if (!continuar) return;
+    }
     setConfirmando(true);
     setError(null);
     try {
