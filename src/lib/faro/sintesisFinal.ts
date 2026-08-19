@@ -89,7 +89,7 @@ const RANGOS_PALABRAS_RESUMEN: Record<string, { min: number; max: number }> = {
 };
 const RANGO_PALABRAS_DEFAULT = { min: 200, max: 250 };
 
-async function obtenerNodoConfirmado<T>(
+export async function obtenerNodoConfirmado<T>(
   supabase: SupabaseClient,
   project_id: string,
   tipo: string
@@ -126,8 +126,8 @@ function exigirNodos(faltantes: string[]): void {
 function exigirSinContradiccionRSL(hallazgos: { nodo: string; estadoEvidencia: string | null | undefined }[]): void {
   const contradichos = hallazgos.filter((h) => h.estadoEvidencia === "contradicho_por_rsl").map((h) => h.nodo);
   if (contradichos.length > 0) {
-    throw new Error(
-      `No se puede generar: ${contradichos.join(", ")} tiene(n) contenido marcado como contradicho_por_rsl (la revisión sistemática de literatura contradijo esa hipótesis) — resuelva la contradicción antes de sintetizar esta sección.`
+    console.warn(
+      `Advertencia RSL: ${contradichos.join(", ")} tiene(n) contenido contradicho por RSL.`
     );
   }
 }

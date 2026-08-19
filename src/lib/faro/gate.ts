@@ -176,9 +176,9 @@ export async function verificarGate(
     }
   }
 
-  const bloqueoSemantico = contradiccionesSemanticas
-    ? hayContradiccionCritica(contradiccionesSemanticas)
-    : false;
+  const bloqueoSemantico = checkpoint === "C1"
+    ? false // C1 no bloquea por contradicciones semánticas (degradado a advertencia L3)
+    : (contradiccionesSemanticas ? hayContradiccionCritica(contradiccionesSemanticas) : false);
 
   return {
     checkpoint,

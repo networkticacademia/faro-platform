@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { migrarPreguntaARiesgo } from "@/lib/faro/riesgos";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -9,7 +10,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { nodo_id, contenido_editado } = body;
+  const { nodo_id, contenido_editado, sellar } = body;
   if (!nodo_id) {
     return NextResponse.json({ error: "Falta nodo_id." }, { status: 400 });
   }
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
       confirmado_humano: true,
       editado_humano: editado,
       ...(editado ? { contenido: contenido_editado } : {}),
+      ...(sellar ? { sellado: true } : {}),
     })
     .eq("id", nodo_id)
     .select()
@@ -29,6 +31,21 @@ export async function POST(request: Request) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (data && sellar) {
+    // Buscar y migrar preguntas abiertas de esta iteración de nodo a riesgos
+    const { data: openQs } = await supabase
+      .from("preguntas_pendientes")
+      .select("id")
+      .eq("nodo_id", data.id)
+      .eq("estado", "abierta");
+
+    if (openQs && openQs.length > 0) {
+      for (const q of openQs) {
+        await migrarPreguntaARiesgo(supabase, q.id);
+      }
+    }
   }
 
   // Marcar el proyecto como en_formulacion si seguía en estado diagnostico

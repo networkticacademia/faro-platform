@@ -93,10 +93,32 @@ export default function FormulacionMarcoReferencial({
     }
     setConfirmando(true); setError(null);
     try {
+      // 1. Consultar preguntas abiertas de este nodo para el modal de sellado
+      const qRes = await fetch(`/api/mci/preguntas/pendientes?project_id=${project.id}`);
+      const qData = await qRes.json();
+      const openQuestions = (qData.preguntas ?? []).filter(
+        (q: any) => q.nodo_id === nodoActual.id
+      );
+
+      if (openQuestions.length > 0) {
+        const listText = openQuestions.map((q: any, i: number) => `${i + 1}. ${q.texto_pregunta}`).join("\n");
+        const userConfirmed = window.confirm(
+          `Este nodo tiene ${openQuestions.length} preguntas abiertas:\n\n${listText}\n\nAl sellarlo, pasarán al mapa de riesgos y el nodo quedará protegido contra reapertura. ¿Confirmar?`
+        );
+        if (!userConfirmed) {
+          setConfirmando(false);
+          return;
+        }
+      }
+
       const contenidoEditado = editado && ed ? ed : undefined;
       const res = await fetch("/api/mci/ruta/confirmar", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nodo_id: nodoActual.id, contenido_editado: contenidoEditado }),
+        body: JSON.stringify({
+          nodo_id: nodoActual.id,
+          contenido_editado: contenidoEditado,
+          sellar: true,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al confirmar.");

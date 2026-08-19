@@ -59,6 +59,11 @@ function extraerPreguntasDelNodo(contenido: unknown): PreguntaExtraida[] {
     .filter((p): p is PreguntaExtraida => p !== null && p.texto_pregunta.trim().length > 0);
 }
 
+function mapearNodoTipoAGrafoTipo(nodoTipo: NodoTipo): string {
+  if (nodoTipo === "IMPACTOS") return "IMPACTOS_DELIMITACION";
+  return nodoTipo;
+}
+
 export interface PreguntaSincronizada {
   id: string;
   texto_pregunta: string;
@@ -77,41 +82,127 @@ export async function sincronizarPreguntasPendientes(
     return { insertadas: 0, omitidas_duplicadas: 0, preguntas: [] };
   }
 
-  const filas = extraidas.map((p) => ({
-    project_id,
-    nodo_id,
-    nodo_tipo,
-    campo_origen: p.campo_origen,
-    texto_pregunta: p.texto_pregunta,
-    texto_hash: hashTexto(p.texto_pregunta),
-    prioridad: clasificarPrioridad(nodo_tipo, p.texto_pregunta),
-    nodos_afectados: obtenerNodosAfectados(nodo_tipo),
-  }));
-
-  // upsert por (nodo_id, texto_hash) — evita duplicar si el nodo se regenera
-  // y vuelve a producir la misma pregunta textualmente.
-  const { data, error } = await supabase
+  // 1. Consultar hashes de preguntas existentes en este proyecto y tipo de nodo para deduplicación en código
+  const { data: existentes, error: errorExistentes } = await supabase
     .from("preguntas_pendientes")
-    .upsert(filas, { onConflict: "nodo_id,texto_hash", ignoreDuplicates: true })
-    .select("id, texto_pregunta");
+    .select("texto_hash")
+    .eq("project_id", project_id)
+    .eq("nodo_tipo", nodo_tipo);
 
-  if (error) {
-    console.error("[sincronizarPreguntasPendientes] error:", error.message);
-    return { insertadas: 0, omitidas_duplicadas: 0, preguntas: [] };
+  if (errorExistentes) {
+    console.error("[sincronizarPreguntasPendientes] error consultando existentes:", errorExistentes.message);
+  }
+  const hashesExistentes = new Set((existentes ?? []).map((q) => q.texto_hash));
+
+  // Filtrar duplicados
+  const nuevasPreguntas = extraidas.filter((p) => !hashesExistentes.has(hashTexto(p.texto_pregunta)));
+  const omitidas_duplicadas = extraidas.length - nuevasPreguntas.length;
+
+  if (nuevasPreguntas.length === 0) {
+    return { insertadas: 0, omitidas_duplicadas, preguntas: [] };
   }
 
-  // Devuelve las filas reales insertadas (id + texto_pregunta), no solo ids —
-  // así el caller (las pantallas FormulacionXxx.tsx) puede renderizar
-  // TriagePregunta directamente por pregunta_id sin adivinar la
-  // correspondencia por posición/texto. Si el upsert descartó un duplicado
-  // (ignoreDuplicates, mismo nodo_id+texto_hash), esa pregunta simplemente no
-  // aparece aquí — el caller debe tratar `preguntas` como la fuente de
-  // verdad, no asumir que su longitud coincide con la del array embebido.
-  const preguntas: PreguntaSincronizada[] = (data ?? []).map((d) => ({
-    id: d.id as string,
-    texto_pregunta: d.texto_pregunta as string,
-  }));
-  const insertadas = preguntas.length;
+  // 2. Determinar si es "génesis" o "regeneración/checkpoint"
+  const dbTipoGrafo = mapearNodoTipoAGrafoTipo(nodo_tipo);
+  
+  const { data: nodosPrevios, error: errorNodos } = await supabase
+    .from("grafo_nodos")
+    .select("id")
+    .eq("project_id", project_id)
+    .eq("tipo", dbTipoGrafo)
+    .limit(1);
+
+  if (errorNodos) {
+    console.error("[sincronizarPreguntasPendientes] error consultando nodos previos:", errorNodos.message);
+  }
+
+  const esRegeneracion = (nodosPrevios && nodosPrevios.length > 0) || hashesExistentes.size > 0;
+
+  // 3. Aplicar regla de tope graduado
+  const filasParaInsertar: any[] = [];
+  const priorityOrder = { P0: 0, P1: 1, P2: 2, P3: 3 };
+
+  if (esRegeneracion) {
+    // Regeneración/checkpoint: máximo 1 pregunta nueva (la de mayor prioridad)
+    const ordenadas = nuevasPreguntas.map((p) => ({
+      pregunta: p,
+      prioridad: clasificarPrioridad(nodo_tipo, p.texto_pregunta),
+    })).sort((a, b) => {
+      const pA = priorityOrder[a.prioridad] ?? 2;
+      const pB = priorityOrder[b.prioridad] ?? 2;
+      return pA - pB;
+    });
+
+    ordenadas.forEach((item, idx) => {
+      const deBajoTope = idx === 0;
+      filasParaInsertar.push({
+        project_id,
+        nodo_id,
+        nodo_tipo,
+        campo_origen: item.pregunta.campo_origen,
+        texto_pregunta: item.pregunta.texto_pregunta,
+        texto_hash: hashTexto(item.pregunta.texto_pregunta),
+        prioridad: item.prioridad,
+        nodos_afectados: obtenerNodosAfectados(nodo_tipo),
+        estado: deBajoTope ? "abierta" : "diferida",
+        estado_procedencia: deBajoTope ? null : "excedente_tope",
+      });
+    });
+  } else {
+    // Génesis: se permiten todas las P0/P1. P2/P3 se permiten hasta MAX_GENESIS = 5
+    const MAX_GENESIS = 5;
+    let lowPriorityCount = 0;
+
+    nuevasPreguntas.forEach((p) => {
+      const prioridad = clasificarPrioridad(nodo_tipo, p.texto_pregunta);
+      const esBaja = prioridad === "P2" || prioridad === "P3";
+      let estado = "abierta";
+      let estado_procedencia = null;
+
+      if (esBaja) {
+        if (lowPriorityCount < MAX_GENESIS) {
+          lowPriorityCount++;
+        } else {
+          estado = "diferida";
+          estado_procedencia = "excedente_tope";
+        }
+      }
+
+      filasParaInsertar.push({
+        project_id,
+        nodo_id,
+        nodo_tipo,
+        campo_origen: p.campo_origen,
+        texto_pregunta: p.texto_pregunta,
+        texto_hash: hashTexto(p.texto_pregunta),
+        prioridad,
+        nodos_afectados: obtenerNodosAfectados(nodo_tipo),
+        estado,
+        estado_procedencia,
+      });
+    });
+  }
+
+  // 4. Guardar en base de datos
+  const { data, error } = await supabase
+    .from("preguntas_pendientes")
+    .upsert(filasParaInsertar, { onConflict: "nodo_id,texto_hash", ignoreDuplicates: true })
+    .select("id, texto_pregunta, estado");
+
+  if (error) {
+    console.error("[sincronizarPreguntasPendientes] error en upsert:", error.message);
+    return { insertadas: 0, omitidas_duplicadas, preguntas: [] };
+  }
+
+  // Filtrar solo las preguntas que quedaron abiertas
+  const preguntasAbiertas: PreguntaSincronizada[] = (data ?? [])
+    .filter((d) => d.estado === "abierta")
+    .map((d) => ({
+      id: d.id as string,
+      texto_pregunta: d.texto_pregunta as string,
+    }));
+
+  const insertadas = preguntasAbiertas.length;
   if (insertadas > 0 && reagrupar) {
     try {
       await reagruparPreguntasAbiertas(supabase, project_id);
@@ -120,5 +211,5 @@ export async function sincronizarPreguntasPendientes(
     }
   }
 
-  return { insertadas, omitidas_duplicadas: filas.length - insertadas, preguntas };
+  return { insertadas, omitidas_duplicadas: omitidas_duplicadas + (filasParaInsertar.length - insertadas), preguntas: preguntasAbiertas };
 }

@@ -184,6 +184,24 @@ export async function ejecutarPropagacion(
 
   for (const nodo of nodosConfirmados) {
     try {
+      // Verificar si el nodo está sellado (protección contra cascada)
+      const dbTipo = nodo.nodo_tipo === "IMPACTOS" ? "IMPACTOS_DELIMITACION" : nodo.nodo_tipo;
+      const { data: latestNode } = await supabase
+        .from("grafo_nodos")
+        .select("sellado")
+        .eq("project_id", project_id)
+        .eq("tipo", dbTipo)
+        .order("iteracion", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestNode?.sellado) {
+        console.log(`[propagacion] omitiendo regeneracion de ${nodo.nodo_tipo} porque esta sellado.`);
+        resultados.push({ nodo_tipo: nodo.nodo_tipo, exito: true });
+        idsResueltos.push(...nodo.preguntas_que_resuelve);
+        continue;
+      }
+
       const resultadoNodo = await regenerarNodoConFeedback(
         supabase,
         nodo.nodo_tipo,
