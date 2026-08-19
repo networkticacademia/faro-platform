@@ -32,12 +32,14 @@ import { esProcedenciaConfirmada, type Procedencia } from "./procedencia";
 import { hashTexto } from "./preguntas";
 import { obtenerNodosAfectados } from "./clasificacionPreguntas";
 import { evaluarCircuitoConvergencia, type DetalleLFaroNodoResumen, type BypassCircuito } from "./circuitoConvergencia";
-import { generarRutaCore } from "@/app/api/mci/ruta/generar/route";
-import { generarNovaCore } from "@/app/api/mci/nova/generar/route";
-import { generarObjetivosCore } from "@/app/api/mci/objetivos/generar/route";
-import { generarMetodologiaCore } from "@/app/api/mci/metodologia/generar/route";
-import { generarMarcoReferencialCore } from "@/app/api/mci/marco-referencial/generar/route";
-import { generarImpactosCore } from "@/app/api/mci/impactos-delimitacion/generar/route";
+import {
+  generarRutaCore,
+  generarNovaCore,
+  generarObjetivosCore,
+  generarMetodologiaCore,
+  generarMarcoReferencialCore,
+  generarImpactosCore,
+} from "./generarCore";
 
 const TOPE_PROFUNDIDAD_CAUSAL = 2;
 // Nivel asignado a la pregunta sintética de verificación formal cuando se
