@@ -7,7 +7,7 @@ import type { MetodologiaOutput } from "./metodologia";
 import { todasLasReferencias, type MarcoReferencialOutput } from "./marcoReferencial";
 import type { ImpactosDelimitacionOutput } from "./impactosDelimitacion";
 import { listarRiesgos } from "./riesgos";
-import { generarIntroduccion, generarResumen } from "./sintesisFinal";
+import { generarIntroduccion, generarResumen, generarAbstractEn } from "./sintesisFinal";
 import {
   RUBRO_PRESUPUESTO_LABEL,
   FUENTE_PRESUPUESTO_LABEL,
@@ -49,6 +49,13 @@ export async function generarDocumentoConsolidadoMarkdown(
     resumenText = "*(Resumen ejecutivo pendiente de confirmación de los nodos base)*";
   }
 
+  let abstractText = "";
+  try {
+    abstractText = await generarAbstractEn(resumenText);
+  } catch (e) {
+    abstractText = "*(Abstract pending confirmation of base nodes)*";
+  }
+
   let introText = "";
   try {
     const res = await generarIntroduccion(supabase, projectId);
@@ -68,7 +75,6 @@ export async function generarDocumentoConsolidadoMarkdown(
     doc += `**Palabras clave:** ${keywords.join(", ")}\n\n`;
   }
 
-  const abstractText = `This scientific research proposal establishes a formal methodological framework for "${titulo}". The investigation addresses critical knowledge gaps through systematic data acquisition, domain modeling, and empirical validation in accordance with academic standards.`;
   doc += `## ABSTRACT\n\n${abstractText}\n\n`;
   if (keywords.length > 0) {
     doc += `**Keywords:** ${keywords.join(", ")}\n\n`;

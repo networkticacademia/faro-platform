@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { obtenerNodoConfirmado } from "@/lib/faro/sintesisFinal";
 import type { MetodologiaOutput } from "@/lib/faro/metodologia";
-import { RUBRO_PRESUPUESTO_LABEL, FUENTE_PRESUPUESTO_LABEL, totalPresupuestoProyecto, resumenPorRubro, resumenPorFuente } from "@/lib/faro/metodologia";
+import { RUBRO_PRESUPUESTO_LABEL, FUENTE_PRESUPUESTO_LABEL, totalPresupuestoProyecto, resumenPorRubro, resumenPorFuente, obtenerPresupuestoActividad } from "@/lib/faro/metodologia";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -78,9 +78,10 @@ export async function GET(request: Request) {
     const objNom = (po.objetivo_especifico ?? "").replace(/"/g, '""');
     (po.productos ?? []).forEach((prod: any) => {
       const prodNom = (prod.nombre_producto ?? "").replace(/"/g, '""');
-      (prod.actividades ?? []).forEach((act: any) => {
+      (prod.actividades ?? []).forEach((act: any, actIdx: number) => {
         const actNom = (act.actividad ?? "").replace(/"/g, '""');
-        (act.presupuesto ?? act.insumos ?? []).forEach((ins: any) => {
+        const items = obtenerPresupuestoActividad(act, actIdx);
+        items.forEach((ins: any) => {
           const descIns = (ins.descripcion ?? "").replace(/"/g, '""');
           const rubroLbl = RUBRO_PRESUPUESTO_LABEL[ins.rubro as keyof typeof RUBRO_PRESUPUESTO_LABEL] ?? ins.rubro;
           const fuenteLbl = FUENTE_PRESUPUESTO_LABEL[ins.fuente as keyof typeof FUENTE_PRESUPUESTO_LABEL] ?? ins.fuente;

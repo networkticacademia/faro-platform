@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
-import { generarIntroduccion, generarResumen, obtenerNodoConfirmado } from "@/lib/faro/sintesisFinal";
+import { generarIntroduccion, generarResumen, generarAbstractEn, obtenerNodoConfirmado } from "@/lib/faro/sintesisFinal";
 import { construirBibliografiaConClaves, type FuenteConId } from "@/lib/faro/corpus/exportarBib";
 import { escaparProsaLatexPreservandoCitas } from "@/lib/faro/latex/escaparProsa";
 import { humanizarDocumento } from "@/lib/faro/humanizadorDocumento";
@@ -196,8 +196,13 @@ export async function GET(request: Request) {
     const estiloCitaSel = savedDoc?.estiloCita ?? searchParams.get("estilo_cita") ?? "apa";
     const estiloCitaTex = estiloCitaSel === "ieee" ? "ieee" : estiloCitaSel === "vancouver" ? "vancouver" : "apa";
 
-    const abstractEn = `This scientific research proposal establishes a structured methodological framework for "${titulo}". The investigation addresses critical knowledge gaps through systematic data acquisition, domain modeling, and empirical validation in accordance with academic standards.`;
-    const keywordsEn = keywordsRaw.length > 0 ? keywordsRaw.join(", ") : "research proposal, methodology, data science, empirical validation";
+    let abstractEn = "";
+    try {
+      abstractEn = await generarAbstractEn(textoResumenFinal);
+    } catch (e) {
+      abstractEn = "*(Abstract pending confirmation)*";
+    }
+    const keywordsEn = keywordsRaw.length > 0 ? keywordsRaw.join(", ") : "";
 
     const tex = plantilla
       .replace("{{BIB_FILE}}", bibFileName)

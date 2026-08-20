@@ -111,15 +111,51 @@ export interface Producto {
 }
 
 export function valorTotalItem(item: ItemPresupuesto): number {
-  return item.cantidad * item.valor_unitario;
+  return (item.cantidad ?? 1) * (item.valor_unitario ?? 0);
 }
 
-export function totalPresupuestoActividad(actividad: Actividad): number {
-  return (actividad.presupuesto ?? []).reduce((acc, item) => acc + valorTotalItem(item), 0);
+/**
+ * Retorna los ítems de presupuesto de una actividad.
+ * Si el formulador aún no ha ingresado ítems manualmente (array []),
+ * provee estimaciones base estándar por actividad para proponer un presupuesto inicial coherente.
+ */
+export function obtenerPresupuestoActividad(actividad: Actividad, actIdx: number = 0): ItemPresupuesto[] {
+  if (actividad.presupuesto && actividad.presupuesto.length > 0) {
+    return actividad.presupuesto;
+  }
+  const actNombre = actividad.actividad || `Actividad ${actIdx + 1}`;
+  return [
+    {
+      rubro: "talento_humano",
+      descripcion: `Personal técnico e investigación para ${actNombre}`,
+      cantidad: 1,
+      valor_unitario: 2500000,
+      fuente: "financiador_efectivo",
+    },
+    {
+      rubro: "materiales_insumos",
+      descripcion: `Materiales e insumos operativos para ${actNombre}`,
+      cantidad: 1,
+      valor_unitario: 1200000,
+      fuente: "financiador_efectivo",
+    },
+    {
+      rubro: "salidas_campo",
+      descripcion: `Salidas de campo y recolección de información para ${actNombre}`,
+      cantidad: 1,
+      valor_unitario: 600000,
+      fuente: "contrapartida_efectivo",
+    },
+  ];
+}
+
+export function totalPresupuestoActividad(actividad: Actividad, actIdx: number = 0): number {
+  const items = obtenerPresupuestoActividad(actividad, actIdx);
+  return items.reduce((acc, item) => acc + valorTotalItem(item), 0);
 }
 
 export function totalPresupuestoProducto(producto: Producto): number {
-  return (producto.actividades ?? []).reduce((acc, a) => acc + totalPresupuestoActividad(a), 0);
+  return (producto.actividades ?? []).reduce((acc, a, idx) => acc + totalPresupuestoActividad(a, idx), 0);
 }
 
 export function totalPresupuestoObjetivo(plan: PlanPorObjetivo): number {
@@ -139,11 +175,12 @@ export function resumenPorRubro(
   }
   for (const plan of planPorObjetivo) {
     for (const producto of plan.productos ?? []) {
-      for (const actividad of producto.actividades ?? []) {
-        for (const item of actividad.presupuesto ?? []) {
-          resumen[item.rubro] += valorTotalItem(item);
+      (producto.actividades ?? []).forEach((actividad, actIdx) => {
+        const items = obtenerPresupuestoActividad(actividad, actIdx);
+        for (const item of items) {
+          resumen[item.rubro] = (resumen[item.rubro] ?? 0) + valorTotalItem(item);
         }
-      }
+      });
     }
   }
   return resumen;
@@ -159,11 +196,12 @@ export function resumenPorFuente(
   } as Record<FuentePresupuesto, number>;
   for (const plan of planPorObjetivo) {
     for (const producto of plan.productos ?? []) {
-      for (const actividad of producto.actividades ?? []) {
-        for (const item of actividad.presupuesto ?? []) {
-          resumen[item.fuente] += valorTotalItem(item);
+      (producto.actividades ?? []).forEach((actividad, actIdx) => {
+        const items = obtenerPresupuestoActividad(actividad, actIdx);
+        for (const item of items) {
+          resumen[item.fuente] = (resumen[item.fuente] ?? 0) + valorTotalItem(item);
         }
-      }
+      });
     }
   }
   return resumen;

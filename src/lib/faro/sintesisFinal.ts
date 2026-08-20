@@ -531,3 +531,32 @@ sin título, sin conteo de palabras, sin comentarios.`;
   const texto = await llamarOrquestador(prompt);
   return { texto: texto.trim(), provisional, motivo_provisional: motivo };
 }
+
+/**
+ * Traduce FIELES e ÍNTEGRAMENTE el resumen generado en español al inglés (Abstract).
+ * Regla de oro: NO agrega, inventa ni omite información. Fiel traducción académica 1:1.
+ */
+export async function generarAbstractEn(
+  resumenEsTexto: string
+): Promise<string> {
+  if (!resumenEsTexto || resumenEsTexto.includes("pendiente de confirmación")) {
+    return "*(Abstract pending confirmation of base nodes)*";
+  }
+
+  const prompt = `You are an expert academic translator for scientific journals.
+Translate the following Spanish research abstract into English EXACTLY sentence-by-sentence.
+
+STRICT GOLDEN RULES:
+1. Do NOT add, invent, modify, or omit ANY information, facts, or context.
+2. Do NOT summarize, condense, or change the technical structure.
+3. Translate the EXACT content and meaning into academic English prose.
+4. Return ONLY the translated English paragraph, with no intro, no titles, no notes.
+
+Spanish Abstract to translate:
+"""
+${resumenEsTexto}
+"""`;
+
+  const translated = await llamarOrquestador(prompt);
+  return translated.trim();
+}
