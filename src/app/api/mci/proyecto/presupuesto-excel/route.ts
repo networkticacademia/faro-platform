@@ -80,14 +80,15 @@ export async function GET(request: Request) {
       const prodNom = (prod.nombre_producto ?? "").replace(/"/g, '""');
       (prod.actividades ?? []).forEach((act: any) => {
         const actNom = (act.actividad ?? "").replace(/"/g, '""');
-        (act.insumos ?? []).forEach((ins: any) => {
+        (act.presupuesto ?? act.insumos ?? []).forEach((ins: any) => {
           const descIns = (ins.descripcion ?? "").replace(/"/g, '""');
           const rubroLbl = RUBRO_PRESUPUESTO_LABEL[ins.rubro as keyof typeof RUBRO_PRESUPUESTO_LABEL] ?? ins.rubro;
           const fuenteLbl = FUENTE_PRESUPUESTO_LABEL[ins.fuente as keyof typeof FUENTE_PRESUPUESTO_LABEL] ?? ins.fuente;
-          const totalInsumo = (ins.costo_unitario ?? 0) * (ins.cantidad ?? 1);
+          const valUnit = ins.valor_unitario ?? ins.costo_unitario ?? 0;
+          const totalInsumo = valUnit * (ins.cantidad ?? 1);
 
           lineas.push(
-            `"${objNom}","${prodNom}","${actNom}","${descIns}","${rubroLbl}","${fuenteLbl}",${ins.costo_unitario ?? 0},${ins.cantidad ?? 1},${totalInsumo}`
+            `"${objNom}","${prodNom}","${actNom}","${descIns}","${rubroLbl}","${fuenteLbl}",${valUnit},${ins.cantidad ?? 1},${totalInsumo}`
           );
         });
       });
