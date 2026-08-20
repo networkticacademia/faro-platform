@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
-import { generarIntroduccion, generarResumen } from "@/lib/faro/sintesisFinal";
+import { generarIntroduccion, generarResumen, obtenerNodoConfirmado } from "@/lib/faro/sintesisFinal";
 import { construirBibliografiaConClaves, type FuenteConId } from "@/lib/faro/corpus/exportarBib";
 import { escaparProsaLatexPreservandoCitas } from "@/lib/faro/latex/escaparProsa";
 import { humanizarDocumento } from "@/lib/faro/humanizadorDocumento";
 import { generarDocumentoConsolidadoMarkdown } from "@/lib/faro/documentoConsolidado";
+import { todasLasReferencias, type MarcoReferencialOutput } from "@/lib/faro/marcoReferencial";
 
 /**
  * GET /api/mci/proyecto/exportar?project_id=...&formato=md|tex
@@ -85,6 +86,32 @@ export async function GET(request: Request) {
     }
 
     const fuentes = (fuentesData ?? []) as FuenteConId[];
+    const titulosODoisExistentes = new Set(fuentes.map((f) => (f.doi ?? f.titulo).toLowerCase().trim()));
+
+    try {
+      const marco = await obtenerNodoConfirmado<MarcoReferencialOutput>(supabase, project_id, "MARCO_REFERENCIAL");
+      if (marco) {
+        const refsMarco = todasLasReferencias(marco);
+        refsMarco.forEach((r, idx) => {
+          const keyCheck = (r.doi_o_isbn ?? r.titulo).toLowerCase().trim();
+          if (keyCheck && !titulosODoisExistentes.has(keyCheck)) {
+            titulosODoisExistentes.add(keyCheck);
+            const anioNum = parseInt(r.año, 10);
+            fuentes.push({
+              id: `marco_ref_${idx}`,
+              titulo: r.titulo,
+              autores: r.autor,
+              doi: r.doi_o_isbn,
+              anio: isNaN(anioNum) ? null : anioNum,
+              revista: r.fuente,
+            });
+          }
+        });
+      }
+    } catch (e) {
+      console.warn("No se pudieron cargar fuentes del nodo MARCO_REFERENCIAL:", e);
+    }
+
     const { bibtex, entradas } = await construirBibliografiaConClaves(fuentes);
 
     // Generar o recuperar documento consolidado completo

@@ -19,14 +19,17 @@ export function LaTeXPreview({ titulo, autor, markdown }: LaTeXPreviewProps) {
   const formatTextWithFormatting = (text: string): React.ReactNode => {
     if (!text) return "";
     
-    // Parse bold **text** and italic *text*
-    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
+    // Parse bold **text**, italic *text*, and citations (Author, Year) or \cite{...}
+    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|\([A-Z\u00C0-\u00DC][^)]*?\d{4}[^)]*?\)|\\cite(?:p|t)?\{[^}]+\})/g);
     return parts.map((part, i) => {
       if (part.startsWith("**") && part.endsWith("**")) {
         return <strong key={i} className="font-semibold text-gray-900">{part.slice(2, -2)}</strong>;
       }
       if (part.startsWith("*") && part.endsWith("*")) {
         return <em key={i} className="italic text-gray-800">{part.slice(1, -1)}</em>;
+      }
+      if ((part.startsWith("(") && part.endsWith(")") && /\d{4}/.test(part)) || part.startsWith("\\cite")) {
+        return <span key={i} className="text-blue-600 font-medium cursor-pointer hover:underline print:text-blue-700">{part}</span>;
       }
       return part;
     });
