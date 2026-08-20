@@ -158,6 +158,10 @@ export default function FormulacionRuta({
         body: JSON.stringify({ project_id: project.id, feedback: conFeedback }),
       });
       const data = await res.json();
+      if (data.circuito_detenido) {
+        setError(`El circuito de convergencia detuvo la regeneración: ${data.motivo_circuito ?? "sin mejora tras varias rondas"}. Puede usar "bypass" si ya revisó el resultado actual.`);
+        return;
+      }
       if (!res.ok || !data.nodo) throw new Error(data.error ?? "Error generando la propuesta.");
       setNodos((prev) => [data.nodo, ...prev.filter(Boolean)]);
       setMetrica(data.metrica);
