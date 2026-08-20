@@ -175,21 +175,25 @@ export function LaTeXPreview({ titulo, autor, markdown }: LaTeXPreviewProps) {
       {/* Print styles */}
       <style>{`
         @media print {
-          body {
-            background-color: white !important;
-            color: black !important;
-            font-family: 'Times New Roman', Times, serif !important;
+          body * {
+            visibility: hidden !important;
           }
-          .no-print, header, nav, sidebar, footer {
-            display: none !important;
+          .print-area, .print-area * {
+            visibility: visible !important;
           }
           .print-area {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
             box-shadow: none !important;
             border: none !important;
             margin: 0 !important;
             padding: 0 !important;
-            width: 100% !important;
-            max-width: 100% !important;
+            background-color: white !important;
+            color: black !important;
+            font-family: 'Times New Roman', Times, serif !important;
           }
           @page {
             size: A4;
