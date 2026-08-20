@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generarDocumentoConsolidadoMarkdown } from "@/lib/faro/documentoConsolidado";
+import { humanizarTexto } from "@/lib/faro/humanizador";
 
 /**
  * GET /api/mci/proyecto/documento?project_id=...
@@ -37,13 +38,18 @@ export async function GET(request: Request) {
 
   let docJson = project?.documento_consolidado as { markdown?: string; editado?: boolean } | null;
 
-  // 2. Si no existe o se fuerza regeneración, compilar en vivo
+  // 2. Si no existe o se fuerza regeneración, compilar en vivo y humanizar
   if (!docJson?.markdown || force_regenerate) {
-    const mdText = await generarDocumentoConsolidadoMarkdown(supabase, project_id);
-    docJson = {
-      markdown: mdText,
-      editado: false,
-    };
+    try {
+      const mdRaw = await generarDocumentoConsolidadoMarkdown(supabase, project_id);
+      const mdHumanizado = await humanizarTexto(mdRaw);
+      docJson = {
+        markdown: mdHumanizado,
+        editado: false,
+      };
+    } catch (e) {
+      return NextResponse.json({ error: `Error al generar/humanizar la propuesta: ${(e as Error).message}` }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ documento: docJson });

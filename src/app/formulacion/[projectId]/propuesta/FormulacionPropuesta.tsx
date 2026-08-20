@@ -177,7 +177,7 @@ export default function FormulacionPropuesta({ project }: { project: ProjectRow 
 
       {loading ? (
         <div className="flex justify-center py-20">
-          <IndicadorGenerando mensaje="Compilando propuesta consolidada desde los nodos del grafo..." />
+          <IndicadorGenerando mensaje="Compilando y humanizando propuesta científica (eliminando rastros de IA, esto puede tardar unos segundos)..." />
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

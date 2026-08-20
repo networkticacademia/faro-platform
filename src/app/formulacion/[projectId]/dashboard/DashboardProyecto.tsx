@@ -346,6 +346,24 @@ export default function DashboardProyecto({
         <TarjetaConvergencia projectId={project.id} brechasCriticas={resumen.criticas} />
       </div>
 
+      <div className="rounded-2xl border bg-gradient-to-r from-faro-navy to-[#2c3e66] p-6 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <h3 className="text-base font-bold flex items-center gap-2">
+            <span>📄</span> Documento de Propuesta Consolidada
+          </h3>
+          <p className="text-xs text-slate-200 max-w-2xl">
+            Genera, humaniza y exporta la propuesta de investigación final en formato Markdown o LaTeX. 
+            El documento pasará automáticamente por el Humanizador FARO para eliminar rastros de IA sin alterar tu redacción científica original.
+          </p>
+        </div>
+        <button
+          onClick={() => router.push(`/formulacion/${project.id}/propuesta`)}
+          className="px-5 py-3 bg-white text-faro-navy font-semibold rounded-xl text-xs hover:bg-slate-50 transition-colors whitespace-nowrap self-start md:self-center shadow"
+        >
+          Generar y Exportar Propuesta →
+        </button>
+      </div>
+
       {actividadOpenRouter && actividadOpenRouter.length > 0 && (
         <div className="rounded-2xl border bg-white p-6">
           <div className="flex items-center justify-between mb-1">

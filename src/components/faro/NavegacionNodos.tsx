@@ -16,7 +16,6 @@ const NODOS = [
   { slug: "/metodologia", label: "Metodología" },
   { slug: "/impactos-delimitacion", label: "Impactos y Delimitación" },
   { slug: "/presupuesto", label: "💰 Presupuesto" },
-  { slug: "/propuesta", label: "📄 Propuesta" },
 ] as const;
 
 // Checkpoint evaluado al intentar navegar a cada pestaña. Solo estas dos
