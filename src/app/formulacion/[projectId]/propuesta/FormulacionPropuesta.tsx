@@ -333,6 +333,12 @@ export default function FormulacionPropuesta({ project }: { project: ProjectRow 
             {previewActive && (
               <>
                 <button
+                  onClick={() => window.print()}
+                  className="text-xs bg-emerald-600 text-white border border-emerald-700 px-3 py-1.5 rounded-lg font-medium hover:bg-emerald-700 transition-colors flex items-center gap-1 shadow-sm"
+                >
+                  <span>🖨️</span> Guardar / Imprimir PDF
+                </button>
+                <button
                   onClick={() => handleExportar("md")}
                   disabled={cargandoExport || loading}
                   className="text-xs bg-white text-faro-navy border border-faro-navy/30 px-3 py-1.5 rounded-lg font-medium hover:bg-faro-navy/5 transition-colors"

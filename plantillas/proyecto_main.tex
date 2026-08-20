@@ -1,36 +1,25 @@
 % ============================================================
-% Plantilla base — documento LaTeX de un proyecto FARO individual.
-%
-% IMPORTANTE: esta plantilla es NUEVA y específica por proyecto — NO tiene
-% relación con main.tex / cas-dc-template.tex (esos son exclusivos del
-% paper del propio marco académico FARO). No reutilizar esos archivos
-% aquí ni esta plantilla allá.
-%
-% Bibliografía: biblatex + estilo APA (paquete biblatex-apa, backend=biber).
-% Confirmado disponible en TeX Live estándar / Overleaf sin instalación
-% extra (verificado ago-2026: biblatex-apa v9.20, activo, incluido en
-% TeX Live y MiKTeX, listado por Overleaf como estilo biblatex soportado
-% por defecto).
-%
-% Los placeholders {{...}} los reemplaza scripts/exportar_documento_latex.ts.
-% Este archivo NO se compila en este entorno (no hay toolchain LaTeX local)
-% — basta con que sea válido y compilable en Overleaf.
+% Plantilla base académica — Documento LaTeX de Proyecto FARO.
+% Compatible con Overleaf, pdflatex, XeLaTeX y LuaLaTeX.
 % ============================================================
 
-\documentclass[11pt]{article}
+\documentclass[12pt,a4paper]{article}
 
-% --- Codificación y fuentes ---
-% Si compila con XeLaTeX o LuaLaTeX (no pdflatex), elimine estas 2 líneas
-% — esos motores ya usan UTF-8/fuentes del sistema de forma nativa y
-% \usepackage[utf8]{inputenc} no es compatible con ellos.
+% --- Codificación y Fuentes ---
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-
-\usepackage[spanish]{babel}
+\usepackage[spanish,es-tabla]{babel}
 \usepackage{csquotes}
 \usepackage[margin=2.5cm]{geometry}
+\usepackage{helvet} % Tipografía límpida opcional para títulos
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\graphicspath{ {./images/} }
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{url}
 
-% --- Bibliografía ---
+% --- Bibliografía con biblatex (estilo APA) ---
 \usepackage[
   backend=biber,
   style=apa,
@@ -39,7 +28,7 @@
 ]{biblatex}
 \addbibresource{{{BIB_FILE}}}
 
-% --- Enlaces activos y coloreados (hyperref) ---
+% --- Enlaces e Índice (hyperref) ---
 \usepackage[
   colorlinks=true,
   linkcolor=blue,
@@ -48,17 +37,52 @@
   bookmarks=true
 ]{hyperref}
 
-% --- Comando para palabras clave ---
+% --- Comandos Personalizados ---
 \providecommand{\keywords}[1]{\vspace{12pt}\noindent\textbf{\textit{Palabras clave---}} #1}
-
-\title{{{TITULO}}}
-\author{{{AUTOR}}}
-\date{\today}
 
 \begin{document}
 
-\maketitle
+% ============================================================
+% PORTADA ACADÉMICA FORMAL
+% ============================================================
+\begin{titlepage}
+  \centering
+  \vspace*{1cm}
+  
+  {\Large \textbf{{{INSTITUCION}}}}\\[0.4cm]
+  {\large {{FACULTAD}}}\\[0.2cm]
+  {\large {{PROGRAMA}}}\\[1.5cm]
+  
+  \rule{\linewidth}{0.5mm}\\[0.6cm]
+  {\Large \textbf{{{TITULO}}}}\\[0.4cm]
+  \rule{\linewidth}{0.5mm}\\[2cm]
+  
+  \begin{minipage}{0.8\textwidth}
+    \begin{center}
+      \textbf{Investigador Principal:}\\[0.2cm]
+      {{AUTOR}}\\[0.1cm]
+      \small{\textit{{{ROL}}}}\\[1.5cm]
+    \end{center}
+  \end{minipage}
+  
+  \vfill
+  {\large {{FECHA}}}
+\end{titlepage}
 
+% ============================================================
+% TABLA DE CONTENIDOS Y LISTAS
+% ============================================================
+\pagenumbering{roman}
+\tableofcontents
+\newpage
+\listoffigures
+\listoftables
+\newpage
+\pagenumbering{arabic}
+
+% ============================================================
+% RESUMEN EJECUTIVO Y PALABRAS CLAVE
+% ============================================================
 \begin{abstract}
 {{RESUMEN}}
 \end{abstract}
@@ -66,31 +90,19 @@
 
 \vspace{18pt}
 
+% ============================================================
+% CONTENIDO CONSOLIDADO DEL PROYECTO
+% ============================================================
 \section{Introducción}
 {{INTRODUCCION}}
 
-% ============================================================
-% Secciones futuras del Documento Consolidado (Fase 3) — agregar aquí, en
-% este orden, cuando cada nodo tenga soporte formato='latex' en
-% src/lib/faro/sintesisFinal.ts (por ahora solo Introducción y Resumen lo
-% tienen):
-%
-%   \section{Marco Referencial}        <- nodo MARCO_REFERENCIAL
-%                                          (tiene su PROPIO mecanismo de
-%                                          citación, distinto de este —
-%                                          mezcla corpus_fuentes con
-%                                          fuentes pegadas manualmente y,
-%                                          en último caso, conocimiento
-%                                          del modelo con confianza baja;
-%                                          requiere una estrategia de
-%                                          conversión aparte, ver nota en
-%                                          la respuesta que acompaña esta
-%                                          plantilla)
-%   \section{Objetivos}                <- nodo OBJETIVOS
-%   \section{Metodología}              <- nodo METODOLOGIA
-%   \section{Impactos y delimitación}  <- nodo IMPACTOS_DELIMITACION
-% ============================================================
+{{CUERPO_DOCUMENTO}}
 
-\printbibliography
+% ============================================================
+% REFERENCIAS BIBLIOGRÁFICAS
+% ============================================================
+\newpage
+\printbibliography[title={Referencias Bibliográficas},heading=bibintoc]
 
 \end{document}
+

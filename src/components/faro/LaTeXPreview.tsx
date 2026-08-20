@@ -15,21 +15,39 @@ interface LaTeXPreviewProps {
 }
 
 export function LaTeXPreview({ titulo, autor, markdown }: LaTeXPreviewProps) {
-  // Convert basic markdown formatting to HTML elements for preview
-  const parseMarkdownToLaTeXStyle = (text: string) => {
-    if (!text) return [];
+
+  const formatTextWithFormatting = (text: string): React.ReactNode => {
+    if (!text) return "";
+    
+    // Parse bold **text** and italic *text*
+    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={i} className="font-semibold text-gray-900">{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith("*") && part.endsWith("*")) {
+        return <em key={i} className="italic text-gray-800">{part.slice(1, -1)}</em>;
+      }
+      return part;
+    });
+  };
+
+  const renderMarkdownContent = (text: string) => {
+    if (!text) return null;
 
     const lines = text.split("\n");
     const elements: React.ReactNode[] = [];
     let insideList = false;
     let listItems: string[] = [];
+    let insideTable = false;
+    let tableRows: string[][] = [];
 
-    const pushList = (key: string) => {
+    const flushList = (key: string) => {
       if (listItems.length > 0) {
         elements.push(
-          <ul key={key} className="list-disc pl-6 mb-4 space-y-1 text-sm text-justify leading-relaxed">
+          <ul key={key} className="list-disc pl-6 mb-4 space-y-1.5 text-sm leading-relaxed text-justify text-gray-800">
             {listItems.map((item, idx) => (
-              <li key={idx}>{item}</li>
+              <li key={idx}>{formatTextWithFormatting(item)}</li>
             ))}
           </ul>
         );
@@ -37,148 +55,186 @@ export function LaTeXPreview({ titulo, autor, markdown }: LaTeXPreviewProps) {
       }
     };
 
+    const flushTable = (key: string) => {
+      if (tableRows.length > 0) {
+        const header = tableRows[0];
+        const body = tableRows.slice(1).filter(r => !r.every(cell => cell.trim().startsWith("---") || cell.trim().startsWith(":--")));
+        elements.push(
+          <div key={key} className="my-5 overflow-x-auto print:overflow-visible">
+            <table className="min-w-full text-xs border-collapse border border-gray-300">
+              <thead>
+                <tr className="bg-slate-100 print:bg-gray-200">
+                  {header.map((col, idx) => (
+                    <th key={idx} className="border border-gray-300 px-3 py-2 text-left font-bold text-gray-900">
+                      {formatTextWithFormatting(col.trim())}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {body.map((row, rIdx) => (
+                  <tr key={rIdx} className={rIdx % 2 === 0 ? "bg-white" : "bg-slate-50/50 print:bg-white"}>
+                    {row.map((cell, cIdx) => (
+                      <td key={cIdx} className="border border-gray-300 px-3 py-2 text-gray-800">
+                        {formatTextWithFormatting(cell.trim())}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        tableRows = [];
+      }
+    };
+
     lines.forEach((line, index) => {
       const trimmed = line.trim();
       const lineKey = `line-${index}`;
 
-      // Handle headings
-      if (trimmed.startsWith("### ")) {
-        pushList(lineKey);
+      // Table line detect
+      if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+        flushList(lineKey);
         insideList = false;
-        elements.push(
-          <h4 key={lineKey} className="text-sm font-bold mt-4 mb-2 text-left">
-            {trimmed.replace("### ", "")}
-          </h4>
-        );
-      } else if (trimmed.startsWith("## ")) {
-        pushList(lineKey);
+        insideTable = true;
+        const cells = trimmed.slice(1, -1).split("|");
+        tableRows.push(cells);
+        return;
+      } else if (insideTable) {
+        flushTable(lineKey);
+        insideTable = false;
+      }
+
+      // Headings
+      if (trimmed.startsWith("# ")) {
+        flushList(lineKey);
         insideList = false;
-        const textOnly = trimmed.replace("## ", "");
-        // If it's Abstract or Introduction, render differently in LaTeX
-        if (textOnly.toUpperCase().includes("RESUMEN") || textOnly.toUpperCase().includes("INTRODUCCIÓN")) {
-          return; // Skip rendering here, handled on top
-        }
+        const textHeading = trimmed.replace(/^#\s+/, "");
+        // If heading is document title, skip to avoid double title
+        if (textHeading.toUpperCase().includes("PROPUESTA DE INVESTIGACIÓN")) return;
         elements.push(
-          <h3 key={lineKey} className="text-base font-bold mt-6 mb-3 uppercase tracking-wide text-left border-b pb-1">
-            {textOnly}
-          </h3>
-        );
-      } else if (trimmed.startsWith("# ")) {
-        pushList(lineKey);
-        insideList = false;
-        elements.push(
-          <h2 key={lineKey} className="text-lg font-bold mt-8 mb-4 uppercase text-center tracking-wider">
-            {trimmed.replace("# ", "")}
+          <h2 key={lineKey} className="text-lg font-bold mt-8 mb-4 uppercase text-center tracking-wider text-gray-900 border-b-2 border-gray-800 pb-2 print:break-after-avoid">
+            {textHeading}
           </h2>
         );
+      } else if (trimmed.startsWith("## ")) {
+        flushList(lineKey);
+        insideList = false;
+        elements.push(
+          <h3 key={lineKey} className="text-base font-bold mt-6 mb-3 uppercase tracking-wide text-left text-faro-navy border-b border-gray-300 pb-1.5 print:break-after-avoid">
+            {trimmed.replace(/^##\s+/, "")}
+          </h3>
+        );
+      } else if (trimmed.startsWith("### ")) {
+        flushList(lineKey);
+        insideList = false;
+        elements.push(
+          <h4 key={lineKey} className="text-sm font-bold mt-4 mb-2 text-left text-gray-900 print:break-after-avoid">
+            {trimmed.replace(/^###\s+/, "")}
+          </h4>
+        );
+      } else if (trimmed.startsWith("#### ")) {
+        flushList(lineKey);
+        insideList = false;
+        elements.push(
+          <h5 key={lineKey} className="text-xs font-bold mt-3 mb-1 text-left text-gray-800 italic print:break-after-avoid">
+            {trimmed.replace(/^####\s+/, "")}
+          </h5>
+        );
       }
-      // Handle list items
+      // List items
       else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
         insideList = true;
         listItems.push(trimmed.slice(2));
       } else if (trimmed === "") {
-        pushList(lineKey);
+        flushList(lineKey);
         insideList = false;
       } else {
-        pushList(lineKey);
+        flushList(lineKey);
         insideList = false;
-        // Text lines - parse bold and emphasis
-        let formattedText: React.ReactNode = trimmed;
-        // Simple bold parser **text**
-        if (trimmed.includes("**")) {
-          const parts = trimmed.split("**");
-          formattedText = parts.map((part, i) => i % 2 === 1 ? <strong key={i} className="font-semibold">{part}</strong> : part);
-        }
         elements.push(
-          <p key={lineKey} className="text-sm text-justify leading-relaxed mb-3 indent-6">
-            {formattedText}
+          <p key={lineKey} className="text-sm text-justify leading-relaxed mb-3 text-gray-800 indent-6">
+            {formatTextWithFormatting(trimmed)}
           </p>
         );
       }
     });
 
-    // Final list flush
-    pushList("list-final");
+    flushList("list-final");
+    flushTable("table-final");
 
     return elements;
   };
 
-  // Find Resumen Ejecutivo and Introducción to place them in standard LaTeX spots
-  const extractSection = (sectionTitle: string): string => {
-    const regex = new RegExp(`## ${sectionTitle}\\r?\\n([\\s\\S]*?)(?=\\r?\\n## |\\r?\\n# |$)`, "i");
-    const match = markdown.match(regex);
-    return match ? match[1].trim() : "";
-  };
-
-  const resumen = extractSection("RESUMEN EJECUTIVO");
-  const introduccion = extractSection("INTRODUCCIÓN");
-
-  // Remove Resumen and Intro from the rest of the body to avoid duplication
-  const getRestOfMarkdown = () => {
-    let body = markdown;
-    body = body.replace(/## RESUMEN EJECUTIVO\r?\n[\s\S]*?(?=\r?\n## |\r?\n# |$)/i, "");
-    body = body.replace(/## INTRODUCCIÓN\r?\n[\s\S]*?(?=\r?\n## |\r?\n# |$)/i, "");
-    return body;
-  };
-
   return (
-    <div className="flex flex-col items-center bg-gray-100 py-6 overflow-y-auto max-h-[85vh] w-full overflow-x-auto">
-      <div className="w-[820px] min-w-[820px] min-h-[1160px] bg-white shadow-2xl border border-gray-300 p-[75px] font-serif text-gray-900 select-text relative my-4">
+    <div className="w-full flex flex-col items-center bg-gray-100/80 py-8 print:bg-white print:py-0 print:m-0 overflow-y-auto max-h-[85vh] print:max-h-none print:overflow-visible">
+      {/* Print styles */}
+      <style>{`
+        @media print {
+          body {
+            background-color: white !important;
+            color: black !important;
+            font-family: 'Times New Roman', Times, serif !important;
+          }
+          .no-print, header, nav, sidebar, footer {
+            display: none !important;
+          }
+          .print-area {
+            box-shadow: none !important;
+            border: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+          @page {
+            size: A4;
+            margin: 2.5cm;
+          }
+        }
+      `}</style>
+
+      {/* Main Document Paper Container */}
+      <div className="print-area w-[850px] min-w-[850px] bg-white shadow-xl border border-gray-300 p-[60px] md:p-[80px] font-serif text-gray-900 select-text relative my-2 rounded-sm print:w-full print:min-w-full print:p-0">
         
-        {/* Document Header (LaTeX Style) */}
-        <div className="text-center mb-8 space-y-3">
-          <h1 className="text-xl font-bold uppercase tracking-tight max-w-[90%] mx-auto leading-tight">
+        {/* Cover / Header (LaTeX Academic Style) */}
+        <div className="text-center mb-10 pb-8 border-b-2 border-gray-200 space-y-4">
+          <div className="text-xs uppercase tracking-widest font-sans font-semibold text-gray-500 mb-2 print:text-gray-700">
+            Propuesta de Investigación Científica
+          </div>
+          <h1 className="text-2xl font-bold uppercase tracking-tight max-w-[95%] mx-auto leading-snug text-gray-900">
             {titulo}
           </h1>
           
-          <div className="text-sm font-medium mt-4">
-            {autor?.nombre || "Autor no especificado"}
+          <div className="text-base font-semibold mt-6 text-gray-900">
+            {autor?.nombre || "Autor Investigador"}
           </div>
           
-          <div className="text-xs text-gray-600 italic space-y-0.5">
-            <div>{autor?.institucion || "Filiación no especificada"}</div>
+          <div className="text-xs text-gray-600 italic space-y-1 font-sans">
+            <div>{autor?.institucion || "Universidad"}</div>
             {autor?.facultad && <div>{autor.facultad}</div>}
             {autor?.programa && <div>{autor.programa}</div>}
-            {autor?.rol && <div className="text-[10px] uppercase font-mono tracking-wider mt-1">{autor.rol}</div>}
+            {autor?.rol && <div className="text-[11px] uppercase font-mono tracking-wider font-semibold text-gray-700 mt-1">{autor.rol}</div>}
           </div>
 
-          <div className="text-xs font-mono text-gray-400 mt-2">
+          <div className="text-xs font-sans text-gray-400 mt-4 print:text-gray-600">
             {new Date().toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })}
           </div>
         </div>
 
-        {/* Abstract / Resumen (LaTeX Standard Format) */}
-        {resumen && (
-          <div className="mx-8 mb-8 text-xs text-justify">
-            <p className="leading-relaxed">
-              <strong className="font-bold mr-1">Resumen—</strong>
-              {resumen}
-            </p>
-          </div>
-        )}
-
-        {/* Introducción */}
-        {introduccion && (
-          <div className="mb-6">
-            <h3 className="text-base font-bold mt-6 mb-3 uppercase tracking-wide text-left border-b pb-1">
-              1. INTRODUCCIÓN
-            </h3>
-            <p className="text-sm text-justify leading-relaxed indent-6">
-              {introduccion}
-            </p>
-          </div>
-        )}
-
-        {/* Rest of the document content */}
-        <div className="space-y-4">
-          {parseMarkdownToLaTeXStyle(getRestOfMarkdown())}
+        {/* Content Body */}
+        <div className="space-y-4 text-gray-900">
+          {renderMarkdownContent(markdown)}
         </div>
 
-        {/* Page Footer */}
-        <div className="absolute bottom-[40px] left-0 right-0 text-center text-xs font-serif text-gray-400">
-          Documento generado por L<sup>A</sup>T<sub>E</sub>X / FARO Platform — Página 1
+        {/* Document Footer */}
+        <div className="mt-16 pt-6 border-t text-center text-xs font-sans text-gray-400 print:text-gray-500 flex justify-between items-center">
+          <span>FARO Platform — Documento Consolidado</span>
+          <span>Generado automáticamente</span>
         </div>
       </div>
     </div>
   );
 }
+

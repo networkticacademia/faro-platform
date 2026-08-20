@@ -58,14 +58,20 @@ export async function GET(request: Request) {
     // 2. Exportar en LaTeX + BibTeX
     const { data: project } = await supabase
       .from("projects")
-      .select("titulo_provisional, palabras_clave, usuarios_plataforma(nombre_completo)")
+      .select("titulo_provisional, palabras_clave, documento_consolidado, usuarios_plataforma(nombre_completo)")
       .eq("id", project_id)
       .maybeSingle();
 
+    const savedDoc = project?.documento_consolidado as { markdown?: string; autor?: any } | null;
+    const autorMeta = savedDoc?.autor;
+
     const titulo = project?.titulo_provisional ?? "(sin título provisional)";
-    const autor =
-      (project?.usuarios_plataforma as any)?.nombre_completo ??
-      "(autor sin registrar)";
+    const autorNombre = autorMeta?.nombre ?? (project?.usuarios_plataforma as any)?.nombre_completo ?? "(autor sin registrar)";
+    const institucion = autorMeta?.institucion ?? "Universidad de Nariño";
+    const facultad = autorMeta?.facultad ?? "Facultad de Ingeniería";
+    const programa = autorMeta?.programa ?? "Ingeniería de Sistemas";
+    const rol = autorMeta?.rol ?? "Investigador Principal";
+    const fecha = new Date().toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" });
 
     const { data: fuentesData, error: errFuentes } = await supabase
       .from("corpus_fuentes")
@@ -81,7 +87,13 @@ export async function GET(request: Request) {
     const fuentes = (fuentesData ?? []) as FuenteConId[];
     const { bibtex, entradas } = await construirBibliografiaConClaves(fuentes);
 
-    // Generar secciones en formato LaTeX
+    // Generar o recuperar documento consolidado completo
+    let markdownText = savedDoc?.markdown;
+    if (!markdownText) {
+      markdownText = await generarDocumentoConsolidadoMarkdown(supabase, project_id);
+    }
+
+    // Generar secciones clave en formato LaTeX
     const introduccion = await generarIntroduccion(supabase, project_id, {
       formato: "latex",
       bibliografiaConClaves: entradas,
@@ -114,6 +126,36 @@ export async function GET(request: Request) {
       console.warn("Humanizador falló o no disponible en este entorno, usando texto original.");
     }
 
+    // Convertir el resto del cuerpo de Markdown a bloques \section / \subsection de LaTeX
+    const lineas = markdownText.split("\n");
+    const cuerpoLatexLines: string[] = [];
+    for (const linea of lineas) {
+      const trimmed = linea.trim();
+      if (!trimmed) {
+        cuerpoLatexLines.push("");
+        continue;
+      }
+      if (trimmed.startsWith("## RESUMEN EJECUTIVO") || trimmed.startsWith("## INTRODUCCIÓN") || trimmed.startsWith("# PROPUESTA DE INVESTIGACIÓN")) {
+        continue; // ya incluidos en plantillas estáticas
+      }
+      if (trimmed.startsWith("## ")) {
+        const secTitle = trimmed.replace(/^##\s+/, "");
+        cuerpoLatexLines.push(`\n\\section{${escaparProsaLatexPreservandoCitas(secTitle)}}\n`);
+      } else if (trimmed.startsWith("### ")) {
+        const subTitle = trimmed.replace(/^###\s+/, "");
+        cuerpoLatexLines.push(`\\subsection{${escaparProsaLatexPreservandoCitas(subTitle)}}\n`);
+      } else if (trimmed.startsWith("#### ")) {
+        const subsubTitle = trimmed.replace(/^####\s+/, "");
+        cuerpoLatexLines.push(`\\subsubsection{${escaparProsaLatexPreservandoCitas(subsubTitle)}}\n`);
+      } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+        const itemText = trimmed.slice(2);
+        cuerpoLatexLines.push(`  \\item ${escaparProsaLatexPreservandoCitas(itemText)}`);
+      } else {
+        cuerpoLatexLines.push(escaparProsaLatexPreservandoCitas(trimmed));
+      }
+    }
+    const cuerpoDocumentoFinal = cuerpoLatexLines.join("\n");
+
     const plantillaPath = resolve(process.cwd(), "plantillas", "proyecto_main.tex");
     if (!existsSync(plantillaPath)) {
       return NextResponse.json({ error: "No se encontró la plantilla LaTeX base." }, { status: 500 });
@@ -121,17 +163,22 @@ export async function GET(request: Request) {
     const plantilla = readFileSync(plantillaPath, "utf-8");
 
     const bibFileName = `proyecto_${project_id}.bib`;
-
     const keywordsRaw = (project?.palabras_clave as string[]) ?? [];
     const keywordsStr = keywordsRaw.join(", ");
 
     const tex = plantilla
       .replace("{{BIB_FILE}}", bibFileName)
       .replace("{{TITULO}}", escaparProsaLatexPreservandoCitas(titulo))
-      .replace("{{AUTOR}}", escaparProsaLatexPreservandoCitas(autor))
+      .replace("{{AUTOR}}", escaparProsaLatexPreservandoCitas(autorNombre))
+      .replace("{{INSTITUCION}}", escaparProsaLatexPreservandoCitas(institucion))
+      .replace("{{FACULTAD}}", escaparProsaLatexPreservandoCitas(facultad))
+      .replace("{{PROGRAMA}}", escaparProsaLatexPreservandoCitas(programa))
+      .replace("{{ROL}}", escaparProsaLatexPreservandoCitas(rol))
+      .replace("{{FECHA}}", fecha)
       .replace("{{RESUMEN}}", escaparProsaLatexPreservandoCitas(textoResumenFinal))
       .replace("{{INTRODUCCION}}", escaparProsaLatexPreservandoCitas(textoIntroduccionFinal))
-      .replace("{{PALABRAS_CLAVE}}", escaparProsaLatexPreservandoCitas(keywordsStr));
+      .replace("{{PALABRAS_CLAVE}}", escaparProsaLatexPreservandoCitas(keywordsStr))
+      .replace("{{CUERPO_DOCUMENTO}}", cuerpoDocumentoFinal);
 
     const cleanTitle = (project?.titulo_provisional ?? "propuesta")
       .toLowerCase()
