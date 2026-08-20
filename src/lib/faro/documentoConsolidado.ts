@@ -26,7 +26,7 @@ export async function generarDocumentoConsolidadoMarkdown(
 ): Promise<string> {
   const { data: project } = await supabase
     .from("projects")
-    .select("titulo_provisional")
+    .select("titulo_provisional, palabras_clave")
     .eq("id", projectId)
     .single();
 
@@ -62,6 +62,12 @@ export async function generarDocumentoConsolidadoMarkdown(
   let doc = `# PROPUESTA DE INVESTIGACIÓN: ${titulo.toUpperCase()}\n\n`;
 
   doc += `## RESUMEN EJECUTIVO\n\n${resumenText}\n\n`;
+  
+  const keywords = (project?.palabras_clave as string[]) ?? [];
+  if (keywords.length > 0) {
+    doc += `**Palabras clave:** ${keywords.join(", ")}\n\n`;
+  }
+
   doc += `## INTRODUCCIÓN\n\n${introText}\n\n`;
 
   // 1. Planteamiento del problema (RUTA + NOVA)

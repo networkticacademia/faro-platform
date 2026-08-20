@@ -58,7 +58,7 @@ export async function GET(request: Request) {
     // 2. Exportar en LaTeX + BibTeX
     const { data: project } = await supabase
       .from("projects")
-      .select("titulo_provisional, usuarios_plataforma(nombre_completo)")
+      .select("titulo_provisional, palabras_clave, usuarios_plataforma(nombre_completo)")
       .eq("id", project_id)
       .maybeSingle();
 
@@ -122,12 +122,16 @@ export async function GET(request: Request) {
 
     const bibFileName = `proyecto_${project_id}.bib`;
 
+    const keywordsRaw = (project?.palabras_clave as string[]) ?? [];
+    const keywordsStr = keywordsRaw.join(", ");
+
     const tex = plantilla
       .replace("{{BIB_FILE}}", bibFileName)
       .replace("{{TITULO}}", escaparProsaLatexPreservandoCitas(titulo))
       .replace("{{AUTOR}}", escaparProsaLatexPreservandoCitas(autor))
       .replace("{{RESUMEN}}", escaparProsaLatexPreservandoCitas(textoResumenFinal))
-      .replace("{{INTRODUCCION}}", escaparProsaLatexPreservandoCitas(textoIntroduccionFinal));
+      .replace("{{INTRODUCCION}}", escaparProsaLatexPreservandoCitas(textoIntroduccionFinal))
+      .replace("{{PALABRAS_CLAVE}}", escaparProsaLatexPreservandoCitas(keywordsStr));
 
     const cleanTitle = (project?.titulo_provisional ?? "propuesta")
       .toLowerCase()

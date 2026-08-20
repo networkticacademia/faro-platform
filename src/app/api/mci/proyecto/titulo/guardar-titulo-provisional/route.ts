@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { project_id, titulo } = body;
+  const { project_id, titulo, palabras_clave } = body;
 
   if (!project_id || !titulo) {
     return NextResponse.json({ error: "Faltan parámetros project_id o titulo." }, { status: 400 });
@@ -17,9 +17,12 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabase
     .from("projects")
-    .update({ titulo_provisional: titulo })
+    .update({ 
+      titulo_provisional: titulo,
+      palabras_clave: palabras_clave || null
+    })
     .eq("id", project_id)
-    .select("id, titulo_provisional")
+    .select("id, titulo_provisional, palabras_clave")
     .single();
 
   if (error) {

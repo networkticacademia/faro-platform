@@ -32,6 +32,7 @@ interface TituloOpciones {
   explicacionA: string;
   opcionB: string;
   explicacionB: string;
+  palabrasClave: string[];
 }
 
 export default function FormulacionPropuesta({ project }: { project: ProjectRow }) {
@@ -59,6 +60,7 @@ export default function FormulacionPropuesta({ project }: { project: ProjectRow 
   const [cargandoTitulos, setCargandoTitulos] = useState(false);
   const [tituloSeleccionado, setTituloSeleccionado] = useState("");
   const [customTitulo, setCustomTitulo] = useState("");
+  const [palabrasClaveInput, setPalabrasClaveInput] = useState("");
   
   // Editor/Humanizer/Preview states
   const [editando, setEditando] = useState(false);
@@ -85,6 +87,10 @@ export default function FormulacionPropuesta({ project }: { project: ProjectRow 
       
       if (data.documento.autor) {
         setAutorForm(data.documento.autor);
+      }
+
+      if (data.palabras_clave && data.palabras_clave.length > 0) {
+        setPalabrasClaveInput(data.palabras_clave.join(", "));
       }
       
       // If author name is not set or project title is empty, guide user to configure them first
@@ -122,6 +128,9 @@ export default function FormulacionPropuesta({ project }: { project: ProjectRow 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al proponer títulos.");
       setTituloOpciones(data.titulos);
+      if (data.titulos.palabrasClave && data.titulos.palabrasClave.length > 0) {
+        setPalabrasClaveInput(data.titulos.palabrasClave.join(", "));
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al proponer títulos.");
     } finally {
@@ -133,15 +142,22 @@ export default function FormulacionPropuesta({ project }: { project: ProjectRow 
     setCargandoSave(true);
     setError(null);
     try {
-      // First save title in project record if it changed
-      if (nuevoTitulo !== project.titulo_provisional) {
-        await fetch("/api/mci/proyecto/titulo/guardar-titulo-provisional", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ project_id: project.id, titulo: nuevoTitulo })
-        });
-        project.titulo_provisional = nuevoTitulo;
-      }
+      const keywordsArray = palabrasClaveInput
+        .split(",")
+        .map((k) => k.trim())
+        .filter(Boolean);
+
+      // First save title and keywords in project record if it changed
+      await fetch("/api/mci/proyecto/titulo/guardar-titulo-provisional", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          project_id: project.id, 
+          titulo: nuevoTitulo,
+          palabras_clave: keywordsArray
+        })
+      });
+      project.titulo_provisional = nuevoTitulo;
 
       // Then save the document and author metadata
       const res = await fetch("/api/mci/proyecto/documento", {
@@ -537,6 +553,22 @@ export default function FormulacionPropuesta({ project }: { project: ProjectRow 
                   className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none bg-white"
                 />
               </div>
+
+              {/* Palabras Clave */}
+              <div className="space-y-2 mt-4 pt-4 border-t">
+                <h4 className="text-sm font-semibold text-gray-700">Palabras clave del Proyecto (Indexación)</h4>
+                <p className="text-[11px] text-gray-500 font-normal">
+                  FARO ha formulado 5 palabras clave sugeridas usando la regla 2-2-1 y exclusión del título. Edítalas o agrégalas separándolas por comas:
+                </p>
+                <input
+                  type="text"
+                  value={palabrasClaveInput}
+                  onChange={(e) => setPalabrasClaveInput(e.target.value)}
+                  placeholder="Ej. visión artificial, gemelos digitales, Ananas comosus, monitoreo hídrico"
+                  className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-faro-navy bg-white"
+                />
+              </div>
+
             </div>
           ) : (
             <p className="text-sm text-gray-500 text-center py-6">No se pudieron recuperar las sugerencias de títulos.</p>

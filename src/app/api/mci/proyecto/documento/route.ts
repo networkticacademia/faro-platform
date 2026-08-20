@@ -27,7 +27,7 @@ export async function GET(request: Request) {
   // 1. Intentar leer el documento consolidado guardado
   const { data: project, error: errProject } = await supabase
     .from("projects")
-    .select("documento_consolidado")
+    .select("documento_consolidado, palabras_clave")
     .eq("id", project_id)
     .single();
 
@@ -53,7 +53,7 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ documento: docJson });
+  return NextResponse.json({ documento: docJson, palabras_clave: project?.palabras_clave });
 }
 
 /**
