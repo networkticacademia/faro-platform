@@ -4,7 +4,7 @@ import type { RutaOutput } from "./ruta";
 import type { NovaOutput } from "./nova";
 import type { ObjetivosOutput } from "./objetivos";
 import type { MetodologiaOutput } from "./metodologia";
-import type { MarcoReferencialOutput } from "./marcoReferencial";
+import { todasLasReferencias, type MarcoReferencialOutput } from "./marcoReferencial";
 import type { ImpactosDelimitacionOutput } from "./impactosDelimitacion";
 import { listarRiesgos } from "./riesgos";
 import { generarIntroduccion, generarResumen } from "./sintesisFinal";
@@ -69,6 +69,33 @@ export async function generarDocumentoConsolidadoMarkdown(
   }
 
   doc += `## INTRODUCCIÓN\n\n${introText}\n\n`;
+
+  // Tabla de Contenido
+  doc += `## TABLA DE CONTENIDO\n\n`;
+  doc += `- **RESUMEN EJECUTIVO**\n`;
+  doc += `- **INTRODUCCIÓN**\n`;
+  doc += `- **1. PLANTEAMIENTO DEL PROBLEMA Y JUSTIFICACIÓN**\n`;
+  doc += `  - 1.1. Contexto y Delimitación del Objeto de Estudio\n`;
+  doc += `  - 1.2. Novedad Académica, Brechas y Causas (NOVA)\n`;
+  doc += `- **2. MARCO REFERENCIAL**\n`;
+  doc += `  - 2.1. Marco Teórico\n`;
+  doc += `  - 2.2. Marco Conceptual\n`;
+  doc += `- **3. OBJETIVOS DEL PROYECTO**\n`;
+  doc += `  - 3.1. Objetivo General\n`;
+  doc += `  - 3.2. Objetivos Específicos\n`;
+  doc += `- **4. DISEÑO METODOLÓGICO Y CADENA DE VALOR**\n`;
+  doc += `  - 4.1. Marco Metodológico\n`;
+  doc += `  - 4.2. Plan de Trabajo por Objetivos\n`;
+  doc += `- **5. IMPACTOS, RECURSOS Y DELIMITACIÓN**\n`;
+  doc += `  - 5.1. Impactos del Proyecto\n`;
+  doc += `  - 5.2. Recursos Requeridos\n`;
+  doc += `- **6. PRESUPUESTO DEL PROYECTO**\n`;
+  doc += `  - 6.1. Resumen General del Presupuesto\n`;
+  doc += `  - 6.2. Desglose por Rubros\n`;
+  doc += `  - 6.3. Cofinanciación\n`;
+  doc += `- **7. MATRIZ DE RIESGOS, SUPUESTOS Y ADVERTENCIAS (L3)**\n`;
+  doc += `- **8. REFERENCIAS BIBLIOGRÁFICAS**\n`;
+  doc += `- **9. ANEXOS Y MATERIAL COMPLEMENTARIO**\n\n`;
 
   // 1. Planteamiento del problema (RUTA + NOVA)
   doc += `## 1. PLANTEAMIENTO DEL PROBLEMA Y JUSTIFICACIÓN\n\n`;
@@ -246,5 +273,61 @@ export async function generarDocumentoConsolidadoMarkdown(
     doc += `*No se registraron riesgos ni advertencias pendientes.*\n\n`;
   }
 
+  // 8. Referencias Bibliográficas
+  doc += `## 8. REFERENCIAS BIBLIOGRÁFICAS\n\n`;
+  const { data: fuentesData } = await supabase
+    .from("corpus_fuentes")
+    .select("titulo, autores, doi, anio, revista")
+    .eq("project_id", projectId)
+    .eq("estado_verificacion", "verificado")
+    .order("anio", { ascending: false });
+
+  const listaReferencias: string[] = [];
+
+  if (fuentesData && fuentesData.length > 0) {
+    fuentesData.forEach((f) => {
+      const autoresStr = f.autores ? `${f.autores}.` : "Autor no especificado.";
+      const anioStr = f.anio ? `(${f.anio}).` : "(s.f.).";
+      const tituloStr = f.titulo ? `${f.titulo}.` : "";
+      const revistaStr = f.revista ? `*${f.revista}*.` : "";
+      const doiStr = f.doi ? `https://doi.org/${f.doi}` : "";
+      listaReferencias.push(`- ${autoresStr} ${anioStr} ${tituloStr} ${revistaStr} ${doiStr}`.trim());
+    });
+  }
+
+  if (marco) {
+    const refsMarco = todasLasReferencias(marco);
+    refsMarco.forEach((r) => {
+      const autoresStr = r.autor ? `${r.autor}.` : "Autor no especificado.";
+      const anioStr = r.año ? `(${r.año}).` : "(s.f.).";
+      const tituloStr = r.titulo ? `${r.titulo}.` : "";
+      const revistaStr = r.fuente ? `*${r.fuente}*.` : "";
+      const doiStr = r.doi_o_isbn ? `${r.doi_o_isbn}` : "";
+      const refFormatted = `- ${autoresStr} ${anioStr} ${tituloStr} ${revistaStr} ${doiStr}`.trim();
+      if (!listaReferencias.includes(refFormatted)) {
+        listaReferencias.push(refFormatted);
+      }
+    });
+  }
+
+  if (listaReferencias.length > 0) {
+    listaReferencias.forEach((ref) => {
+      doc += `${ref}\n`;
+    });
+    doc += `\n`;
+  } else {
+    doc += `*Las referencias bibliográficas se compilarán automáticamente a medida que se verifiquen fuentes en el módulo RSL o en el Marco Referencial.*\n\n`;
+  }
+
+  // 9. Anexos y Material Complementario
+  doc += `## 9. ANEXOS Y MATERIAL COMPLEMENTARIO\n\n`;
+  doc += `### Anexo A. Matriz de Trazabilidad del Grafo Científico (Hilo Dorado)\n`;
+  doc += `- Matriz de consistencia lógica entre problemas (RUTA), causas/novedad (NOVA), objetivos y componentes metodológicos.\n\n`;
+  doc += `### Anexo B. Registro de Evaluación de Evidencia RSL\n`;
+  doc += `- Listado de fuentes bibliográficas verificadas con índices de relevancia y validación metodológica.\n\n`;
+  doc += `### Anexo C. Guía de Figuras y Esquemas Conceptuales Recomendados\n`;
+  doc += `- Marcadores y diagramas sugeridos para su inclusión en la versión final de publicación en LaTeX / Overleaf.\n\n`;
+
   return doc;
 }
+

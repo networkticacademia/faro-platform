@@ -162,7 +162,7 @@ export async function GET(request: Request) {
         cuerpoLatexLines.push("");
         continue;
       }
-      if (trimmed.startsWith("## RESUMEN EJECUTIVO") || trimmed.startsWith("## INTRODUCCIÓN") || trimmed.startsWith("# PROPUESTA DE INVESTIGACIÓN")) {
+      if (trimmed.startsWith("## RESUMEN EJECUTIVO") || trimmed.startsWith("## INTRODUCCIÓN") || trimmed.startsWith("## TABLA DE CONTENIDO") || trimmed.startsWith("# PROPUESTA DE INVESTIGACIÓN")) {
         continue; // ya incluidos en plantillas estáticas
       }
       if (trimmed.startsWith("## ")) {
