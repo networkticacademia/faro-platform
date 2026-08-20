@@ -145,7 +145,8 @@ export default function FormulacionRuta({
     editorCadenaRef.current?.scrollIntoView({ behavior: "smooth" });
   }
 
-  const nodoActual = nodos[0] ?? null;
+  const nodosValidos = (nodos ?? []).filter((n): n is NodoGrafo => Boolean(n && n.id != null));
+  const nodoActual = nodosValidos[0] ?? null;
 
   async function generar(conFeedback?: string) {
     setGenerando(true);
@@ -157,8 +158,8 @@ export default function FormulacionRuta({
         body: JSON.stringify({ project_id: project.id, feedback: conFeedback }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Error generando la propuesta.");
-      setNodos((prev) => [data.nodo, ...prev]);
+      if (!res.ok || !data.nodo) throw new Error(data.error ?? "Error generando la propuesta.");
+      setNodos((prev) => [data.nodo, ...prev.filter(Boolean)]);
       setMetrica(data.metrica);
       setFeedback("");
       setRespuestasPreguntas({});
@@ -844,11 +845,11 @@ export default function FormulacionRuta({
         </div>
       )}
 
-      {nodos.length > 1 && (
+      {nodosValidos.length > 1 && (
         <details className="text-sm text-gray-500">
-          <summary className="cursor-pointer">Historial de iteraciones ({nodos.length})</summary>
+          <summary className="cursor-pointer">Historial de iteraciones ({nodosValidos.length})</summary>
           <ul className="mt-2 space-y-1">
-            {nodos.map((n) => (
+            {nodosValidos.map((n) => (
               <li key={n.id}>
                 Iteración {n.iteracion} — δ={n.delta_nodal} — {n.confirmado_humano ? "confirmada" : "pendiente"}
                 {n.editado_humano ? " (editada)" : ""}
