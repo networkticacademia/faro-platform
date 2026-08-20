@@ -85,7 +85,8 @@ export default function FormulacionNova({
   const [reabriendo, setReabriendo] = useState(false);
   const [respuestasPreguntas, setRespuestasPreguntas] = useState<Record<number, string>>({});
 
-  const nodoActual = nodos[0] ?? null;
+  const nodosValidos = (nodos ?? []).filter((n): n is NodoGrafo => Boolean(n && n.id != null));
+  const nodoActual = nodosValidos[0] ?? null;
 
   async function generar(conFeedback?: string) {
     setGenerando(true);
@@ -97,8 +98,12 @@ export default function FormulacionNova({
         body: JSON.stringify({ project_id: project.id, feedback: conFeedback }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Error generando la propuesta.");
-      setNodos((prev) => [data.nodo, ...prev]);
+      if (data.circuito_detenido) {
+        setError(`El circuito de convergencia detuvo la regeneración: ${data.motivo_circuito ?? "sin mejora tras varias rondas"}. Puede usar "bypass" si ya revisó el resultado actual.`);
+        return;
+      }
+      if (!res.ok || !data.nodo) throw new Error(data.error ?? "Error generando la propuesta.");
+      setNodos((prev) => [data.nodo, ...prev.filter(Boolean)]);
       setMetrica(data.metrica);
       setFeedback("");
       setRespuestasPreguntas({});
@@ -574,11 +579,11 @@ export default function FormulacionNova({
         </div>
       )}
 
-      {nodos.filter(Boolean).length > 1 && (
+      {nodosValidos.length > 1 && (
         <details className="text-sm text-gray-500">
-          <summary className="cursor-pointer">Historial de iteraciones ({nodos.filter(Boolean).length})</summary>
+          <summary className="cursor-pointer">Historial de iteraciones ({nodosValidos.length})</summary>
           <ul className="mt-2 space-y-1">
-            {nodos.filter(Boolean).map((n) => (
+            {nodosValidos.map((n) => (
               <li key={n.id}>
                 Iteración {n.iteracion} — δ={n.delta_nodal} — {n.confirmado_humano ? "confirmada" : "pendiente"}
                 {n.editado_humano ? " (editada)" : ""}

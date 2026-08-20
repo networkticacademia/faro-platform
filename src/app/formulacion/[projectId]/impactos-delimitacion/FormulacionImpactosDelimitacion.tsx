@@ -88,7 +88,8 @@ export default function FormulacionImpactosDelimitacion({
   useEffect(() => { setNodos(nodosIniciales); }, [nodosIniciales]);
   useEffect(() => { setPreguntas(preguntasIniciales); }, [preguntasIniciales]);
 
-  const nodoActual = nodos[0] ?? null;
+  const nodosValidos = (nodos ?? []).filter((n): n is NodoGrafo => Boolean(n && n.id != null));
+  const nodoActual = nodosValidos[0] ?? null;
   const c = nodoActual?.contenido;
 
   async function generar(conFeedback?: string) {
@@ -106,11 +107,11 @@ export default function FormulacionImpactosDelimitacion({
       // cuando el circuito de convergencia bloquea (200 + circuito_detenido)
       // en vez de un 500 genérico — ver circuitoConvergencia.ts.
       if (data.circuito_detenido) {
-        setError(data.motivo_circuito ?? "Regeneración automática detenida por el circuito de convergencia.");
+        setError(`El circuito de convergencia detuvo la regeneración: ${data.motivo_circuito ?? "sin mejora tras varias rondas"}. Puede usar "bypass" si ya revisó el resultado actual.`);
         return;
       }
-      if (!res.ok) throw new Error(data.error ?? "Error generando la propuesta.");
-      setNodos((prev) => [data.nodo, ...prev]);
+      if (!res.ok || !data.nodo) throw new Error(data.error ?? "Error generando la propuesta.");
+      setNodos((prev) => [data.nodo, ...prev.filter(Boolean)]);
       // Filas reales recién sincronizadas para el nodo nuevo — reemplazan a
       // las del nodo anterior, que ya no aplican a la iteración en pantalla.
       setPreguntas(data.preguntas_sincronizadas ?? []);
@@ -656,11 +657,11 @@ export default function FormulacionImpactosDelimitacion({
         </div>
       )}
 
-      {nodos.filter(Boolean).length > 1 && (
+      {nodosValidos.length > 1 && (
         <details className="text-sm text-gray-500">
-          <summary className="cursor-pointer">Historial de iteraciones ({nodos.filter(Boolean).length})</summary>
+          <summary className="cursor-pointer">Historial de iteraciones ({nodosValidos.length})</summary>
           <ul className="mt-2 space-y-1">
-            {nodos.filter(Boolean).map((n) => (
+            {nodosValidos.map((n) => (
               <li key={n.id}>
                 Iteración {n.iteracion} — δ={n.delta_nodal} — {n.confirmado_humano ? "confirmada" : "pendiente"}
                 {n.editado_humano ? " (editada)" : ""}
