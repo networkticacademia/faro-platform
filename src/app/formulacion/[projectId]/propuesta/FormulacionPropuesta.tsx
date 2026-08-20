@@ -330,20 +330,24 @@ export default function FormulacionPropuesta({ project }: { project: ProjectRow 
         </div>
         {step === "editor" && (
           <div className="flex gap-2">
-            <button
-              onClick={() => handleExportar("md")}
-              disabled={cargandoExport || loading}
-              className="text-xs bg-white text-faro-navy border border-faro-navy/30 px-3 py-1.5 rounded-lg font-medium hover:bg-faro-navy/5 transition-colors"
-            >
-              Descargar Markdown (.md)
-            </button>
-            <button
-              onClick={() => handleExportar("tex")}
-              disabled={cargandoExport || loading}
-              className="text-xs bg-white text-faro-navy border border-faro-navy/30 px-3 py-1.5 rounded-lg font-medium hover:bg-faro-navy/5 transition-colors"
-            >
-              Descargar LaTeX (.tex + .bib)
-            </button>
+            {previewActive && (
+              <>
+                <button
+                  onClick={() => handleExportar("md")}
+                  disabled={cargandoExport || loading}
+                  className="text-xs bg-white text-faro-navy border border-faro-navy/30 px-3 py-1.5 rounded-lg font-medium hover:bg-faro-navy/5 transition-colors"
+                >
+                  Descargar Markdown (.md)
+                </button>
+                <button
+                  onClick={() => handleExportar("tex")}
+                  disabled={cargandoExport || loading}
+                  className="text-xs bg-white text-faro-navy border border-faro-navy/30 px-3 py-1.5 rounded-lg font-medium hover:bg-faro-navy/5 transition-colors"
+                >
+                  Descargar LaTeX (.tex + .bib)
+                </button>
+              </>
+            )}
             <button
               onClick={() => {
                 setStep("autor");
