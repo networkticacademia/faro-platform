@@ -496,11 +496,11 @@ export default function FormulacionMarcoReferencial({
         </div>
       )}
 
-      {nodos.length > 1 && (
+      {nodos.filter(Boolean).length > 1 && (
         <details className="text-sm text-gray-500">
-          <summary className="cursor-pointer">Historial de iteraciones ({nodos.length})</summary>
+          <summary className="cursor-pointer">Historial de iteraciones ({nodos.filter(Boolean).length})</summary>
           <ul className="mt-2 space-y-1">
-            {nodos.map((n) => (
+            {nodos.filter(Boolean).map((n) => (
               <li key={n.id}>
                 Iteración {n.iteracion} — δ={n.delta_nodal} — {n.confirmado_humano ? "confirmada" : "pendiente"}
               </li>
