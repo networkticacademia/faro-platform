@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generarDocumentoConsolidadoMarkdown } from "@/lib/faro/documentoConsolidado";
-import { humanizarTexto } from "@/lib/faro/humanizador";
 
 /**
  * GET /api/mci/proyecto/documento?project_id=...
@@ -36,19 +35,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: errProject.message }, { status: 500 });
   }
 
-  let docJson = project?.documento_consolidado as { markdown?: string; editado?: boolean } | null;
+  let docJson = project?.documento_consolidado as { markdown?: string; editado?: boolean; autor?: any } | null;
 
-  // 2. Si no existe o se fuerza regeneración, compilar en vivo y humanizar
+  // 2. Si no existe o se fuerza regeneración, compilar en vivo (en bruto)
   if (!docJson?.markdown || force_regenerate) {
     try {
       const mdRaw = await generarDocumentoConsolidadoMarkdown(supabase, project_id);
-      const mdHumanizado = await humanizarTexto(mdRaw);
+      // Mantener cualquier autor existente en el JSON original si lo había
+      const autorExistente = (project?.documento_consolidado as any)?.autor ?? null;
       docJson = {
-        markdown: mdHumanizado,
+        markdown: mdRaw,
         editado: false,
+        autor: autorExistente,
       };
     } catch (e) {
-      return NextResponse.json({ error: `Error al generar/humanizar la propuesta: ${(e as Error).message}` }, { status: 500 });
+      return NextResponse.json({ error: `Error al generar la propuesta: ${(e as Error).message}` }, { status: 500 });
     }
   }
 
@@ -58,7 +59,8 @@ export async function GET(request: Request) {
 /**
  * POST /api/mci/proyecto/documento
  *
- * Guarda el documento consolidado editado por el usuario en la tabla de proyectos.
+ * Guarda el documento consolidado editado por el usuario en la tabla de proyectos,
+ * junto con los metadatos del autor del proyecto.
  * Cumple la regla de "Borde de una sola vía": las ediciones viven en el documento,
  * no alteran los nodos del grafo metodológico.
  */
@@ -70,7 +72,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { project_id, markdown } = body;
+  const { project_id, markdown, autor } = body;
 
   if (!project_id || markdown === undefined) {
     return NextResponse.json({ error: "Faltan parámetros project_id o markdown." }, { status: 400 });
@@ -82,6 +84,7 @@ export async function POST(request: Request) {
       documento_consolidado: {
         markdown: markdown,
         editado: true,
+        autor: autor || null,
       },
     })
     .eq("id", project_id)
