@@ -68,9 +68,7 @@ export async function generarDocumentoConsolidadoMarkdown(
     doc += `**Palabras clave:** ${keywords.join(", ")}\n\n`;
   }
 
-  doc += `## INTRODUCCIÓN\n\n${introText}\n\n`;
-
-  // Tabla de Contenido
+  // Tabla de Contenido (Índice General justo después de Resumen y Palabras clave)
   doc += `## TABLA DE CONTENIDO\n\n`;
   doc += `- **RESUMEN EJECUTIVO**\n`;
   doc += `- **INTRODUCCIÓN**\n`;
@@ -86,6 +84,7 @@ export async function generarDocumentoConsolidadoMarkdown(
   doc += `- **4. DISEÑO METODOLÓGICO Y CADENA DE VALOR**\n`;
   doc += `  - 4.1. Marco Metodológico\n`;
   doc += `  - 4.2. Plan de Trabajo por Objetivos\n`;
+  doc += `  - 4.3. Cronograma de Actividades (Gantt Operacional)\n`;
   doc += `- **5. IMPACTOS, RECURSOS Y DELIMITACIÓN**\n`;
   doc += `  - 5.1. Impactos del Proyecto\n`;
   doc += `  - 5.2. Recursos Requeridos\n`;
@@ -96,6 +95,8 @@ export async function generarDocumentoConsolidadoMarkdown(
   doc += `- **7. MATRIZ DE RIESGOS, SUPUESTOS Y ADVERTENCIAS (L3)**\n`;
   doc += `- **8. REFERENCIAS BIBLIOGRÁFICAS**\n`;
   doc += `- **9. ANEXOS Y MATERIAL COMPLEMENTARIO**\n\n`;
+
+  doc += `## INTRODUCCIÓN\n\n${introText}\n\n`;
 
   // 1. Planteamiento del problema (RUTA + NOVA)
   doc += `## 1. PLANTEAMIENTO DEL PROBLEMA Y JUSTIFICACIÓN\n\n`;
