@@ -68,9 +68,16 @@ export async function generarDocumentoConsolidadoMarkdown(
     doc += `**Palabras clave:** ${keywords.join(", ")}\n\n`;
   }
 
-  // Tabla de Contenido (Índice General justo después de Resumen y Palabras clave)
+  const abstractText = `This scientific research proposal establishes a formal methodological framework for "${titulo}". The investigation addresses critical knowledge gaps through systematic data acquisition, domain modeling, and empirical validation in accordance with academic standards.`;
+  doc += `## ABSTRACT\n\n${abstractText}\n\n`;
+  if (keywords.length > 0) {
+    doc += `**Keywords:** ${keywords.join(", ")}\n\n`;
+  }
+
+  // Tabla de Contenido (Índice General justo después de Resumen y Abstract)
   doc += `## TABLA DE CONTENIDO\n\n`;
   doc += `- **RESUMEN EJECUTIVO**\n`;
+  doc += `- **ABSTRACT**\n`;
   doc += `- **INTRODUCCIÓN**\n`;
   doc += `- **1. PLANTEAMIENTO DEL PROBLEMA Y JUSTIFICACIÓN**\n`;
   doc += `  - 1.1. Contexto y Delimitación del Objeto de Estudio\n`;

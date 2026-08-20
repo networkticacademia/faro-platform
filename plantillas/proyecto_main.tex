@@ -70,29 +70,37 @@
 \end{titlepage}
 
 % ============================================================
-% TABLA DE CONTENIDOS Y LISTAS
+% PÁGINAS PRELIMINARES
 % ============================================================
 \pagenumbering{roman}
-\tableofcontents
-\newpage
-\listoffigures
-\listoftables
-\newpage
-\pagenumbering{arabic}
 
-% ============================================================
-% RESUMEN EJECUTIVO Y PALABRAS CLAVE
-% ============================================================
+% Resumen en Español
+\renewcommand{\abstractname}{Resumen}
 \begin{abstract}
 {{RESUMEN}}
 \end{abstract}
-\keywords{{{PALABRAS_CLAVE}}}
+\vspace{12pt}\noindent\textbf{Palabras clave:} {{PALABRAS_CLAVE}}
+\clearpage
 
-\vspace{18pt}
+% Abstract en Inglés
+\renewcommand{\abstractname}{Abstract}
+\begin{abstract}
+{{ABSTRACT_EN}}
+\end{abstract}
+\vspace{12pt}\noindent\textbf{Keywords:} {{KEYWORDS_EN}}
+\clearpage
+
+% Tabla de Contenidos y Listas
+\tableofcontents
+\clearpage
+\listoffigures
+\listoftables
+\clearpage
 
 % ============================================================
 % CONTENIDO CONSOLIDADO DEL PROYECTO
 % ============================================================
+\pagenumbering{arabic}
 \section{Introducción}
 {{INTRODUCCION}}
 

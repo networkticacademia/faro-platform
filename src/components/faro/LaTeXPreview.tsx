@@ -124,10 +124,13 @@ export function LaTeXPreview({ titulo, autor, markdown }: LaTeXPreviewProps) {
       } else if (trimmed.startsWith("## ")) {
         flushList(lineKey);
         insideList = false;
+        const headingText = trimmed.replace(/^##\s+/, "");
         elements.push(
-          <h3 key={lineKey} className="text-base font-bold mt-6 mb-3 uppercase tracking-wide text-left text-faro-navy border-b border-gray-300 pb-1.5 print:break-after-avoid">
-            {trimmed.replace(/^##\s+/, "")}
-          </h3>
+          <div key={lineKey} className="print-page-break pt-8 border-t-2 border-faro-navy/20 mt-10 first:mt-0 first:border-t-0">
+            <h2 className="text-xl font-bold uppercase tracking-tight text-left text-faro-navy border-b-2 border-faro-navy pb-2 mb-6 print:text-black print:border-black">
+              {headingText}
+            </h2>
+          </div>
         );
       } else if (trimmed.startsWith("### ")) {
         flushList(lineKey);
@@ -181,6 +184,14 @@ export function LaTeXPreview({ titulo, autor, markdown }: LaTeXPreviewProps) {
           .print-area, .print-area * {
             visibility: visible !important;
           }
+          .print-page-break {
+            page-break-before: always !important;
+            break-before: page !important;
+          }
+          .print-page-break-after {
+            page-break-after: always !important;
+            break-after: page !important;
+          }
           .print-area {
             position: absolute !important;
             left: 0 !important;
@@ -205,28 +216,47 @@ export function LaTeXPreview({ titulo, autor, markdown }: LaTeXPreviewProps) {
       {/* Main Document Paper Container */}
       <div className="print-area w-[850px] min-w-[850px] bg-white shadow-xl border border-gray-300 p-[60px] md:p-[80px] font-serif text-gray-900 select-text relative my-2 rounded-sm print:w-full print:min-w-full print:p-0">
         
-        {/* Cover / Header (LaTeX Academic Style) */}
-        <div className="text-center mb-10 pb-8 border-b-2 border-gray-200 space-y-4">
-          <div className="text-xs uppercase tracking-widest font-sans font-semibold text-gray-500 mb-2 print:text-gray-700">
-            Propuesta de Investigación Científica
-          </div>
-          <h1 className="text-2xl font-bold uppercase tracking-tight max-w-[95%] mx-auto leading-snug text-gray-900">
-            {titulo}
-          </h1>
-          
-          <div className="text-base font-semibold mt-6 text-gray-900">
-            {autor?.nombre || "Autor Investigador"}
-          </div>
-          
-          <div className="text-xs text-gray-600 italic space-y-1 font-sans">
-            <div>{autor?.institucion || "Universidad"}</div>
-            {autor?.facultad && <div>{autor.facultad}</div>}
-            {autor?.programa && <div>{autor.programa}</div>}
-            {autor?.rol && <div className="text-[11px] uppercase font-mono tracking-wider font-semibold text-gray-700 mt-1">{autor.rol}</div>}
+        {/* Cover / Header (LaTeX Academic Style - Full Vertical Distribution) */}
+        <div className="flex flex-col justify-between items-center text-center min-h-[720px] print:min-h-[23cm] py-4 mb-10 border-b-2 border-gray-900 print-page-break-after">
+          {/* Top Block: Institution & Faculty */}
+          <div className="space-y-1">
+            <div className="text-sm font-bold uppercase tracking-widest font-serif text-gray-900">
+              {autor?.institucion || "UNIVERSIDAD DEL TRÓPICO AMERICANO"}
+            </div>
+            <div className="text-xs text-gray-700 font-sans uppercase tracking-wider font-medium">
+              {autor?.facultad || "Facultad de Ingeniería"}
+            </div>
+            <div className="text-xs text-gray-600 font-sans uppercase tracking-wider">
+              {autor?.programa || "Ingeniería de Sistemas"}
+            </div>
           </div>
 
-          <div className="text-xs font-sans text-gray-400 mt-4 print:text-gray-600">
-            {new Date().toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })}
+          {/* Middle Block: Main Title with Academic Divider Lines */}
+          <div className="my-auto py-8 space-y-4 w-full">
+            <div className="h-0.5 bg-gray-900 w-full" />
+            <h1 className="text-2xl md:text-3xl font-bold uppercase tracking-tight max-w-[95%] mx-auto leading-snug text-gray-900 font-serif px-4">
+              {titulo}
+            </h1>
+            <div className="h-0.5 bg-gray-900 w-full" />
+            <div className="text-xs uppercase tracking-widest font-sans font-semibold text-gray-600 mt-2">
+              Propuesta de Investigación Científica
+            </div>
+          </div>
+
+          {/* Bottom Block: Author, Role, Date */}
+          <div className="space-y-2 font-sans w-full pt-6">
+            <div className="text-[11px] uppercase font-semibold text-gray-500 tracking-widest">Investigador Principal</div>
+            <div className="text-base font-bold text-gray-900 font-serif">
+              {autor?.nombre || "Jorge Enrique Chaparro Mesa"}
+            </div>
+            {autor?.rol && (
+              <div className="text-xs text-gray-700 font-mono tracking-wider font-semibold uppercase">
+                {autor.rol}
+              </div>
+            )}
+            <div className="text-xs font-serif text-gray-600 pt-6">
+              {new Date().toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })}
+            </div>
           </div>
         </div>
 

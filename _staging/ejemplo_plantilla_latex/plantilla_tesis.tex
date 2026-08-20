@@ -1,0 +1,237 @@
+%=============================================================================
+%  PLANTILLA DE TRABAJO DE GRADO
+%  Maestría en Estadística Aplicada y Ciencia de Datos
+%  Facultad de Ciencias Básicas — Universidad Tecnológica de Bolívar
+%
+%  Autor de la plantilla: David Sierra Porta
+%  Licencia: Creative Commons CC BY 4.0
+%  Compilar con: pdflatex -> bibtex -> pdflatex -> pdflatex
+%=============================================================================
+%
+%  CÓMO USAR ESTA PLANTILLA
+%  ------------------------
+%  1. Edita SOLO el bloque "DATOS DEL TRABAJO" que aparece más abajo.
+%  2. Escribe cada capítulo en su propio archivo (carpeta capitulos/).
+%  3. Agrega tus referencias en referencias.bib y cítalas con \citep{} o \citet{}.
+%  4. Guarda las imágenes en la carpeta figuras/ (sin espacios en el nombre).
+%
+%  El preámbulo está comentado paquete por paquete: si algo no lo necesitas,
+%  puedes comentarlo, pero no lo borres hasta estar seguro.
+%=============================================================================
+
+\documentclass[letterpaper,11pt,oneside]{report}
+
+%--- Codificación e idioma -----------------------------------------------
+% inputenc: permite escribir acentos y ñ directamente en el .tex
+% fontenc T1: hace que los acentos se vean bien Y que el PDF sea buscable
+%             y copiable (sin esto, buscar "función" en el PDF falla).
+% babel spanish: guiones, "Figura/Cuadro", "Índice", fechas en español.
+%   - es-tabla  -> usa "Tabla" en vez de "Cuadro" (convención más común hoy)
+%   - es-noquoting -> evita que babel interfiera con comillas en modo matemático
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-tabla,es-noquoting]{babel}
+\usepackage{lmodern}          % fuente vectorial: mejor resolución en pantalla
+\usepackage{microtype}        % ajuste fino del espaciado; el texto se ve mejor
+
+%--- Geometría de página -------------------------------------------------
+% Margen interno mayor (bindingoffset) por si el documento se imprime y empasta.
+\usepackage[letterpaper,top=2.5cm,bottom=2.5cm,left=3cm,right=2.5cm,
+            bindingoffset=0.5cm]{geometry}
+
+%--- Interlineado --------------------------------------------------------
+\usepackage{setspace}
+%\onehalfspacing               % 1.5 líneas: estándar en trabajos de grado
+
+%--- Matemáticas ---------------------------------------------------------
+% Imprescindibles en una tesis de estadística: align, matrices, \mathbb, etc.
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{bm}               % negrita matemática correcta: \bm{\beta}
+\usepackage{siunitx}          % unidades y números bien formateados: \num{1e-5}
+\sisetup{output-decimal-marker={,}, group-separator={.}} % formato es-CO
+
+%--- Tablas y figuras ----------------------------------------------------
+\usepackage{graphicx}
+\graphicspath{{figuras/}}     % basta con \includegraphics{mifigura}
+\usepackage{booktabs}         % \toprule \midrule \bottomrule: tablas limpias
+\usepackage{longtable}        % tablas que ocupan más de una página
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{subcaption}       % subfiguras (a), (b), (c)
+\usepackage{pdflscape}        % páginas apaisadas para tablas anchas
+\usepackage{float}            % permite [H] para fijar la posición
+\usepackage{xcolor}           % sustituye al obsoleto paquete 'color'
+\usepackage[font=small,labelfont=bf]{caption}
+
+%--- Código fuente (R / Python) ------------------------------------------
+% Una tesis de ciencia de datos casi siempre incluye código en los anexos.
+\usepackage{listings}
+\definecolor{codegris}{gray}{0.95}
+\definecolor{codeverde}{rgb}{0.0,0.5,0.0}
+\definecolor{codemorado}{rgb}{0.55,0.0,0.55}
+\lstset{
+  backgroundcolor=\color{codegris},
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{codemorado}\bfseries,
+  commentstyle=\color{codeverde}\itshape,
+  stringstyle=\color{blue},
+  breaklines=true,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  showstringspaces=false,
+  captionpos=b,
+  literate={á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1
+           {ñ}{{\~n}}1 {Á}{{\'A}}1 {É}{{\'E}}1 {Í}{{\'I}}1 {Ó}{{\'O}}1
+           {Ú}{{\'U}}1 {Ñ}{{\~N}}1
+}
+\renewcommand{\lstlistingname}{Código}
+\renewcommand{\lstlistlistingname}{Índice de código}
+
+%--- Algoritmos en pseudocódigo ------------------------------------------
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\floatname{algorithm}{Algoritmo}
+\renewcommand{\listalgorithmname}{Índice de algoritmos}
+
+%--- Bibliografía --------------------------------------------------------
+% natbib + estilo autor-año. Cambia 'apalike' por 'unsrtnat' si prefieres
+% referencias numeradas en orden de aparición.
+\usepackage[round,authoryear]{natbib}
+\bibliographystyle{apalike}
+\renewcommand{\bibname}{Referencias bibliográficas}
+
+%--- Hipervínculos (SIEMPRE de últimos en el preámbulo) -------------------
+\usepackage[colorlinks=true,
+            linkcolor=black,     % negro para imprimir; azul si es solo digital
+            citecolor=blue,
+            urlcolor=blue,
+            breaklinks=true]{hyperref}
+\usepackage[capitalise,spanish]{cleveref} % \cref{fig:x} -> "Figura 1.2"
+\usepackage{url}
+
+%--- Índices en la tabla de contenido ------------------------------------
+\usepackage[nottoc]{tocbibind} % la bibliografía sí aparece en el índice
+
+%--- Encabezados ---------------------------------------------------------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\nouppercase{\small\leftmark}}
+\fancyhead[R]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[C]{\thepage}
+                       \renewcommand{\headrulewidth}{0pt}}
+
+%--- Teoremas y definiciones ---------------------------------------------
+\theoremstyle{definition}
+\newtheorem{definicion}{Definición}[chapter]
+\newtheorem{ejemplo}{Ejemplo}[chapter]
+\theoremstyle{plain}
+\newtheorem{teorema}{Teorema}[chapter]
+\newtheorem{proposicion}{Proposición}[chapter]
+\renewcommand{\proofname}{Demostración}
+
+%--- Atajos útiles para estadística --------------------------------------
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}                      % esperanza
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\Cov}{\operatorname{Cov}}
+\newcommand{\indep}{\perp\!\!\!\perp}            % independencia
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+
+%=============================================================================
+%  DATOS DEL TRABAJO — ESTO ES LO ÚNICO QUE DEBES EDITAR AQUÍ
+%=============================================================================
+\newcommand{\titulotesis}{Un título específico, informativo y conciso}
+\newcommand{\subtitulotesis}{}  % opcional; déjalo vacío si no aplica
+\newcommand{\autortesis}{Nombres y Apellidos del Estudiante}
+\newcommand{\directortesis}{Nombre del Director, Ph.D.}
+\newcommand{\codirectortesis}{}  % opcional; déjalo vacío si no aplica
+\newcommand{\fechatesis}{Cartagena de Indias, mes de año}
+%=============================================================================
+
+\begin{document}
+
+%=============================================================================
+%  PÁGINAS PRELIMINARES (numeración romana)
+%=============================================================================
+\pagenumbering{roman}
+\input{0.preliminares}
+
+%--- Índices -------------------------------------------------------------
+\cleardoublepage
+\setcounter{tocdepth}{2}     % hasta subsecciones; usa 3 si quieres más nivel
+\tableofcontents
+\cleardoublepage
+\listoffigures
+\cleardoublepage
+\listoftables
+% Descomenta si usas código o algoritmos:
+% \cleardoublepage
+% \lstlistoflistings
+% \cleardoublepage
+% \listofalgorithms
+
+%=============================================================================
+%  CUERPO DEL TRABAJO (numeración arábiga, reinicia en 1)
+%=============================================================================
+\cleardoublepage
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+\input{1.introduccion}
+\input{2.marco_teorico}
+\input{3.datos}
+\input{4.metodologia}
+\input{5.resultados}
+\input{6.conclusiones}
+
+%=============================================================================
+%  BIBLIOGRAFÍA
+%=============================================================================
+\cleardoublepage
+\bibliography{referencias}
+
+%=============================================================================
+%  ANEXOS
+%=============================================================================
+\appendix
+\input{7.anexos}
+
+\end{document}
+%============================================================================
+% Lo mismo de antes pero en inglés...
+%============================================================================
+\chapter*{\centering Abstract}
+Include the abstract of the thesis.\\
+\textbf{Keywords:} XXX, XXX, XXX.
+\newpage
+
+%============================================================================
+% Agradece a quien lo merezca, algunos andan solos pero nadie aprende solo...
+%============================================================================
+\chapter*{\centering Agradecimientos}
+Acá van los agradecimentos
+\noindent 
+
+%============================================================================
+% A partir de aquí  no se toca nada más...
+%============================================================================
+\setcounter{tocdepth}{3}
+\tableofcontents
+\listoffigures
+\listoftables
+%\newpage
+\pagestyle{headings}
+
+\input{1.introduccion}
+\input{2.datos}
+\input{3.metodos}
+\input{4.resultados}
+\input{5.conclusiones}
+
+\bibliography{6.references}
+\bibliographystyle{unsrtnat}
+\end{document}

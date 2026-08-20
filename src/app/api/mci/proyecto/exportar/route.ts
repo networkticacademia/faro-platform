@@ -167,7 +167,7 @@ export async function GET(request: Request) {
       }
       if (trimmed.startsWith("## ")) {
         const secTitle = trimmed.replace(/^##\s+/, "");
-        cuerpoLatexLines.push(`\n\\section{${escaparProsaLatexPreservandoCitas(secTitle)}}\n`);
+        cuerpoLatexLines.push(`\n\\clearpage\n\\section{${escaparProsaLatexPreservandoCitas(secTitle)}}\n`);
       } else if (trimmed.startsWith("### ")) {
         const subTitle = trimmed.replace(/^###\s+/, "");
         cuerpoLatexLines.push(`\\subsection{${escaparProsaLatexPreservandoCitas(subTitle)}}\n`);
@@ -196,6 +196,9 @@ export async function GET(request: Request) {
     const estiloCitaSel = savedDoc?.estiloCita ?? searchParams.get("estilo_cita") ?? "apa";
     const estiloCitaTex = estiloCitaSel === "ieee" ? "ieee" : estiloCitaSel === "vancouver" ? "vancouver" : "apa";
 
+    const abstractEn = `This scientific research proposal establishes a structured methodological framework for "${titulo}". The investigation addresses critical knowledge gaps through systematic data acquisition, domain modeling, and empirical validation in accordance with academic standards.`;
+    const keywordsEn = keywordsRaw.length > 0 ? keywordsRaw.join(", ") : "research proposal, methodology, data science, empirical validation";
+
     const tex = plantilla
       .replace("{{BIB_FILE}}", bibFileName)
       .replace("{{ESTILO_CITA_TEX}}", estiloCitaTex)
@@ -207,8 +210,10 @@ export async function GET(request: Request) {
       .replace("{{ROL}}", escaparProsaLatexPreservandoCitas(rol))
       .replace("{{FECHA}}", fecha)
       .replace("{{RESUMEN}}", escaparProsaLatexPreservandoCitas(textoResumenFinal))
+      .replace("{{ABSTRACT_EN}}", escaparProsaLatexPreservandoCitas(abstractEn))
       .replace("{{INTRODUCCION}}", escaparProsaLatexPreservandoCitas(textoIntroduccionFinal))
       .replace("{{PALABRAS_CLAVE}}", escaparProsaLatexPreservandoCitas(keywordsStr))
+      .replace("{{KEYWORDS_EN}}", escaparProsaLatexPreservandoCitas(keywordsEn))
       .replace("{{CUERPO_DOCUMENTO}}", cuerpoDocumentoFinal);
 
     const cleanTitle = (project?.titulo_provisional ?? "propuesta")
