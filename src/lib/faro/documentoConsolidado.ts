@@ -7,7 +7,7 @@ import type { MetodologiaOutput } from "./metodologia";
 import { todasLasReferencias, type MarcoReferencialOutput } from "./marcoReferencial";
 import type { ImpactosDelimitacionOutput } from "./impactosDelimitacion";
 import { listarRiesgos } from "./riesgos";
-import { generarIntroduccion, generarResumen, generarAbstractEn } from "./sintesisFinal";
+import { generarIntroduccion, generarResumen, generarAbstractEn, generarPlanteamientoProblemaCitado } from "./sintesisFinal";
 import {
   RUBRO_PRESUPUESTO_LABEL,
   FUENTE_PRESUPUESTO_LABEL,
@@ -64,6 +64,14 @@ export async function generarDocumentoConsolidadoMarkdown(
     introText = "*(Introducción pendiente de confirmación de los nodos base)*";
   }
 
+  let planteamientoText = "";
+  try {
+    const res = await generarPlanteamientoProblemaCitado(supabase, projectId);
+    planteamientoText = res.texto;
+  } catch (e) {
+    planteamientoText = "";
+  }
+
   const riesgos = await listarRiesgos(supabase, projectId);
 
   let doc = `# PROPUESTA DE INVESTIGACIÓN: ${titulo.toUpperCase()}\n\n`;
@@ -111,30 +119,26 @@ export async function generarDocumentoConsolidadoMarkdown(
 
   doc += `## INTRODUCCIÓN\n\n${introText}\n\n`;
 
-  // 1. Planteamiento del problema (RUTA + NOVA)
+  // 1. Planteamiento del problema (RUTA + NOVA + RSL con Citas)
   doc += `## 1. PLANTEAMIENTO DEL PROBLEMA Y JUSTIFICACIÓN\n\n`;
-  if (ruta) {
-    doc += `### 1.1. Contexto y Delimitación del Objeto de Estudio\n`;
-    doc += `- **Problema central:** ${ruta.problema}\n`;
-    doc += `- **Objeto de estudio:** ${ruta.objeto_estudio}\n`;
-    doc += `- **Población/Contexto:** ${ruta.poblacion_contexto}\n`;
-    doc += `- **Alcance espacial:** ${ruta.alcance_espacial}\n`;
-    doc += `- **Alcance temporal:** ${ruta.alcance_temporal}\n\n`;
-  }
-  if (nova) {
-    doc += `### 1.2. Novedad Académica, Brechas y Causas (NOVA)\n`;
-    doc += `- **Brecha de conocimiento:** ${nova.nucleo_brecha_conocimiento}\n`;
-    doc += `- **Causa raíz:** ${nova.nucleo_causa_raiz}\n`;
-    doc += `- **Justificación social:** ${nova.valor_justificacion_social ?? "No definida"}\n`;
-    doc += `- **Contribución al conocimiento:** ${nova.valor_contribucion ?? "No definida"}\n`;
-    doc += `- **Novedad frente al estado del arte:** ${nova.avance_novedad_estado_arte ?? "No definida"}\n\n`;
-    
-    if (nova.nucleo_causas_estructuradas && nova.nucleo_causas_estructuradas.length > 0) {
-      doc += `**Causas estructuradas:**\n`;
-      nova.nucleo_causas_estructuradas.forEach((c: any) => {
-        doc += `- **[${c.tipo.toUpperCase()}]** ${c.id}: ${c.texto}\n`;
-      });
-      doc += `\n`;
+  if (planteamientoText) {
+    doc += `${planteamientoText}\n\n`;
+  } else {
+    if (ruta) {
+      doc += `### 1.1. Contexto y Delimitación del Objeto de Estudio\n`;
+      doc += `- **Problema central:** ${ruta.problema}\n`;
+      doc += `- **Objeto de estudio:** ${ruta.objeto_estudio}\n`;
+      doc += `- **Población/Contexto:** ${ruta.poblacion_contexto}\n`;
+      doc += `- **Alcance espacial:** ${ruta.alcance_espacial}\n`;
+      doc += `- **Alcance temporal:** ${ruta.alcance_temporal}\n\n`;
+    }
+    if (nova) {
+      doc += `### 1.2. Novedad Académica, Brechas y Causas (NOVA)\n`;
+      doc += `- **Brecha de conocimiento:** ${nova.nucleo_brecha_conocimiento}\n`;
+      doc += `- **Causa raíz:** ${nova.nucleo_causa_raiz}\n`;
+      doc += `- **Justificación social:** ${nova.valor_justificacion_social ?? "No definida"}\n`;
+      doc += `- **Contribución al conocimiento:** ${nova.valor_contribucion ?? "No definida"}\n`;
+      doc += `- **Novedad frente al estado del arte:** ${nova.avance_novedad_estado_arte ?? "No definida"}\n\n`;
     }
   }
 

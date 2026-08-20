@@ -50,6 +50,7 @@ import type { NovaOutput } from "./nova";
 import type { ObjetivosOutput } from "./objetivos";
 import type { MetodologiaOutput } from "./metodologia";
 import type { ImpactosDelimitacionOutput } from "./impactosDelimitacion";
+import type { MarcoReferencialOutput } from "./marcoReferencial";
 import { construirBibliografiaConClaves, type EntradaBibliografica, type FuenteConId } from "./corpus/exportarBib";
 import { obtenerUltimaConvergenciaReal } from "./circuitoConvergencia";
 
@@ -430,6 +431,75 @@ indicado arriba, integrando los campos de cada movimiento de forma fluida
 (no los presentes como lista de campos), citando B donde corresponda con
 el patrón indicado. Responde ÚNICAMENTE con el texto de la introducción,
 sin título, sin comentarios sobre lo que hiciste.`;
+
+  const texto = await llamarOrquestador(prompt);
+  return { texto: texto.trim(), provisional, motivo_provisional: motivo };
+}
+
+/**
+ * REGLA DE ORO DE RIGOR CIENTÍFICO: ASEVERACIÓN -> CITA
+ * Genera la sección "1. PLANTEAMIENTO DEL PROBLEMA Y JUSTIFICACIÓN" conectando
+ * RUTA, NOVA, MARCO_REFERENCIAL y el corpus completo de la RSL (corpus_fuentes).
+ * Toda afirmación empírica, causa, antecedente y brecha va respaldada por su cita (Autor, Año).
+ */
+export async function generarPlanteamientoProblemaCitado(
+  supabase: SupabaseClient,
+  project_id: string,
+  opciones: OpcionesSintesis = {}
+): Promise<ResultadoSintesis> {
+  const formato = opciones.formato ?? "md";
+  const [ruta, nova, marco] = await Promise.all([
+    obtenerNodoConfirmado<RutaOutput>(supabase, project_id, "RUTA"),
+    obtenerNodoConfirmado<NovaOutput>(supabase, project_id, "NOVA"),
+    obtenerNodoConfirmado<MarcoReferencialOutput>(supabase, project_id, "MARCO_REFERENCIAL"),
+  ]);
+
+  const faltantes: string[] = [];
+  if (!ruta) faltantes.push("RUTA");
+  if (!nova) faltantes.push("NOVA");
+  exigirNodos(faltantes);
+
+  const [bibliografiaTexto, { provisional, motivo }] = await Promise.all([
+    (async () => {
+      if (formato === "latex") {
+        const entradas = opciones.bibliografiaConClaves ?? (await obtenerBibliografiaVerificadaConClaves(supabase, project_id));
+        return bloqueBibliografiaLatex(entradas);
+      }
+      const fuentes = await obtenerBibliografiaVerificada(supabase, project_id);
+      return bloqueBibliografia(fuentes);
+    })(),
+    obtenerProvisionalidad(supabase, project_id),
+  ]);
+
+  const prompt = `Eres un redactor académico de nivel doctoral construyendo la sección "1. PLANTEAMIENTO DEL PROBLEMA Y JUSTIFICACIÓN" de una propuesta de investigación científica.
+
+REGLA DE ORO OBLIGATORIA Y ABSOLUTA: ASEVERACIÓN → CITA
+Cada afirmación técnica, dato empírico, antecedente del problema, causa identificada o brecha del estado del arte DEBE IR INMEDIATAMENTE ACOMPAÑADA POR SU RESPECTIVA CITA BIBLIOGRÁFICA. No redactes párrafos descriptivos flotantes sin citas. Copia el patrón estricto de las publicaciones científicas Q1: "La problemática X presenta afectaciones severas (Autor1 et al., 2021; Autor2, 2023). Estudios previos han demostrado que Y (Autor3, 2020)...".
+
+${formato === "latex" ? INSTRUCCION_CITACION_LATEX : INSTRUCCION_CITACION}
+
+=== ESTRUCTURA EXIGIDA ===
+Subsección 1.1. Contexto y Delimitación del Objeto de Estudio:
+- Contextualización rigurosa del problema empírico y técnico en el área de estudio (${ruta!.poblacion_contexto}, ${ruta!.alcance_espacial}, ${ruta!.alcance_temporal}).
+- Delimitación formal del objeto de estudio (${ruta!.objeto_estudio}) respaldado por la evidencia de B.
+
+Subsección 1.2. Novedad Académica, Brechas y Causas (NOVA):
+- Núcleo del problema: la brecha de conocimiento declarada ("${nova!.nucleo_brecha_conocimiento}") y la causa raíz ("${nova!.nucleo_causa_raiz}").
+- Justificación social, contribución al conocimiento científico y novedad frente al estado del arte.
+- Integración de las causas estructuradas y cifras de contexto de NOVA, todas citadas.
+
+=== B — CORPUS DE FUENTES Y BIBLIOGRAFÍA VERIFICADA DEL PROYECTO ===
+${bibliografiaTexto}
+
+${marco ? `=== MARCO REFERENCIAL DE CORROBORACIÓN ===\nPostura teórica: ${marco.marco_teorico?.postura_teorica ?? ""}\nTeorías: ${(marco.marco_teorico?.teorias_sustantivas ?? []).join(", ")}` : ""}
+
+=== RUTA & NOVA BASE ===
+Problema: ${ruta!.problema}
+Pregunta: ${ruta!.pregunta_investigacion}
+Objeto de estudio: ${ruta!.objeto_estudio}
+Población/Alcance: ${ruta!.poblacion_contexto}, ${ruta!.alcance_espacial}, ${ruta!.alcance_temporal}
+
+Redacta la sección completa con los dos subtítulos ### 1.1. Contexto y Delimitación del Objeto de Estudio y ### 1.2. Novedad Académica, Brechas y Causas (NOVA) en prosa académica altamente citada (3-6 párrafos por subsección). Cita B en CADA aseveración factual. Responde ÚNICAMENTE con el texto de la sección en Markdown.`;
 
   const texto = await llamarOrquestador(prompt);
   return { texto: texto.trim(), provisional, motivo_provisional: motivo };
