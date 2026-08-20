@@ -435,6 +435,21 @@ sin título, sin comentarios sobre lo que hiciste.`;
   return { texto: texto.trim(), provisional, motivo_provisional: motivo };
 }
 
+/**
+ * Elimina cualquier cita bibliográfica o paréntesis de autor/año que haya quedado en el Resumen/Abstract.
+ * Regla de oro científica: El Resumen y el Abstract NUNCA deben incluir citas bibliográficas.
+ */
+export function limpiarCitasDelResumen(texto: string): string {
+  if (!texto) return texto;
+  return texto
+    .replace(/\s*\([A-Z][a-zA-Z0-9\s\.,\-áéíóúÁÉÍÓÚñÑ]+,\s*\d{4}[^\)]*\)/g, "")
+    .replace(/[A-Z][a-zA-ZáéíóúÁÉÍÓÚñÑ]+\s+et\s+al\.\s*\(\d{4}\)\s*/g, "estudios previos ")
+    .replace(/[A-Z][a-zA-ZáéíóúÁÉÍÓÚñÑ]+\s+\(\d{4}\)\s*/g, "investigaciones previas ")
+    .replace(/\s*\\cite[a-z]*\{[^}]*\}/g, "")
+    .replace(/\s\s+/g, " ")
+    .trim();
+}
+
 export async function generarResumen(
   supabase: SupabaseClient,
   project_id: string,
@@ -488,9 +503,11 @@ se ha ejecutado), I=Implicación esperada de esos resultados proyectados.
 
 ${INSTRUCCION_HONESTIDAD}
 
+REGLA ABSOLUTA DE RESUMEN: EL RESUMEN EJECUTIVO NUNCA DEBE INCLUIR CITAS NI REFERENCIAS BIBLIOGRÁFICAS DE NINGÚN TIPO (sin paréntesis de autor/año como "(Agronet, 2018)", sin menciones con año como "Chaparro et al. (2024)", ni comandos \\cite{}). El Resumen es una síntesis autocontenida. Si utilizas datos o antecedentes de NOVA, redacta los hechos y cifras de forma impersonal y directa SIN citar al autor ni el año.
+
 Un solo párrafo continuo, prosa académica, ${rango.min}-${rango.max}
 palabras (rango de la plantilla de ${rango.institucion}). Sin subtítulos
-como "Contexto:"/"Objetivo:", sin viñetas, sin negritas.
+como "Contexto:"/"Objetivo:", sin viñetas, sin negritas, SIN CITAS BIBLIOGRÁFICAS.
 
 === C — Contexto (RUTA) ===
 Tema: ${ruta!.tema}
@@ -502,11 +519,7 @@ Alcance: ${ruta!.alcance_espacial}, ${ruta!.alcance_temporal}
 ${bloqueCifrasContexto(nova!)}
 Usa como máximo 1 de estas cifras si aporta magnitud real al Contexto, y
 SOLO con la reserva explícita si verificado=no o si el propio texto de la
-cifra indica que no se encontró evidencia. Si ninguna cifra de esta lista
-es necesaria para el resumen, no menciones ninguna — nunca introduzcas una
-cifra, porcentaje o comparación (ej. rendimientos, participación regional)
-que no esté en esta lista exacta, aunque te parezca plausible o la
-recuerdes de otro contexto.
+cifra indica que no se encontró evidencia. Menciónala SIN citar autor ni año.
 
 === G — Brecha (NOVA, núcleo) ===
 Brecha de conocimiento: ${nova!.nucleo_brecha_conocimiento}
@@ -526,15 +539,16 @@ Muestra: ${metodologia!.muestra}
 ${impactosTexto}
 
 Redacta el resumen ahora. Responde ÚNICAMENTE con el párrafo del resumen,
-sin título, sin conteo de palabras, sin comentarios.`;
+sin título, sin conteo de palabras, sin comentarios, sin citas.`;
 
   const texto = await llamarOrquestador(prompt);
-  return { texto: texto.trim(), provisional, motivo_provisional: motivo };
+  const textoLimpio = limpiarCitasDelResumen(texto.trim());
+  return { texto: textoLimpio, provisional, motivo_provisional: motivo };
 }
 
 /**
  * Traduce FIELES e ÍNTEGRAMENTE el resumen generado en español al inglés (Abstract).
- * Regla de oro: NO agrega, inventa ni omite información. Fiel traducción académica 1:1.
+ * Regla de oro: NO agrega, inventa ni omite información. Fiel traducción académica 1:1 sin citas.
  */
 export async function generarAbstractEn(
   resumenEsTexto: string
@@ -543,6 +557,8 @@ export async function generarAbstractEn(
     return "*(Abstract pending confirmation of base nodes)*";
   }
 
+  const resumenSinCitas = limpiarCitasDelResumen(resumenEsTexto);
+
   const prompt = `You are an expert academic translator for scientific journals.
 Translate the following Spanish research abstract into English EXACTLY sentence-by-sentence.
 
@@ -550,13 +566,15 @@ STRICT GOLDEN RULES:
 1. Do NOT add, invent, modify, or omit ANY information, facts, or context.
 2. Do NOT summarize, condense, or change the technical structure.
 3. Translate the EXACT content and meaning into academic English prose.
-4. Return ONLY the translated English paragraph, with no intro, no titles, no notes.
+4. Do NOT include ANY citations, author names with years, or reference parentheticals.
+5. Return ONLY the translated English paragraph, with no intro, no titles, no notes.
 
 Spanish Abstract to translate:
 """
-${resumenEsTexto}
+${resumenSinCitas}
 """`;
 
   const translated = await llamarOrquestador(prompt);
-  return translated.trim();
+  const translatedLimpio = limpiarCitasDelResumen(translated.trim());
+  return translatedLimpio;
 }

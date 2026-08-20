@@ -42,6 +42,7 @@
 
 import { llamarOrquestador } from "@/lib/openrouter/client";
 import { extraerComandosCita, protegerTextoCitableParaHumanizador, restaurarCitas } from "./latex/citas";
+import { limpiarCitasDelResumen } from "./sintesisFinal";
 
 export type NivelHumanizacion = "pulido" | "estandar" | "elevacion_q1";
 export const NIVEL_DEFAULT: NivelHumanizacion = "estandar";
@@ -80,6 +81,12 @@ const REGLAS_BASE = `Eres un Editor Científico Senior de nivel doctoral. Transf
 recibido en prosa científica de nivel humano experto, preservando
 íntegramente el contenido técnico y la precisión de las afirmaciones,
 eliminando los patrones que delatan texto generado por IA.
+
+REGLA DE PRESERVACIÓN ESTRUCTURAL Y LÓGICA RIGUROSA:
+No puedes cambiar la secuencia lógica, la estructura de párrafos ni la cadena argumentativa fijada por los nodos del proyecto. Tu rol es pulir la redacción, fluidez y sintaxis académica humana, NUNCA reestructurar la lógica de fondo ni alterar los argumentos ya confirmados.
+
+REGLA DE RESUMEN Y ABSTRACT SIN CITAS:
+Si la sección es "resumen" o "abstract", NUNCA debe contener citas bibliográficas, paréntesis de autor/año como "(Agronet, 2018)" o menciones de autor con año ("Chaparro et al., 2024"). Si el texto original contiene alguna cita, ELIMINA LA CITA y conserva únicamente la cifra o afirmación factual de forma impersonal.
 
 PROHIBIDO sin excepción: negritas en el cuerpo del texto; viñetas o listas
 para ideas que pertenecen a un argumento continuo; el patrón
@@ -174,7 +181,13 @@ export async function humanizarDocumento(
     const prompt = construirPrompt(secciones, opciones);
     const respuesta = await llamarOrquestador(prompt);
     const seccionesHumanizadas = parsearRespuesta(respuesta, idsEsperados);
-    return { secciones: seccionesHumanizadas, citasPreservadas: true, citasAntes: [], citasDespues: [] };
+    const seccionesFinales = seccionesHumanizadas.map((s) => {
+      if (s.id.toLowerCase().includes("resumen") || s.id.toLowerCase().includes("abstract")) {
+        return { ...s, texto: limpiarCitasDelResumen(s.texto) };
+      }
+      return s;
+    });
+    return { secciones: seccionesFinales, citasPreservadas: true, citasAntes: [], citasDespues: [] };
   }
 
   const citasAntes = secciones.flatMap((s) => extraerComandosCita(s.texto));
@@ -206,5 +219,12 @@ export async function humanizarDocumento(
     );
   }
 
-  return { secciones: seccionesHumanizadas, citasPreservadas: true, citasAntes, citasDespues };
+  const seccionesFinales = seccionesHumanizadas.map((s) => {
+    if (s.id.toLowerCase().includes("resumen") || s.id.toLowerCase().includes("abstract")) {
+      return { ...s, texto: limpiarCitasDelResumen(s.texto) };
+    }
+    return s;
+  });
+
+  return { secciones: seccionesFinales, citasPreservadas: true, citasAntes, citasDespues };
 }
