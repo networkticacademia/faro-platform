@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { llamarOrquestador, parsearJsonRespuesta } from "@/lib/openrouter/client";
+import { llamarModeloLigero, parsearJsonRespuesta } from "@/lib/openrouter/client";
 import { obtenerNodoConfirmado } from "@/lib/faro/sintesisFinal";
 import type { ObjetivosOutput } from "@/lib/faro/objetivos";
 import type { RutaOutput } from "@/lib/faro/ruta";
@@ -92,7 +92,7 @@ Devuelve únicamente un objeto JSON con las siguientes claves:
 No agregues comentarios antes ni después del JSON. Asegúrate de que el JSON sea válido.
 `;
 
-    const respuestaCruda = await llamarOrquestador(prompt);
+    const respuestaCruda = await llamarModeloLigero(prompt);
     const titulosProposiciones = parsearJsonRespuesta<TitleProposalResponse>(respuestaCruda);
 
     return NextResponse.json({ titulos: titulosProposiciones });

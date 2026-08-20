@@ -105,7 +105,7 @@ export function LaTeXPreview({ titulo, autor, markdown }: LaTeXPreviewProps) {
 
   // Find Resumen Ejecutivo and Introducción to place them in standard LaTeX spots
   const extractSection = (sectionTitle: string): string => {
-    const regex = new RegExp(`## ${sectionTitle}\\n([\\s\\S]*?)(?=\\n## |\\n# |$)`, "i");
+    const regex = new RegExp(`## ${sectionTitle}\\r?\\n([\\s\\S]*?)(?=\\r?\\n## |\\r?\\n# |$)`, "i");
     const match = markdown.match(regex);
     return match ? match[1].trim() : "";
   };
@@ -116,14 +116,14 @@ export function LaTeXPreview({ titulo, autor, markdown }: LaTeXPreviewProps) {
   // Remove Resumen and Intro from the rest of the body to avoid duplication
   const getRestOfMarkdown = () => {
     let body = markdown;
-    body = body.replace(/## RESUMEN EJECUTIVO\n[\s\S]*?(?=\n## |\n# |$)/i, "");
-    body = body.replace(/## INTRODUCCIÓN\n[\s\S]*?(?=\n## |\n# |$)/i, "");
+    body = body.replace(/## RESUMEN EJECUTIVO\r?\n[\s\S]*?(?=\r?\n## |\r?\n# |$)/i, "");
+    body = body.replace(/## INTRODUCCIÓN\r?\n[\s\S]*?(?=\r?\n## |\r?\n# |$)/i, "");
     return body;
   };
 
   return (
-    <div className="flex flex-col items-center bg-gray-100 py-6 overflow-y-auto max-h-[85vh]">
-      <div className="w-[820px] min-h-[1160px] bg-white shadow-2xl border border-gray-300 p-[75px] font-serif text-gray-900 select-text relative">
+    <div className="flex flex-col items-center bg-gray-100 py-6 overflow-y-auto max-h-[85vh] w-full overflow-x-auto">
+      <div className="w-[820px] min-w-[820px] min-h-[1160px] bg-white shadow-2xl border border-gray-300 p-[75px] font-serif text-gray-900 select-text relative my-4">
         
         {/* Document Header (LaTeX Style) */}
         <div className="text-center mb-8 space-y-3">
