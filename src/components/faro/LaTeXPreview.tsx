@@ -125,8 +125,27 @@ export function LaTeXPreview({ titulo, autor, markdown }: LaTeXPreviewProps) {
         flushList(lineKey);
         insideList = false;
         const headingText = trimmed.replace(/^##\s+/, "");
+        // TABLA DE CONTENIDO and subsequent preliminary sections get a hard A4 page
+        // separator both on-screen (simulated with a full-height min-height rule) and
+        // at print (break-before: page). Same treatment applies to RESUMEN EJECUTIVO
+        // and ABSTRACT so each preliminary lives on its own page.
+        const isPreliminar =
+          headingText === "TABLA DE CONTENIDO" ||
+          headingText === "RESUMEN EJECUTIVO" ||
+          headingText === "ABSTRACT";
         elements.push(
-          <div key={lineKey} className="print-page-break pt-8 border-t-2 border-faro-navy/20 mt-10 first:mt-0 first:border-t-0">
+          <div
+            key={lineKey}
+            className={
+              isPreliminar
+                ? "print-page-break block w-full mt-0 pt-0"
+                : "print-page-break pt-8 border-t-2 border-faro-navy/20 mt-10 first:mt-0 first:border-t-0"
+            }
+            style={isPreliminar ? { pageBreakBefore: "always", breakBefore: "page", paddingTop: "0" } : undefined}
+          >
+            {isPreliminar && (
+              <div className="preliminar-page-sep print:hidden mb-6" />
+            )}
             <h2 className="text-xl font-bold uppercase tracking-tight text-left text-faro-navy border-b-2 border-faro-navy pb-2 mb-6 print:text-black print:border-black">
               {headingText}
             </h2>
@@ -177,7 +196,33 @@ export function LaTeXPreview({ titulo, autor, markdown }: LaTeXPreviewProps) {
     <div className="w-full flex flex-col items-center bg-gray-100/80 py-8 print:bg-white print:py-0 print:m-0 overflow-y-auto max-h-[85vh] print:max-h-none print:overflow-visible">
       {/* Print styles */}
       <style>{`
+        @media screen {
+          .preliminar-page-sep {
+            display: block;
+            width: calc(100% + 160px);
+            margin-left: -80px;
+            margin-right: -80px;
+            height: 28px;
+            background: #e5e7eb;
+            border-top: 2px dashed #9ca3af;
+            border-bottom: 2px dashed #9ca3af;
+            position: relative;
+          }
+          .preliminar-page-sep::before {
+            content: '── nueva página ──';
+            display: block;
+            text-align: center;
+            font-size: 10px;
+            color: #6b7280;
+            letter-spacing: 0.1em;
+            line-height: 28px;
+            font-family: sans-serif;
+          }
+        }
         @media print {
+          .preliminar-page-sep {
+            display: none !important;
+          }
           body * {
             visibility: hidden !important;
           }
