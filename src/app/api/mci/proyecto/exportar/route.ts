@@ -63,7 +63,7 @@ export async function GET(request: Request) {
       .eq("id", project_id)
       .maybeSingle();
 
-    const savedDoc = project?.documento_consolidado as { markdown?: string; autor?: any } | null;
+    const savedDoc = project?.documento_consolidado as { markdown?: string; autor?: any; estiloCita?: string } | null;
     const autorMeta = savedDoc?.autor;
 
     const titulo = project?.titulo_provisional ?? "(sin título provisional)";
@@ -193,8 +193,12 @@ export async function GET(request: Request) {
     const keywordsRaw = (project?.palabras_clave as string[]) ?? [];
     const keywordsStr = keywordsRaw.join(", ");
 
+    const estiloCitaSel = savedDoc?.estiloCita ?? searchParams.get("estilo_cita") ?? "apa";
+    const estiloCitaTex = estiloCitaSel === "ieee" ? "ieee" : estiloCitaSel === "vancouver" ? "vancouver" : "apa";
+
     const tex = plantilla
       .replace("{{BIB_FILE}}", bibFileName)
+      .replace("{{ESTILO_CITA_TEX}}", estiloCitaTex)
       .replace("{{TITULO}}", escaparProsaLatexPreservandoCitas(titulo))
       .replace("{{AUTOR}}", escaparProsaLatexPreservandoCitas(autorNombre))
       .replace("{{INSTITUCION}}", escaparProsaLatexPreservandoCitas(institucion))

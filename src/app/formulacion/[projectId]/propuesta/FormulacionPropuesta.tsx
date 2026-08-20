@@ -36,7 +36,7 @@ interface TituloOpciones {
 }
 
 export default function FormulacionPropuesta({ project }: { project: ProjectRow }) {
-  const [documento, setDocumento] = useState<{ markdown: string; editado: boolean; autor?: AutorMetadata | null } | null>(null);
+  const [documento, setDocumento] = useState<{ markdown: string; editado: boolean; autor?: AutorMetadata | null; estiloCita?: "apa" | "ieee" | "vancouver" } | null>(null);
   const [loading, setLoading] = useState(true);
   const [cargandoAsesor, setCargandoAsesor] = useState(false);
   const [cargandoExport, setCargandoExport] = useState(false);
@@ -68,6 +68,7 @@ export default function FormulacionPropuesta({ project }: { project: ProjectRow 
   const [humanizando, setHumanizando] = useState(false);
   const [previewActive, setPreviewActive] = useState(false);
   const [documentoHumanizado, setDocumentoHumanizado] = useState<string | null>(null);
+  const [estiloCita, setEstiloCita] = useState<"apa" | "ieee" | "vancouver">("apa");
   
   const [chatInput, setChatInput] = useState("");
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
@@ -87,6 +88,9 @@ export default function FormulacionPropuesta({ project }: { project: ProjectRow 
       
       if (data.documento.autor) {
         setAutorForm(data.documento.autor);
+      }
+      if (data.documento.estiloCita) {
+        setEstiloCita(data.documento.estiloCita);
       }
 
       if (data.palabras_clave && data.palabras_clave.length > 0) {
@@ -159,14 +163,15 @@ export default function FormulacionPropuesta({ project }: { project: ProjectRow 
       });
       project.titulo_provisional = nuevoTitulo;
 
-      // Then save the document and author metadata
+      // Then save the document, author metadata, and citation style
       const res = await fetch("/api/mci/proyecto/documento", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           project_id: project.id,
           markdown: textoEditado,
-          autor: autorForm
+          autor: autorForm,
+          estiloCita: estiloCita
         }),
       });
       const data = await res.json();
@@ -175,7 +180,8 @@ export default function FormulacionPropuesta({ project }: { project: ProjectRow 
       setDocumento({
         markdown: textoEditado,
         editado: true,
-        autor: autorForm
+        autor: autorForm,
+        estiloCita: estiloCita
       });
       
       setStep("editor");
@@ -196,7 +202,8 @@ export default function FormulacionPropuesta({ project }: { project: ProjectRow 
         body: JSON.stringify({
           project_id: project.id,
           markdown: textoEditado,
-          autor: autorForm
+          autor: autorForm,
+          estiloCita: estiloCita
         }),
       });
       const data = await res.json();
@@ -205,7 +212,8 @@ export default function FormulacionPropuesta({ project }: { project: ProjectRow 
       setDocumento({
         markdown: textoEditado,
         editado: true,
-        autor: autorForm
+        autor: autorForm,
+        estiloCita: estiloCita
       });
       setEditando(false);
     } catch (e) {
@@ -433,6 +441,18 @@ export default function FormulacionPropuesta({ project }: { project: ProjectRow 
                 <option value="Estudiante de Posgrado">Estudiante de Posgrado</option>
               </select>
             </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-700">Estilo de Citación Bibliográfica</label>
+              <select
+                value={estiloCita}
+                onChange={(e) => setEstiloCita(e.target.value as "apa" | "ieee" | "vancouver")}
+                className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-faro-navy bg-white font-medium"
+              >
+                <option value="apa">APA 7.ª Edición — (Autor, Año)</option>
+                <option value="ieee">IEEE — Numérico [1]</option>
+                <option value="vancouver">Vancouver — Numérico [1]</option>
+              </select>
+            </div>
           </div>
           <div className="flex justify-end gap-2 pt-2 border-t">
             {documento?.autor?.nombre && (
@@ -637,6 +657,14 @@ export default function FormulacionPropuesta({ project }: { project: ProjectRow 
                   </button>
                 ) : !editando ? (
                   <>
+                    <a
+                      href={`/api/mci/proyecto/presupuesto-excel?project_id=${project.id}`}
+                      download
+                      className="text-xs bg-emerald-50 text-emerald-800 border border-emerald-300 px-3 py-1.5 rounded-lg font-medium hover:bg-emerald-100 transition-colors flex items-center gap-1"
+                      title="Descargar presupuesto detallado en archivo CSV compatible con Excel"
+                    >
+                      <span>📊</span> Presupuesto (Excel)
+                    </a>
                     <button
                       onClick={() => setEditando(true)}
                       className="text-xs bg-faro-navy text-white px-4 py-1.5 rounded-lg font-semibold shadow hover:bg-faro-navy/90"

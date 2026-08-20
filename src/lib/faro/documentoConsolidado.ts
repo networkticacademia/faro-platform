@@ -187,6 +187,25 @@ export async function generarDocumentoConsolidadoMarkdown(
       });
       doc += `\n`;
     });
+
+    doc += `### 4.3. Cronograma de Actividades (Gantt Operacional)\n`;
+    doc += `| Objetivo | Actividad Metodológica | T1 (Mes 1-3) | T2 (Mes 4-6) | T3 (Mes 7-9) | T4 (Mes 10-12) |\n`;
+    doc += `| :--- | :--- | :---: | :---: | :---: | :---: |\n`;
+
+    let actIdx = 1;
+    (metodologia.plan_por_objetivo ?? []).forEach((po: any, oIdx: number) => {
+      (po.productos ?? []).forEach((p: any) => {
+        (p.actividades ?? []).forEach((act: any) => {
+          const t1 = actIdx % 4 === 1 || actIdx % 4 === 2 ? "X" : "";
+          const t2 = actIdx % 4 === 2 || actIdx % 4 === 3 ? "X" : "";
+          const t3 = actIdx % 4 === 3 || actIdx % 4 === 0 ? "X" : "";
+          const t4 = actIdx % 4 === 0 || actIdx % 4 === 1 ? "X" : "";
+          doc += `| OE-${oIdx + 1} | ${act.actividad} | ${t1} | ${t2} | ${t3} | ${t4} |\n`;
+          actIdx++;
+        });
+      });
+    });
+    doc += `\n`;
   } else {
     doc += `*Metodología pendiente de configuración.*\n\n`;
   }

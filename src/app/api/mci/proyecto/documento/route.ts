@@ -41,13 +41,21 @@ export async function GET(request: Request) {
   if (!docJson?.markdown || force_regenerate) {
     try {
       const mdRaw = await generarDocumentoConsolidadoMarkdown(supabase, project_id);
-      // Mantener cualquier autor existente en el JSON original si lo había
-      const autorExistente = (project?.documento_consolidado as any)?.autor ?? null;
+      // Mantener cualquier autor o estilo de cita existente en el JSON original si lo había
+      const docOriginal = (project?.documento_consolidado as any) ?? {};
       docJson = {
+        ...docOriginal,
         markdown: mdRaw,
         editado: false,
-        autor: autorExistente,
+        autor: docOriginal.autor ?? null,
+        estiloCita: docOriginal.estiloCita ?? "apa",
       };
+
+      // Persistir en Supabase para que guarde las 9 secciones actualizadas
+      await supabase
+        .from("projects")
+        .update({ documento_consolidado: docJson })
+        .eq("id", project_id);
     } catch (e) {
       return NextResponse.json({ error: `Error al generar la propuesta: ${(e as Error).message}` }, { status: 500 });
     }
