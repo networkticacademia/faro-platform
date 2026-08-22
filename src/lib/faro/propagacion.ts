@@ -263,15 +263,30 @@ export async function ejecutarPropagacion(
   idsResueltos = Array.from(new Set([pregunta_raiz_id, ...idsResueltos]));
 
   if (idsResueltos.length > 0) {
+    const timestamp = new Date().toISOString();
     await supabase
       .from("preguntas_pendientes")
       .update({
         respuesta,
         estado_procedencia: procedencia,
         estado: "resuelta",
-        resolved_at: new Date().toISOString(),
+        resolved_at: timestamp,
       })
       .in("id", idsResueltos);
+
+    // Resolver en cascada cualquier pregunta con agrupada_en o pregunta_raiz_id apuntando a alguna de las resueltas
+    for (const rid of idsResueltos) {
+      await supabase
+        .from("preguntas_pendientes")
+        .update({
+          respuesta,
+          estado_procedencia: procedencia,
+          estado: "resuelta",
+          resolved_at: timestamp,
+        })
+        .or(`agrupada_en.eq.${rid},pregunta_raiz_id.eq.${rid}`)
+        .in("estado", ["abierta", "agrupada"]);
+    }
   }
 
   return {

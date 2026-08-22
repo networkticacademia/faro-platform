@@ -105,12 +105,16 @@ export default function PreguntasPendientesAgrupadas({ projectId }: { projectId:
                 </div>
                 <p className="mb-2 text-sm font-medium text-gray-900 leading-relaxed">{p.texto_pregunta}</p>
 
-                {(p.nodos_involucrados?.length ?? 0) > 0 ? (
-                  <p className="mb-4 text-xs text-gray-500 font-mono">
+                {p.agrupa_count && p.agrupa_count > 0 && (p.nodos_involucrados?.length ?? 0) > 0 ? (
+                  <p className="mb-3 text-xs text-gray-500 font-medium">
+                    agrupa {p.agrupa_count + 1} preguntas de: {p.nodos_involucrados?.join(", ")}
+                  </p>
+                ) : (p.nodos_involucrados?.length ?? 0) > 0 ? (
+                  <p className="mb-3 text-xs text-gray-500 font-mono">
                     Nodos involucrados: {(p.nodos_involucrados ?? p.nodos_afectados).join(" → ")}
                   </p>
                 ) : p.nodos_afectados.length > 0 ? (
-                  <p className="mb-4 text-xs text-gray-500 font-mono">
+                  <p className="mb-3 text-xs text-gray-500 font-mono">
                     Afecta: {p.nodos_afectados.join(" → ")}
                   </p>
                 ) : null}

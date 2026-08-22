@@ -50,48 +50,54 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Falta project_id." }, { status: 400 });
   }
 
-  const { data: abiertas, error } = await supabase
+  // Traer preguntas abiertas y diferidas/agrupadas
+  const { data: todasPreguntas, error } = await supabase
     .from("preguntas_pendientes")
-    .select("*")
+    .select("id, project_id, nodo_id, nodo_tipo, campo_origen, texto_pregunta, prioridad, pregunta_raiz_id, nodos_afectados, estado, respuesta, created_at, resolved_at")
     .eq("project_id", project_id)
-    .eq("estado", "abierta")
+    .in("estado", ["abierta", "agrupada", "diferida"])
     .order("created_at", { ascending: true });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const filas = (abiertas ?? []) as FilaPregunta[];
+  const filas = (todasPreguntas ?? []) as FilaPregunta[];
 
+  // Agrupar por el ID de la representante (agrupada_en ?? pregunta_raiz_id ?? id)
   const grupos = new Map<string, FilaPregunta[]>();
   for (const p of filas) {
-    const groupKey = p.pregunta_raiz_id ?? p.id;
+    const groupKey = (p.agrupada_en as string | null) ?? (p.pregunta_raiz_id as string | null) ?? p.id;
     const lista = grupos.get(groupKey) ?? [];
     lista.push(p);
     grupos.set(groupKey, lista);
   }
 
-  const preguntas = Array.from(grupos.values()).map((miembros) => {
-    // Representante: la raíz misma si sigue abierta (comportamiento
-    // original); si la raíz ya se resolvió, la miembro abierta más antigua
-    // del grupo la promueve y hace de representante visible.
-    const raizAbierta = miembros.find((m) => m.pregunta_raiz_id === null);
-    const representante = raizAbierta ?? miembros[0];
-    const resto = miembros.filter((m) => m.id !== representante.id);
-    const nodosInvolucrados = Array.from(new Set(miembros.map((m) => m.nodo_tipo)));
-    return {
-      ...representante,
-      agrupa_count: resto.length,
-      nodos_involucrados: nodosInvolucrados,
-      raiz_resuelta: !raizAbierta,
-      ...(incluirDetalle
-        ? { agrupadas: resto.map((h) => ({ id: h.id, nodo_tipo: h.nodo_tipo, texto_pregunta: h.texto_pregunta })) }
-        : {}),
-    };
-  }).sort((a, b) => {
-    if (a.prioridad !== b.prioridad) return a.prioridad.localeCompare(b.prioridad);
-    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-  });
+  // Solo consideramos como representantes aquellas preguntas que están en estado 'abierta'
+  const preguntas = Array.from(grupos.entries())
+    .map(([repId, miembros]) => {
+      const representante = miembros.find((m) => m.id === repId && m.estado === "abierta")
+        ?? miembros.find((m) => m.estado === "abierta");
+
+      if (!representante) return null;
+
+      const resto = miembros.filter((m) => m.id !== representante.id);
+      const nodosInvolucrados = Array.from(new Set(miembros.map((m) => m.nodo_tipo)));
+
+      return {
+        ...representante,
+        agrupa_count: resto.length,
+        nodos_involucrados: nodosInvolucrados,
+        ...(incluirDetalle
+          ? { agrupadas: resto.map((h) => ({ id: h.id, nodo_tipo: h.nodo_tipo, texto_pregunta: h.texto_pregunta })) }
+          : {}),
+      };
+    })
+    .filter((p): p is NonNullable<typeof p> => p !== null)
+    .sort((a, b) => {
+      if (a.prioridad !== b.prioridad) return a.prioridad.localeCompare(b.prioridad);
+      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    });
 
   const conteo = {
     P1: preguntas.filter((p) => p.prioridad === "P1").length,

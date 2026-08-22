@@ -25,6 +25,8 @@ import {
 import { reagruparPreguntasAbiertas } from "./agrupamiento";
 import { registrarRiesgo } from "./riesgos";
 
+import { llamarModeloLigero } from "@/lib/openrouter/client";
+
 interface PreguntaExtraida {
   campo_origen: string | null;
   texto_pregunta: string;
@@ -41,9 +43,67 @@ export function hashTexto(texto: string): string {
   return hash.toString(36);
 }
 
+/**
+ * Compara una pregunta nueva contra las preguntas ya abiertas del mismo nodo
+ * usando el modelo ligero. Devuelve el ID de la pregunta existente si es equivalente,
+ * o null si plantea una incertidumbre distinta.
+ */
+async function buscarPreguntaEquivalente(
+  candidata: string,
+  existentesAbiertas: { id: string; texto_pregunta: string }[]
+): Promise<string | null> {
+  if (existentesAbiertas.length === 0) return null;
+
+  // Verificación rápida en memoria: coincidencia exacta o casi exacta
+  const normalizadaCandidata = candidata.trim().toLowerCase();
+  for (const ex of existentesAbiertas) {
+    if (ex.texto_pregunta.trim().toLowerCase() === normalizadaCandidata) {
+      return ex.id;
+    }
+  }
+
+  const lista = existentesAbiertas
+    .map((e) => `- id: "${e.id}" | pregunta: "${e.texto_pregunta}"`)
+    .join("\n");
+
+  const prompt = `Pregunta nueva candidata:
+"${candidata}"
+
+Preguntas ya existentes y abiertas en el mismo nodo:
+${lista}
+
+Determina si la "Pregunta nueva candidata" solicita en el fondo la MISMA información, dato o aclaración que alguna de las preguntas existentes (aunque esté redactada con palabras ligeramente distintas).
+
+Si coincide con alguna existente, responde ÚNICAMENTE con el JSON:
+{"equivalente_id": "uuid_existente_exacto"}
+
+Si la pregunta nueva plantea una incertidumbre diferente y NO es equivalente a ninguna existente, responde ÚNICAMENTE con:
+{"equivalente_id": null}`;
+
+  try {
+    const raw = await llamarModeloLigero(prompt);
+    const limpio = raw.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(limpio) as { equivalente_id?: string | null };
+    const matchId = parsed?.equivalente_id;
+    if (matchId && existentesAbiertas.some((e) => e.id === matchId)) {
+      return matchId;
+    }
+    return null;
+  } catch (e) {
+    console.error("[buscarPreguntaEquivalente] error:", e);
+    return null;
+  }
+}
+
 function extraerPreguntasDelNodo(contenido: unknown): PreguntaExtraida[] {
-  const preguntas = (contenido as { preguntas_para_el_usuario?: unknown })
-    ?.preguntas_para_el_usuario;
+  let preguntas: unknown = null;
+  if (Array.isArray(contenido)) {
+    preguntas = contenido;
+  } else if (contenido && typeof contenido === "object") {
+    const obj = contenido as Record<string, unknown>;
+    preguntas = obj.preguntas_para_el_usuario ?? obj.preguntas_pendientes ?? obj.preguntas;
+  }
+
   if (!Array.isArray(preguntas)) return [];
 
   return preguntas
@@ -83,10 +143,10 @@ export async function sincronizarPreguntasPendientes(
     return { insertadas: 0, omitidas_duplicadas: 0, preguntas: [] };
   }
 
-  // 1. Consultar hashes de preguntas existentes en este proyecto y tipo de nodo para deduplicación en código
+  // 1. Consultar preguntas abiertas existentes en este proyecto y tipo de nodo
   const { data: existentes, error: errorExistentes } = await supabase
     .from("preguntas_pendientes")
-    .select("texto_hash")
+    .select("id, texto_pregunta, texto_hash, estado")
     .eq("project_id", project_id)
     .eq("nodo_tipo", nodo_tipo);
 
@@ -94,10 +154,28 @@ export async function sincronizarPreguntasPendientes(
     console.error("[sincronizarPreguntasPendientes] error consultando existentes:", errorExistentes.message);
   }
   const hashesExistentes = new Set((existentes ?? []).map((q) => q.texto_hash));
+  const abiertasMismoNodo = (existentes ?? [])
+    .filter((q) => q.estado === "abierta")
+    .map((q) => ({ id: q.id as string, texto_pregunta: q.texto_pregunta as string }));
 
-  // Filtrar duplicados
-  const nuevasPreguntas = extraidas.filter((p) => !hashesExistentes.has(hashTexto(p.texto_pregunta)));
-  const omitidas_duplicadas = extraidas.length - nuevasPreguntas.length;
+  // Filtrar duplicados textuales por hash
+  let nuevasPreguntas = extraidas.filter((p) => !hashesExistentes.has(hashTexto(p.texto_pregunta)));
+  let omitidas_duplicadas = extraidas.length - nuevasPreguntas.length;
+
+  // CAUSA RAÍZ: Verificar equivalencia semántica contra las preguntas ya abiertas de este nodo
+  if (nuevasPreguntas.length > 0 && abiertasMismoNodo.length > 0) {
+    const filtradasSemanticas: PreguntaExtraida[] = [];
+    for (const cand of nuevasPreguntas) {
+      const equivId = await buscarPreguntaEquivalente(cand.texto_pregunta, abiertasMismoNodo);
+      if (equivId) {
+        console.log(`[sincronizarPreguntasPendientes] Pregunta equivalente detectada en nodo ${nodo_tipo} (ID existente: ${equivId}). Omitiendo inserción.`);
+        omitidas_duplicadas++;
+      } else {
+        filtradasSemanticas.push(cand);
+      }
+    }
+    nuevasPreguntas = filtradasSemanticas;
+  }
 
   if (nuevasPreguntas.length === 0) {
     return { insertadas: 0, omitidas_duplicadas, preguntas: [] };
@@ -209,16 +287,16 @@ export async function sincronizarPreguntasPendientes(
     });
   }
 
-  // 4. Guardar preguntas admitidas en preguntas_pendientes
+  // 4. Guardar preguntas admitidas en preguntas_pendientes (ya deduplicadas por hashTexto en memoria)
   let preguntasAbiertas: PreguntaSincronizada[] = [];
   if (filasParaInsertar.length > 0) {
     const { data, error } = await supabase
       .from("preguntas_pendientes")
-      .upsert(filasParaInsertar, { onConflict: "nodo_id,texto_hash", ignoreDuplicates: true })
+      .insert(filasParaInsertar)
       .select("id, texto_pregunta, estado");
 
     if (error) {
-      console.error("[sincronizarPreguntasPendientes] error en upsert:", error.message);
+      console.error("[sincronizarPreguntasPendientes] error en insert:", error.message);
     } else {
       preguntasAbiertas = (data ?? [])
         .filter((d) => d.estado === "abierta")

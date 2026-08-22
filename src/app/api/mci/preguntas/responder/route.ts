@@ -20,9 +20,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Faltan pregunta_id o respuesta." }, { status: 400 });
   }
 
+  const timestamp = new Date().toISOString();
   const { data, error } = await supabase
     .from("preguntas_pendientes")
-    .update({ respuesta, estado: "resuelta", resolved_at: new Date().toISOString() })
+    .update({ respuesta, estado: "resuelta", resolved_at: timestamp })
     .eq("id", pregunta_id)
     .select()
     .single();
@@ -30,6 +31,13 @@ export async function POST(request: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Al responder la representante, las preguntas agrupadas bajo ella pasan automáticamente a 'resuelta'
+  await supabase
+    .from("preguntas_pendientes")
+    .update({ respuesta, estado: "resuelta", resolved_at: timestamp })
+    .or(`agrupada_en.eq.${pregunta_id},pregunta_raiz_id.eq.${pregunta_id}`)
+    .eq("estado", "agrupada");
 
   return NextResponse.json({ pregunta: data });
 }
