@@ -120,7 +120,8 @@ export async function generarRutaCore(
       project_id,
       tipo: "RUTA",
       iteracion,
-      contenido: rutaOutput,
+      contenido_origen: rutaOutput,
+      contenido_presentacion: rutaOutput,
       confianza_agente: rutaOutput.nivel_confianza_agente,
       preguntas_pendientes: rutaOutput.preguntas_para_el_usuario,
       delta_nodal: deltaI,
@@ -149,7 +150,8 @@ export async function generarRutaCore(
     project_id,
     nodo_id: nodo.id,
     nodo_tipo: "RUTA",
-    contenido: nodo.contenido,
+    contenido: (nodo.contenido_origen ?? nodo.contenido) as Record<string, unknown>,
+    iteracion,
   });
 
   return {
@@ -191,7 +193,7 @@ export async function generarNovaCore(
   if (rutaError || !nodoRuta) {
     throw new Error("NOVA requiere un nodo RUTA confirmado en este proyecto. Complete y confirme RUTA primero.");
   }
-  const rutaOutput = nodoRuta.contenido as RutaOutput;
+  const rutaOutput = (nodoRuta.contenido_origen ?? nodoRuta.contenido) as RutaOutput;
 
   const { data: verificacionRSL } = await supabase
     .from("verificaciones_rsl")
@@ -255,7 +257,8 @@ export async function generarNovaCore(
       project_id,
       tipo: "NOVA",
       iteracion,
-      contenido: novaOutput,
+      contenido_origen: novaOutput,
+      contenido_presentacion: novaOutput,
       confianza_agente: novaOutput.nivel_confianza_agente,
       preguntas_pendientes: novaOutput.preguntas_para_el_usuario,
       delta_nodal: deltaI,
@@ -284,7 +287,8 @@ export async function generarNovaCore(
     project_id,
     nodo_id: nodo.id,
     nodo_tipo: "NOVA",
-    contenido: nodo.contenido,
+    contenido: (nodo.contenido_origen ?? nodo.contenido) as Record<string, unknown>,
+    iteracion,
   });
 
   return {
@@ -340,8 +344,8 @@ export async function generarObjetivosCore(
     throw new Error("Se requiere un nodo NOVA confirmado antes de generar Objetivos.");
   }
 
-  const rutaOutput = nodoRuta.contenido as RutaOutput;
-  const novaOutput = nodoNova.contenido as NovaOutput;
+  const rutaOutput = (nodoRuta.contenido_origen ?? nodoRuta.contenido) as RutaOutput;
+  const novaOutput = (nodoNova.contenido_origen ?? nodoNova.contenido) as NovaOutput;
 
   const { data: nodosPrevios } = await supabase
     .from("grafo_nodos")
@@ -396,7 +400,8 @@ export async function generarObjetivosCore(
       project_id,
       tipo: "OBJETIVOS",
       iteracion,
-      contenido: { ...objetivosOutput, matriz_consistencia: matrizConsistencia },
+      contenido_origen: { ...objetivosOutput, matriz_consistencia: matrizConsistencia },
+      contenido_presentacion: { ...objetivosOutput, matriz_consistencia: matrizConsistencia },
       confianza_agente: objetivosOutput.nivel_confianza_agente,
       preguntas_pendientes: objetivosOutput.preguntas_para_el_usuario,
       delta_nodal: deltaI,
@@ -425,7 +430,8 @@ export async function generarObjetivosCore(
     project_id,
     nodo_id: nodo.id,
     nodo_tipo: "OBJETIVOS",
-    contenido: nodo.contenido,
+    contenido: (nodo.contenido_origen ?? nodo.contenido) as Record<string, unknown>,
+    iteracion,
   });
 
   return {
@@ -496,9 +502,9 @@ export async function generarMetodologiaCore(
     throw new Error("Se requiere un nodo OBJETIVOS confirmado antes de generar Metodología.");
   }
 
-  const rutaOutput = nodoRuta.contenido as RutaOutput;
-  const novaOutput = nodoNova.contenido as NovaOutput;
-  const objetivosOutput = nodoObjetivos.contenido as ObjetivosOutput;
+  const rutaOutput = (nodoRuta.contenido_origen ?? nodoRuta.contenido) as RutaOutput;
+  const novaOutput = (nodoNova.contenido_origen ?? nodoNova.contenido) as NovaOutput;
+  const objetivosOutput = (nodoObjetivos.contenido_origen ?? nodoObjetivos.contenido) as ObjetivosOutput;
 
   const { data: nodosPrevios } = await supabase
     .from("grafo_nodos")
@@ -554,7 +560,8 @@ export async function generarMetodologiaCore(
       project_id,
       tipo: "METODOLOGIA",
       iteracion,
-      contenido: { ...metodologiaOutput, matriz_consistencia_extendida: matrizExtendida },
+      contenido_origen: { ...metodologiaOutput, matriz_consistencia_extendida: matrizExtendida },
+      contenido_presentacion: { ...metodologiaOutput, matriz_consistencia_extendida: matrizExtendida },
       confianza_agente: metodologiaOutput.nivel_confianza_agente,
       preguntas_pendientes: metodologiaOutput.preguntas_para_el_usuario,
       delta_nodal: deltaI,
@@ -583,7 +590,8 @@ export async function generarMetodologiaCore(
     project_id,
     nodo_id: nodo.id,
     nodo_tipo: "METODOLOGIA",
-    contenido: nodo.contenido,
+    contenido: (nodo.contenido_origen ?? nodo.contenido) as Record<string, unknown>,
+    iteracion,
   });
 
   return {
@@ -659,9 +667,17 @@ export async function generarMarcoReferencialCore(
     throw new Error("Se requiere un nodo OBJETIVOS confirmado antes de generar Marco Referencial.");
   }
 
-  const rutaOutput = nodoRuta.contenido as RutaOutput;
-  const novaOutput = nodoNova.contenido as NovaOutput;
-  const objetivosOutput = nodoObjetivos.contenido as ObjetivosOutput;
+  const rutaOutput = (nodoRuta.contenido_origen ?? nodoRuta.contenido) as RutaOutput;
+  const novaOutput = (nodoNova.contenido_origen ?? nodoNova.contenido) as NovaOutput;
+  const objetivosOutput = (nodoObjetivos.contenido_origen ?? nodoObjetivos.contenido) as ObjetivosOutput;
+
+  const { data: verificacionesRSL } = await supabase
+    .from("verificaciones_rsl")
+    .select("sintesis_narrativa")
+    .eq("nodo_id", nodoRuta.id)
+    .order("creado_en", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   const { data: nodosPrevios } = await supabase
     .from("grafo_nodos")
@@ -734,7 +750,8 @@ export async function generarMarcoReferencialCore(
       project_id,
       tipo: "MARCO_REFERENCIAL",
       iteracion,
-      contenido: marcoOutput,
+      contenido_origen: marcoOutput,
+      contenido_presentacion: marcoOutput,
       confianza_agente: marcoOutput.nivel_confianza_agente,
       preguntas_pendientes: marcoOutput.preguntas_para_el_usuario,
       delta_nodal: deltaI,
@@ -763,7 +780,8 @@ export async function generarMarcoReferencialCore(
     project_id,
     nodo_id: nodo.id,
     nodo_tipo: "MARCO_REFERENCIAL",
-    contenido: nodo.contenido,
+    contenido: (nodo.contenido_origen ?? nodo.contenido) as Record<string, unknown>,
+    iteracion,
   });
 
   return {
@@ -773,7 +791,7 @@ export async function generarMarcoReferencialCore(
   };
 }
 
-export async function generarImpactosCore(
+export async function generarImpactosDelimitacionCore(
   supabase: SupabaseClient,
   params: { project_id: string; feedback?: string; bypassCircuito?: BypassCircuito }
 ) {
@@ -802,7 +820,7 @@ export async function generarImpactosCore(
     .single();
 
   if (errRuta || !nodoRuta) {
-    throw new Error("Se requiere un nodo RUTA confirmado antes de generar Impactos y Delimitación.");
+    throw new Error("Se requiere un nodo RUTA confirmado antes de generar Impactos.");
   }
 
   const { data: nodoNova, error: errNova } = await supabase
@@ -816,7 +834,7 @@ export async function generarImpactosCore(
     .single();
 
   if (errNova || !nodoNova) {
-    throw new Error("Se requiere un nodo NOVA confirmado antes de generar Impactos y Delimitación.");
+    throw new Error("Se requiere un nodo NOVA confirmado antes de generar Impactos.");
   }
 
   const { data: nodoObjetivos, error: errObjetivos } = await supabase
@@ -830,7 +848,7 @@ export async function generarImpactosCore(
     .single();
 
   if (errObjetivos || !nodoObjetivos) {
-    throw new Error("Se requiere un nodo OBJETIVOS confirmado antes de generar Impactos y Delimitación.");
+    throw new Error("Se requiere un nodo OBJETIVOS confirmado antes de generar Impactos.");
   }
 
   const { data: nodoMetodologia, error: errMetodologia } = await supabase
@@ -844,13 +862,13 @@ export async function generarImpactosCore(
     .single();
 
   if (errMetodologia || !nodoMetodologia) {
-    throw new Error("Se requiere un nodo METODOLOGIA confirmado antes de generar Impactos y Delimitación.");
+    throw new Error("Se requiere un nodo METODOLOGIA confirmado antes de generar Impactos.");
   }
 
-  const rutaOutput = nodoRuta.contenido as RutaOutput;
-  const novaOutput = nodoNova.contenido as NovaOutput;
-  const objetivosOutput = nodoObjetivos.contenido as ObjetivosOutput;
-  const metodologiaOutput = nodoMetodologia.contenido as MetodologiaOutput;
+  const rutaOutput = (nodoRuta.contenido_origen ?? nodoRuta.contenido) as RutaOutput;
+  const novaOutput = (nodoNova.contenido_origen ?? nodoNova.contenido) as NovaOutput;
+  const objetivosOutput = (nodoObjetivos.contenido_origen ?? nodoObjetivos.contenido) as ObjetivosOutput;
+  const metodologiaOutput = (nodoMetodologia.contenido_origen ?? nodoMetodologia.contenido) as MetodologiaOutput;
 
   const { data: nodosPrevios } = await supabase
     .from("grafo_nodos")
@@ -903,7 +921,8 @@ export async function generarImpactosCore(
       project_id,
       tipo: "IMPACTOS_DELIMITACION",
       iteracion,
-      contenido: impactosOutput,
+      contenido_origen: impactosOutput,
+      contenido_presentacion: impactosOutput,
       confianza_agente: impactosOutput.nivel_confianza_agente,
       preguntas_pendientes: impactosOutput.preguntas_para_el_usuario,
       delta_nodal: deltaI,
@@ -932,7 +951,8 @@ export async function generarImpactosCore(
     project_id,
     nodo_id: nodo.id,
     nodo_tipo: "IMPACTOS",
-    contenido: nodo.contenido,
+    contenido: (nodo.contenido_origen ?? nodo.contenido) as Record<string, unknown>,
+    iteracion,
   });
 
   return {
@@ -941,3 +961,6 @@ export async function generarImpactosCore(
     preguntas_sincronizadas: preguntasSincronizadas,
   };
 }
+
+// Alias para compatibilidad hacia atrás con endpoints y propagación existentes
+export const generarImpactosCore = generarImpactosDelimitacionCore;

@@ -38,7 +38,7 @@ export default async function NovaPage({
 
   const { data: nodoRuta } = await supabase
     .from("grafo_nodos")
-    .select("contenido")
+    .select("contenido, contenido_origen, contenido_presentacion")
     .eq("project_id", projectId)
     .eq("tipo", "RUTA")
     .eq("confirmado_humano", true)
@@ -46,7 +46,7 @@ export default async function NovaPage({
     .limit(1)
     .maybeSingle();
 
-  const rutaOutputConfirmado = (nodoRuta?.contenido as RutaOutput) ?? null;
+  const rutaOutputConfirmado = ((nodoRuta?.contenido_origen ?? nodoRuta?.contenido_presentacion ?? nodoRuta?.contenido) as RutaOutput) ?? null;
 
   return (
     <FormulacionNova

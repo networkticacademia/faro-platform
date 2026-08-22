@@ -22,8 +22,18 @@ export async function POST(request: Request) {
     .update({
       confirmado_humano: true,
       editado_humano: editado,
-      ...(editado ? { contenido: contenido_editado } : {}),
-      ...(sellar ? { sellado: true } : {}),
+      ...(editado
+        ? {
+            contenido_origen: contenido_editado,
+            contenido_presentacion: contenido_editado,
+          }
+        : {}),
+      ...(sellar
+        ? {
+            sellado: true,
+            sellado_en: new Date().toISOString(),
+          }
+        : {}),
     })
     .eq("id", nodo_id)
     .select()

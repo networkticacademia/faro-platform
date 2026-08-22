@@ -37,7 +37,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Nodo no encontrado." }, { status: 404 });
   }
 
-  const rutaOutput = nodo.contenido as RutaOutput;
+  // GUARDA DEL DIODO: si el nodo está sellado, abortar escritura en origen
+  if (nodo.sellado) {
+    return NextResponse.json(
+      { error: "[diodo] El nodo está sellado — verificación RSL bloqueada. Debe reabrir el nodo explícitamente para modificar su evidencia." },
+      { status: 409 }
+    );
+  }
+
+  const rutaOutput = (nodo.contenido_origen ?? nodo.contenido_presentacion ?? nodo.contenido) as RutaOutput;
   if (!rutaOutput?.vacio_conocimiento_hipotesis) {
     return NextResponse.json({ error: "El nodo no tiene una hipótesis de vacío de conocimiento válida." }, { status: 422 });
   }
@@ -70,7 +78,10 @@ export async function POST(request: Request) {
 
   const { data: nodoActualizado, error: updateError } = await supabase
     .from("grafo_nodos")
-    .update({ contenido: rutaOutputActualizado })
+    .update({
+      contenido_origen: rutaOutputActualizado,
+      contenido_presentacion: rutaOutputActualizado,
+    })
     .eq("id", nodo_id)
     .select()
     .single();

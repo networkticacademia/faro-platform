@@ -18,11 +18,16 @@ interface NodoGrafo {
   project_id: string;
   tipo: string;
   iteracion: number;
-  contenido: NovaOutput;
+  contenido?: NovaOutput;
+  contenido_origen?: NovaOutput;
+  contenido_presentacion?: NovaOutput;
   confianza_agente: string | null;
   preguntas_pendientes: string[];
   confirmado_humano: boolean;
   editado_humano: boolean;
+  sellado?: boolean;
+  sellado_en?: string | null;
+  reaperturas_count?: number;
   delta_nodal: number | null;
   created_at: string;
 }
@@ -87,6 +92,7 @@ export default function FormulacionNova({
 
   const nodosValidos = (nodos ?? []).filter((n): n is NodoGrafo => Boolean(n && n.id != null));
   const nodoActual = nodosValidos[0] ?? null;
+  const contenidoEfectivo = (nodoActual?.contenido_presentacion ?? nodoActual?.contenido_origen ?? nodoActual?.contenido);
 
   async function generar(conFeedback?: string) {
     setGenerando(true);
@@ -169,8 +175,8 @@ export default function FormulacionNova({
   }
 
   function iniciarEdicion() {
-    if (!nodoActual) return;
-    setContenidoEditado({ ...nodoActual.contenido });
+    if (!contenidoEfectivo) return;
+    setContenidoEditado({ ...contenidoEfectivo });
     setEditando(true);
   }
 
@@ -198,50 +204,44 @@ export default function FormulacionNova({
     <div className="max-w-5xl mx-auto space-y-6">
       <NavegacionNodos projectId={project.id} />
       <NovaInfoPanel />
-      <CifrasContextoInput
-        projectId={project.id}
-        cifrasIniciales={project.cifras_contexto ?? []}
-        rutaOutput={rutaOutputConfirmado ?? null}
-      />
+
+      {/* Cabecera */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-faro-navy">
-            Formulación — NOVA {nodoActual ? `(iteración ${nodoActual.iteracion})` : ""}
-          </h1>
-          <p className="text-sm text-gray-600">
-            {project.tau}{project.subtipo_dti ? ` · ${project.subtipo_dti}` : ""} · {project.nu} · {project.alpha_area}
-          </p>
+          <h1 className="text-2xl font-bold text-faro-navy">Fundamentación del Problema (NOVA)</h1>
+          <p className="text-sm text-gray-500">{project.titulo_provisional ?? "Sin título"}</p>
         </div>
         <div className="flex items-center gap-3">
-          <Link
-            href={`/formulacion/${project.id}`}
-            className="text-xs px-3 py-1.5 rounded-md border border-faro-navy text-faro-navy hover:bg-faro-navy hover:text-white transition-colors font-medium"
-          >
-            ← RUTA
-          </Link>
-          <Link
-            href={`/formulacion/${project.id}/fuentes`}
-            className="text-xs px-3 py-1.5 rounded-md border border-faro-navy text-faro-navy hover:bg-faro-navy hover:text-white transition-colors font-medium flex items-center gap-1"
-          >
-            📚 Fuentes
-          </Link>
-          <Link
-            href={`/formulacion/${project.id}/objetivos`}
-            className="text-xs px-3 py-1.5 rounded-md border border-faro-navy text-faro-navy hover:bg-faro-navy hover:text-white transition-colors font-medium"
-          >
-            Objetivos →
-          </Link>
+          {nodoActual?.confirmado_humano && (
+            <Link
+              href={`/formulacion/${project.id}/objetivos`}
+              className="text-xs px-3 py-1.5 rounded-md border border-faro-navy text-faro-navy hover:bg-faro-navy hover:text-white transition-colors font-medium flex items-center gap-1"
+            >
+              Objetivos →
+            </Link>
+          )}
+          <span className={`text-xs px-3 py-1 rounded-full ${
+            project.estado === "en_formulacion" ? "bg-faro-blue/10 text-faro-blue" : "bg-gray-100 text-gray-500"
+          }`}>
+            {project.estado}
+          </span>
         </div>
       </div>
+
+      {/* RUTA previo */}
+      {rutaOutputConfirmado && (
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-xs space-y-1 text-slate-700">
+          <p className="font-semibold text-faro-navy">Delimitación previa confirmada (RUTA):</p>
+          <p><strong>Pregunta:</strong> {rutaOutputConfirmado.pregunta_investigacion}</p>
+          <p><strong>Problema:</strong> {rutaOutputConfirmado.problema}</p>
+        </div>
+      )}
 
       {error && <div className="bg-red-50 text-red-700 text-sm p-3 rounded-md">{error}</div>}
 
       {!nodoActual && (
         <div className="text-center py-12 space-y-4">
-          <p className="text-gray-600">
-            Todavía no hay una propuesta de NOVA para este proyecto — se construye a partir del nodo RUTA
-            ya confirmado y, si existe, la síntesis bibliográfica de RSL.
-          </p>
+          <p className="text-gray-600">Todavía no hay una propuesta NOVA para este proyecto.</p>
           <button
             onClick={() => generar()}
             disabled={generando}
@@ -253,23 +253,23 @@ export default function FormulacionNova({
         </div>
       )}
 
-      {nodoActual && !editando && (
+      {nodoActual && contenidoEfectivo && !editando && (
         <div className="space-y-4">
           <div className="bg-white rounded-lg border p-5 space-y-3">
             {CAMPOS_EDITABLES.map(({ key, etiqueta }) => (
               <div key={key}>
                 <p className="text-xs text-gray-500 uppercase tracking-wide">{etiqueta}</p>
-                <p className="text-sm">{String(nodoActual.contenido[key] ?? "")}</p>
+                <p className="text-sm">{String(contenidoEfectivo[key] ?? "")}</p>
               </div>
             ))}
 
             <div className="border-t pt-3">
               <p className="text-xs text-gray-500 uppercase tracking-wide">Avance — medida aplicada</p>
               <p className="text-sm">
-                {nodoActual.contenido.avance_medida === "conocimiento" && "Contribución al conocimiento (sin TRL)"}
-                {nodoActual.contenido.avance_medida === "trl" && "Escala TRL"}
-                {nodoActual.contenido.avance_medida === "trl_mercado" && "TRL + potencial de mercado/adopción"}
-                {nodoActual.contenido.avance_medida === null && (
+                {contenidoEfectivo.avance_medida === "conocimiento" && "Contribución al conocimiento (sin TRL)"}
+                {contenidoEfectivo.avance_medida === "trl" && "Escala TRL"}
+                {contenidoEfectivo.avance_medida === "trl_mercado" && "TRL + potencial de mercado/adopción"}
+                {contenidoEfectivo.avance_medida === null && (
                   <span className="text-amber-700">
                     Sin clasificar — complete el subtipo DTI en la pantalla de RUTA
                   </span>
@@ -277,11 +277,11 @@ export default function FormulacionNova({
               </p>
             </div>
 
-            {nodoActual.contenido.nucleo_cadena_causal?.length > 0 && (
+            {contenidoEfectivo.nucleo_cadena_causal?.length > 0 && (
               <div className="border-t pt-3">
                 <p className="text-xs text-gray-500 uppercase tracking-wide">Cadena causal (5 porqués)</p>
                 <ol className="text-sm list-decimal list-inside space-y-1">
-                  {nodoActual.contenido.nucleo_cadena_causal.map((p, i) => (
+                  {contenidoEfectivo.nucleo_cadena_causal.map((p, i) => (
                     <li key={i}>
                       <span className="text-gray-600">{p.pregunta}</span> → {p.respuesta}
                     </li>
@@ -290,11 +290,11 @@ export default function FormulacionNova({
               </div>
             )}
 
-            {nodoActual.contenido.onda_cifras_contexto?.length > 0 && (
+            {contenidoEfectivo.onda_cifras_contexto?.length > 0 && (
               <div className="border-t pt-3">
                 <p className="text-xs text-gray-500 uppercase tracking-wide">Cifras de contexto</p>
                 <ul className="text-sm space-y-1">
-                  {nodoActual.contenido.onda_cifras_contexto.map((c, i) => (
+                  {contenidoEfectivo.onda_cifras_contexto.map((c, i) => (
                     <li key={i}>
                       [{c.nivel}] {c.cifra} — {c.fuente}{" "}
                       {c.verificado ? (
@@ -311,12 +311,12 @@ export default function FormulacionNova({
             <div className="border-t pt-3">
               <p className="text-xs text-gray-500 uppercase tracking-wide">Estado de evidencia (Núcleo)</p>
               <p className={`text-xs mt-1 ${
-                nodoActual.contenido.estado_evidencia === "confirmado_por_rsl" ? "text-green-700" :
-                nodoActual.contenido.estado_evidencia === "contradicho_por_rsl" ? "text-red-700" :
+                contenidoEfectivo.estado_evidencia === "confirmado_por_rsl" ? "text-green-700" :
+                contenidoEfectivo.estado_evidencia === "contradicho_por_rsl" ? "text-red-700" :
                 "text-amber-600"
               }`}>
-                {nodoActual.contenido.estado_evidencia === "confirmado_por_rsl" ? "confirmado por RSL" :
-                 nodoActual.contenido.estado_evidencia === "contradicho_por_rsl" ? "contradicho por RSL" :
+                {contenidoEfectivo.estado_evidencia === "confirmado_por_rsl" ? "confirmado por RSL" :
+                 contenidoEfectivo.estado_evidencia === "contradicho_por_rsl" ? "contradicho por RSL" :
                  "sin verificar contra literatura"}
               </p>
             </div>
@@ -335,9 +335,9 @@ export default function FormulacionNova({
           </div>
 
           <ArbolProblemas
-            problemaCentral={rutaOutputConfirmado?.problema ?? nodoActual.contenido.problema_formulado}
-            causas={nodoActual.contenido.nucleo_causas_estructuradas}
-            efectos={nodoActual.contenido.onda_efectos_estructurados}
+            problemaCentral={rutaOutputConfirmado?.problema ?? contenidoEfectivo.problema_formulado}
+            causas={contenidoEfectivo.nucleo_causas_estructuradas}
+            efectos={contenidoEfectivo.onda_efectos_estructurados}
           />
 
           {metrica && (

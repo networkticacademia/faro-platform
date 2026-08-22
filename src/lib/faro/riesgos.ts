@@ -5,7 +5,8 @@ export type OrigenRiesgo =
   | "contradiccion_delta_ij"
   | "pregunta_operativa"
   | "excedente_tope"
-  | "error_verificador";
+  | "error_verificador"
+  | "banda_rechazo";
 
 export type SeveridadRiesgo = "baja" | "media" | "alta";
 export type EstadoRiesgo = "abierto" | "mitigado" | "aceptado";

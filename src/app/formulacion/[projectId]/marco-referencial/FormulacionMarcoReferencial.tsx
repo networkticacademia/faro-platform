@@ -14,11 +14,16 @@ interface NodoGrafo {
   project_id: string;
   tipo: string;
   iteracion: number;
-  contenido: MarcoReferencialOutput;
+  contenido?: MarcoReferencialOutput;
+  contenido_origen?: MarcoReferencialOutput;
+  contenido_presentacion?: MarcoReferencialOutput;
   confianza_agente: string | null;
   preguntas_pendientes: string[];
   confirmado_humano: boolean;
   editado_humano: boolean;
+  sellado?: boolean;
+  sellado_en?: string | null;
+  reaperturas_count?: number;
   delta_nodal: number | null;
   created_at: string;
 }
@@ -62,7 +67,7 @@ export default function FormulacionMarcoReferencial({
 
   const nodosValidos = (nodos ?? []).filter((n): n is NodoGrafo => Boolean(n && n.id != null));
   const nodoActual = nodosValidos[0] ?? null;
-  const c = nodoActual?.contenido;
+  const c = (nodoActual?.contenido_presentacion ?? nodoActual?.contenido_origen ?? nodoActual?.contenido);
 
   async function generar(conFeedback?: string) {
     setGenerando(true); setError(null);
@@ -72,7 +77,7 @@ export default function FormulacionMarcoReferencial({
         body: JSON.stringify({
           project_id: project.id,
           feedback: conFeedback,
-          fuentes_externas_verificadas: fuentesExternas || undefined,
+          fuentes_externas_verificadas: fuentesExternas.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -150,8 +155,8 @@ export default function FormulacionMarcoReferencial({
   }
 
   function iniciarEdicion() {
-    if (!nodoActual) return;
-    setEd(JSON.parse(JSON.stringify(nodoActual.contenido)));
+    if (!c) return;
+    setEd(JSON.parse(JSON.stringify(c)));
     setEditando(true);
   }
 

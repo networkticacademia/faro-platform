@@ -23,6 +23,7 @@ import {
   type NodoTipo,
 } from "./clasificacionPreguntas";
 import { reagruparPreguntasAbiertas } from "./agrupamiento";
+import { registrarRiesgo } from "./riesgos";
 
 interface PreguntaExtraida {
   campo_origen: string | null;
@@ -71,10 +72,10 @@ export interface PreguntaSincronizada {
 
 export async function sincronizarPreguntasPendientes(
   supabase: SupabaseClient,
-  params: { project_id: string; nodo_id: string; nodo_tipo: NodoTipo; contenido: unknown },
+  params: { project_id: string; nodo_id: string; nodo_tipo: NodoTipo; contenido: unknown; iteracion?: number },
   opciones?: { reagrupar?: boolean }
 ): Promise<{ insertadas: number; omitidas_duplicadas: number; preguntas: PreguntaSincronizada[] }> {
-  const { project_id, nodo_id, nodo_tipo, contenido } = params;
+  const { project_id, nodo_id, nodo_tipo, contenido, iteracion } = params;
   const reagrupar = opciones?.reagrupar ?? true;
   const extraidas = extraerPreguntasDelNodo(contenido);
 
@@ -102,28 +103,34 @@ export async function sincronizarPreguntasPendientes(
     return { insertadas: 0, omitidas_duplicadas, preguntas: [] };
   }
 
-  // 2. Determinar si es "génesis" o "regeneración/checkpoint"
-  const dbTipoGrafo = mapearNodoTipoAGrafoTipo(nodo_tipo);
-  
-  const { data: nodosPrevios, error: errorNodos } = await supabase
-    .from("grafo_nodos")
-    .select("id")
-    .eq("project_id", project_id)
-    .eq("tipo", dbTipoGrafo)
-    .limit(1);
+  // 2. Determinar si es "génesis" (iteracion === 0) o "regeneración/checkpoint" (iteracion > 0)
+  let esRegeneracion: boolean;
+  if (typeof iteracion === "number") {
+    esRegeneracion = iteracion > 0;
+  } else {
+    const dbTipoGrafo = mapearNodoTipoAGrafoTipo(nodo_tipo);
+    const { data: nodosPrevios, error: errorNodos } = await supabase
+      .from("grafo_nodos")
+      .select("iteracion")
+      .eq("project_id", project_id)
+      .eq("tipo", dbTipoGrafo)
+      .order("iteracion", { ascending: false })
+      .limit(1);
 
-  if (errorNodos) {
-    console.error("[sincronizarPreguntasPendientes] error consultando nodos previos:", errorNodos.message);
+    if (errorNodos) {
+      console.error("[sincronizarPreguntasPendientes] error consultando nodos previos:", errorNodos.message);
+    }
+    const maxIteracion = nodosPrevios?.[0]?.iteracion ?? 0;
+    esRegeneracion = maxIteracion > 0 || hashesExistentes.size > 0;
   }
 
-  const esRegeneracion = (nodosPrevios && nodosPrevios.length > 0) || hashesExistentes.size > 0;
-
-  // 3. Aplicar regla de tope graduado
+  // 3. Aplicar regla de tope graduado determinístico post-LLM
   const filasParaInsertar: any[] = [];
+  const excedentesParaRiesgos: { texto_pregunta: string; prioridad: string }[] = [];
   const priorityOrder = { P0: 0, P1: 1, P2: 2, P3: 3 };
 
   if (esRegeneracion) {
-    // Regeneración/checkpoint: máximo 1 pregunta nueva (la de mayor prioridad)
+    // Regeneración (iteracion > 0): MÁXIMO 1 pregunta nueva (la de mayor prioridad)
     const ordenadas = nuevasPreguntas.map((p) => ({
       pregunta: p,
       prioridad: clasificarPrioridad(nodo_tipo, p.texto_pregunta),
@@ -135,72 +142,107 @@ export async function sincronizarPreguntasPendientes(
 
     ordenadas.forEach((item, idx) => {
       const deBajoTope = idx === 0;
-      filasParaInsertar.push({
-        project_id,
-        nodo_id,
-        nodo_tipo,
-        campo_origen: item.pregunta.campo_origen,
-        texto_pregunta: item.pregunta.texto_pregunta,
-        texto_hash: hashTexto(item.pregunta.texto_pregunta),
-        prioridad: item.prioridad,
-        nodos_afectados: obtenerNodosAfectados(nodo_tipo),
-        estado: deBajoTope ? "abierta" : "diferida",
-        estado_procedencia: deBajoTope ? null : "excedente_tope",
-      });
+      if (deBajoTope) {
+        filasParaInsertar.push({
+          project_id,
+          nodo_id,
+          nodo_tipo,
+          campo_origen: item.pregunta.campo_origen,
+          texto_pregunta: item.pregunta.texto_pregunta,
+          texto_hash: hashTexto(item.pregunta.texto_pregunta),
+          prioridad: item.prioridad,
+          nodos_afectados: obtenerNodosAfectados(nodo_tipo),
+          estado: "abierta",
+          estado_procedencia: null,
+        });
+      } else {
+        excedentesParaRiesgos.push({
+          texto_pregunta: item.pregunta.texto_pregunta,
+          prioridad: item.prioridad,
+        });
+      }
     });
   } else {
-    // Génesis: se permiten todas las P0/P1. P2/P3 se permiten hasta MAX_GENESIS = 5
+    // Génesis (iteracion === 0): todas las P0/P1, y P2/P3 hasta MAX_GENESIS = 5
     const MAX_GENESIS = 5;
     let lowPriorityCount = 0;
 
     nuevasPreguntas.forEach((p) => {
       const prioridad = clasificarPrioridad(nodo_tipo, p.texto_pregunta);
       const esBaja = prioridad === "P2" || prioridad === "P3";
-      let estado = "abierta";
-      let estado_procedencia = null;
 
       if (esBaja) {
         if (lowPriorityCount < MAX_GENESIS) {
           lowPriorityCount++;
+          filasParaInsertar.push({
+            project_id,
+            nodo_id,
+            nodo_tipo,
+            campo_origen: p.campo_origen,
+            texto_pregunta: p.texto_pregunta,
+            texto_hash: hashTexto(p.texto_pregunta),
+            prioridad,
+            nodos_afectados: obtenerNodosAfectados(nodo_tipo),
+            estado: "abierta",
+            estado_procedencia: null,
+          });
         } else {
-          estado = "diferida";
-          estado_procedencia = "excedente_tope";
+          excedentesParaRiesgos.push({
+            texto_pregunta: p.texto_pregunta,
+            prioridad,
+          });
         }
+      } else {
+        filasParaInsertar.push({
+          project_id,
+          nodo_id,
+          nodo_tipo,
+          campo_origen: p.campo_origen,
+          texto_pregunta: p.texto_pregunta,
+          texto_hash: hashTexto(p.texto_pregunta),
+          prioridad,
+          nodos_afectados: obtenerNodosAfectados(nodo_tipo),
+          estado: "abierta",
+          estado_procedencia: null,
+        });
       }
-
-      filasParaInsertar.push({
-        project_id,
-        nodo_id,
-        nodo_tipo,
-        campo_origen: p.campo_origen,
-        texto_pregunta: p.texto_pregunta,
-        texto_hash: hashTexto(p.texto_pregunta),
-        prioridad,
-        nodos_afectados: obtenerNodosAfectados(nodo_tipo),
-        estado,
-        estado_procedencia,
-      });
     });
   }
 
-  // 4. Guardar en base de datos
-  const { data, error } = await supabase
-    .from("preguntas_pendientes")
-    .upsert(filasParaInsertar, { onConflict: "nodo_id,texto_hash", ignoreDuplicates: true })
-    .select("id, texto_pregunta, estado");
+  // 4. Guardar preguntas admitidas en preguntas_pendientes
+  let preguntasAbiertas: PreguntaSincronizada[] = [];
+  if (filasParaInsertar.length > 0) {
+    const { data, error } = await supabase
+      .from("preguntas_pendientes")
+      .upsert(filasParaInsertar, { onConflict: "nodo_id,texto_hash", ignoreDuplicates: true })
+      .select("id, texto_pregunta, estado");
 
-  if (error) {
-    console.error("[sincronizarPreguntasPendientes] error en upsert:", error.message);
-    return { insertadas: 0, omitidas_duplicadas, preguntas: [] };
+    if (error) {
+      console.error("[sincronizarPreguntasPendientes] error en upsert:", error.message);
+    } else {
+      preguntasAbiertas = (data ?? [])
+        .filter((d) => d.estado === "abierta")
+        .map((d) => ({
+          id: d.id as string,
+          texto_pregunta: d.texto_pregunta as string,
+        }));
+    }
   }
 
-  // Filtrar solo las preguntas que quedaron abiertas
-  const preguntasAbiertas: PreguntaSincronizada[] = (data ?? [])
-    .filter((d) => d.estado === "abierta")
-    .map((d) => ({
-      id: d.id as string,
-      texto_pregunta: d.texto_pregunta as string,
-    }));
+  // 5. Las preguntas excedentes del tope graduado se insertan en riesgos_proyecto con origen='excedente_tope'
+  if (excedentesParaRiesgos.length > 0) {
+    for (const exc of excedentesParaRiesgos) {
+      const severidad = exc.prioridad === "P0" ? "alta" : exc.prioridad === "P1" ? "media" : "baja";
+      await registrarRiesgo(supabase, {
+        project_id,
+        origen: "excedente_tope",
+        nodo_tipo,
+        descripcion: `[Excedente Tope Post-LLM] ${exc.texto_pregunta}`,
+        severidad,
+        estado: "abierto",
+      });
+    }
+  }
 
   const insertadas = preguntasAbiertas.length;
   if (insertadas > 0 && reagrupar) {

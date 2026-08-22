@@ -24,11 +24,16 @@ interface NodoGrafo {
   project_id: string;
   tipo: string;
   iteracion: number;
-  contenido: ImpactosDelimitacionOutput;
+  contenido?: ImpactosDelimitacionOutput;
+  contenido_origen?: ImpactosDelimitacionOutput;
+  contenido_presentacion?: ImpactosDelimitacionOutput;
   confianza_agente: string | null;
   preguntas_pendientes: string[];
   confirmado_humano: boolean;
   editado_humano: boolean;
+  sellado?: boolean;
+  sellado_en?: string | null;
+  reaperturas_count?: number;
   delta_nodal: number | null;
   created_at: string;
 }
@@ -90,7 +95,7 @@ export default function FormulacionImpactosDelimitacion({
 
   const nodosValidos = (nodos ?? []).filter((n): n is NodoGrafo => Boolean(n && n.id != null));
   const nodoActual = nodosValidos[0] ?? null;
-  const c = nodoActual?.contenido;
+  const c = (nodoActual?.contenido_presentacion ?? nodoActual?.contenido_origen ?? nodoActual?.contenido);
 
   async function generar(conFeedback?: string) {
     setGenerando(true); setError(null);
@@ -175,8 +180,8 @@ export default function FormulacionImpactosDelimitacion({
   }
 
   function iniciarEdicion() {
-    if (!nodoActual) return;
-    setEd(JSON.parse(JSON.stringify(nodoActual.contenido)));
+    if (!c) return;
+    setEd(JSON.parse(JSON.stringify(c)));
     setEditando(true);
   }
 

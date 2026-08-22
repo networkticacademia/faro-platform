@@ -35,7 +35,7 @@ export default async function PresupuestoPage({
     .limit(1)
     .maybeSingle();
 
-  const metodologia = (nodoMetodologia?.contenido ?? null) as MetodologiaOutput | null;
+  const metodologia = ((nodoMetodologia?.contenido_presentacion ?? nodoMetodologia?.contenido_origen ?? nodoMetodologia?.contenido) ?? null) as MetodologiaOutput | null;
 
   return (
     <PresupuestoProyecto

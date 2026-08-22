@@ -27,11 +27,16 @@ interface NodoGrafo {
   project_id: string;
   tipo: string;
   iteracion: number;
-  contenido: RutaOutput;
+  contenido?: RutaOutput;
+  contenido_origen?: RutaOutput;
+  contenido_presentacion?: RutaOutput;
   confianza_agente: string | null;
   preguntas_pendientes: string[];
   confirmado_humano: boolean;
   editado_humano: boolean;
+  sellado?: boolean;
+  sellado_en?: string | null;
+  reaperturas_count?: number;
   delta_nodal: number | null;
   created_at: string;
 }
@@ -235,9 +240,11 @@ export default function FormulacionRuta({
     }
   }
 
+  const contenidoEfectivo = (nodoActual?.contenido_presentacion ?? nodoActual?.contenido_origen ?? nodoActual?.contenido) as RutaOutput | undefined;
+
   function iniciarEdicion() {
-    if (!nodoActual) return;
-    setContenidoEditado({ ...nodoActual.contenido });
+    if (!contenidoEfectivo) return;
+    setContenidoEditado({ ...contenidoEfectivo });
     setEditando(true);
   }
 
@@ -478,29 +485,29 @@ export default function FormulacionRuta({
         </div>
       )}
 
-      {nodoActual && !editando && (
+      {nodoActual && contenidoEfectivo && !editando && (
         <div className="space-y-4">
           <div className="bg-white rounded-lg border p-5 space-y-3">
             {CAMPOS_EDITABLES.map(({ key, etiqueta }) => (
               <div key={key}>
                 <p className="text-xs text-gray-500 uppercase tracking-wide">{etiqueta}</p>
-                <p className="text-sm">{String(nodoActual.contenido[key] ?? "")}</p>
+                <p className="text-sm">{String(contenidoEfectivo[key] ?? "")}</p>
               </div>
             ))}
 
             <div className="border-t pt-3">
               <p className="text-xs text-gray-500 uppercase tracking-wide">Hipótesis de vacío / problema</p>
-              <p className="text-sm">{nodoActual.contenido.vacio_conocimiento_hipotesis?.afirmacion}</p>
+              <p className="text-sm">{contenidoEfectivo.vacio_conocimiento_hipotesis?.afirmacion}</p>
               <p className={`text-xs mt-1 ${
-                nodoActual.contenido.vacio_conocimiento_hipotesis?.estado_evidencia === "confirmado_por_rsl"
+                contenidoEfectivo.vacio_conocimiento_hipotesis?.estado_evidencia === "confirmado_por_rsl"
                   ? "text-green-700"
-                  : nodoActual.contenido.vacio_conocimiento_hipotesis?.estado_evidencia === "contradicho_por_rsl"
+                  : contenidoEfectivo.vacio_conocimiento_hipotesis?.estado_evidencia === "contradicho_por_rsl"
                   ? "text-red-700"
                   : "text-amber-600"
               }`}>
-                Estado de evidencia: {nodoActual.contenido.vacio_conocimiento_hipotesis?.estado_evidencia === "confirmado_por_rsl"
+                Estado de evidencia: {contenidoEfectivo.vacio_conocimiento_hipotesis?.estado_evidencia === "confirmado_por_rsl"
                   ? "confirmado por RSL"
-                  : nodoActual.contenido.vacio_conocimiento_hipotesis?.estado_evidencia === "contradicho_por_rsl"
+                  : contenidoEfectivo.vacio_conocimiento_hipotesis?.estado_evidencia === "contradicho_por_rsl"
                   ? "contradicho por RSL"
                   : "sin verificar contra literatura — confirme la búsqueda abajo"}
               </p>

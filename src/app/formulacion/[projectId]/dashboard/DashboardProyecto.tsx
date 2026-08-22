@@ -33,6 +33,9 @@ interface NodoConfirmado {
   tipo: string;
   contenido: NovaOutput | ObjetivosOutput | MetodologiaOutput | Record<string, unknown>;
   confirmado_humano: boolean;
+  sellado?: boolean;
+  sellado_en?: string | null;
+  reaperturas_count?: number;
   delta_nodal: number | null;
   created_at: string;
   iteracion: number;
@@ -193,33 +196,64 @@ export default function DashboardProyecto({
 
         {NODOS_ORDEN.map((tipo) => {
           const sesion = ultimaPorModulo[tipo];
-          const confirmado = confirmadoPorTipo[tipo] ?? false;
+          const nodoConfirmado = nodosConfirmados.find((n) => n.tipo === tipo);
+          const confirmado = nodoConfirmado?.confirmado_humano ?? (confirmadoPorTipo[tipo] ?? false);
+          const estaSellado = nodoConfirmado?.sellado ?? false;
+          const reaperturas = nodoConfirmado?.reaperturas_count ?? 0;
+
           return (
-            <div key={tipo} className="rounded-2xl border bg-white p-4 flex flex-col">
-              <span className="text-xs font-semibold" style={{ color: NODO_COLOR[tipo] }}>
-                {NODO_LABEL[tipo]}
-              </span>
-              {sesion ? (
-                <>
-                  <span className="text-2xl font-bold text-faro-navy mt-1">
-                    {sesion.l_faro.toFixed(2)}
+            <div key={tipo} className="rounded-2xl border bg-white p-4 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold" style={{ color: NODO_COLOR[tipo] }}>
+                    {NODO_LABEL[tipo]}
                   </span>
-                  <span className="text-[10px] text-gray-400">L_FARO (iteración {sesion.iteracion})</span>
+                  {estaSellado && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-900 text-white tracking-wider uppercase">
+                      🔒 Sellado
+                    </span>
+                  )}
+                </div>
+                {sesion ? (
+                  <>
+                    <span className="text-2xl font-bold text-faro-navy mt-1 block">
+                      {sesion.l_faro.toFixed(2)}
+                    </span>
+                    <span className="text-[10px] text-gray-400">L_FARO (iteración {sesion.iteracion})</span>
+                  </>
+                ) : (
+                  <span className="text-xs text-gray-400 mt-2 block">Sin generar todavía</span>
+                )}
+              </div>
+
+              <div className="mt-3 pt-2 border-t border-gray-100 flex flex-col gap-1">
+                {sesion && (
                   <span
-                    className={`mt-2 text-[10px] px-2 py-0.5 rounded-full self-start ${
-                      confirmado
+                    className={`text-[10px] px-2 py-0.5 rounded-full self-start ${
+                      estaSellado
+                        ? "bg-emerald-100 text-emerald-800 font-semibold"
+                        : confirmado
                         ? "bg-green-100 text-green-700"
                         : sesion.convergio
                         ? "bg-blue-100 text-blue-700"
                         : "bg-amber-100 text-amber-700"
                     }`}
                   >
-                    {confirmado ? "Confirmado" : sesion.convergio ? "Converge, sin confirmar" : "En proceso"}
+                    {estaSellado
+                      ? "Sellado inmutable"
+                      : confirmado
+                      ? "Confirmado"
+                      : sesion.convergio
+                      ? "Converge, sin confirmar"
+                      : "En proceso"}
                   </span>
-                </>
-              ) : (
-                <span className="text-xs text-gray-400 mt-2">Sin generar todavía</span>
-              )}
+                )}
+                {reaperturas > 0 && (
+                  <span className="text-[9px] text-gray-400">
+                    Reabierto {reaperturas} {reaperturas === 1 ? "vez" : "veces"}
+                  </span>
+                )}
+              </div>
             </div>
           );
         })}

@@ -63,7 +63,7 @@ export async function POST(request: Request) {
   // 2. Traer el último nodo CONFIRMADO de cada tipo (tipo → nodo confirmado más reciente)
   const { data: nodosRaw } = await supabase
     .from("grafo_nodos")
-    .select("tipo, contenido, iteracion, confirmado_humano, confianza_agente, preguntas_pendientes")
+    .select("tipo, contenido, contenido_origen, contenido_presentacion, iteracion, confirmado_humano, confianza_agente, preguntas_pendientes")
     .eq("project_id", project_id)
     .eq("confirmado_humano", true)
     .in("tipo", [...NODOS_REQUERIDOS])
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     if (!nodosConfirmados[tipo]) {
       nodosConfirmados[tipo] = {
         tipo,
-        contenido: nodo.contenido as Record<string, unknown>,
+        contenido: (nodo.contenido_origen ?? nodo.contenido_presentacion ?? nodo.contenido) as Record<string, unknown>,
         iteracion: nodo.iteracion,
         confianza_agente: nodo.confianza_agente ?? null,
         preguntas_pendientes: (nodo.preguntas_pendientes as string[]) ?? [],
@@ -260,6 +260,7 @@ export async function POST(request: Request) {
     nodosConfirmadosTotal,
     cronogramaExcedeDuracion,
     mesesExcedidos,
+    seTauProyecto: seTau,
   });
 
   // Adjuntar detalle de δᵢⱼ y Φ al resultado para guardarlo y mostrarlo
@@ -268,6 +269,42 @@ export async function POST(request: Request) {
     deltas_ij: deltasIj.length > 0 ? deltasIj : null,
     phi_detalle: phiDetalle,
   };
+
+  // 10.1 Enrutamiento al mapa de riesgos en banda de rechazo (REVISION)
+  // Derivar preguntas abiertas no operativas y contradicciones aceptadas a riesgos_proyecto
+  if (resultadoConvergencia.decision?.estado === "REVISION") {
+    try {
+      // Registrar preguntas pendientes de nodos confirmados como riesgos de banda de rechazo
+      for (const [tipo, nodo] of Object.entries(nodosConfirmados) as [NodoRequerido, NodoConfirmado][]) {
+        for (const pregunta of nodo.preguntas_pendientes) {
+          if (pregunta && pregunta.trim().length > 0) {
+            await supabase.from("riesgos_proyecto").insert({
+              project_id,
+              origen: "banda_rechazo",
+              nodo_tipo: tipo,
+              descripcion: `[Banda de Rechazo] Pregunta pendiente en ${tipo}: ${pregunta.trim()}`,
+              severidad: "media",
+              estado: "abierto",
+            });
+          }
+        }
+      }
+
+      // Registrar contradicciones de nivel L3 como riesgos de banda de rechazo
+      for (const contra of contradicciones.filter((c) => c.nivel === "L3")) {
+        await supabase.from("riesgos_proyecto").insert({
+          project_id,
+          origen: "banda_rechazo",
+          nodo_tipo: null,
+          descripcion: `[Banda de Rechazo] Contradicción L3 aceptada (${contra.codigo}): ${contra.mensaje}`,
+          severidad: "baja",
+          estado: "aceptado",
+        });
+      }
+    } catch (errRiesgos) {
+      console.warn("[convergencia/calcular] Error al derivar a riesgos_proyecto:", errRiesgos);
+    }
+  }
 
   // 11. Persistir (INSERT siempre — histórico completo, mismo patrón que sesiones_mci_log)
   const { error: insertError } = await supabase

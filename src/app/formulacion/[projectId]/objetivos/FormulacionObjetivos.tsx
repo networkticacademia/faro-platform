@@ -21,11 +21,16 @@ interface NodoGrafo {
   project_id: string;
   tipo: string;
   iteracion: number;
-  contenido: ObjetivosOutput & { matriz_consistencia?: FilaMatrizConsistencia[] };
+  contenido?: ObjetivosOutput & { matriz_consistencia?: FilaMatrizConsistencia[] };
+  contenido_origen?: ObjetivosOutput & { matriz_consistencia?: FilaMatrizConsistencia[] };
+  contenido_presentacion?: ObjetivosOutput & { matriz_consistencia?: FilaMatrizConsistencia[] };
   confianza_agente: string | null;
   preguntas_pendientes: string[];
   confirmado_humano: boolean;
   editado_humano: boolean;
+  sellado?: boolean;
+  sellado_en?: string | null;
+  reaperturas_count?: number;
   delta_nodal: number | null;
   created_at: string;
 }
@@ -184,13 +189,13 @@ export default function FormulacionObjetivos({
     }
   }
 
+  const c = (nodoActual?.contenido_presentacion ?? nodoActual?.contenido_origen ?? nodoActual?.contenido);
+
   function iniciarEdicion() {
-    if (!nodoActual) return;
-    setEd(JSON.parse(JSON.stringify(nodoActual.contenido)));
+    if (!c) return;
+    setEd(JSON.parse(JSON.stringify(c)));
     setEditando(true);
   }
-
-  const c = nodoActual?.contenido;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -338,7 +343,7 @@ export default function FormulacionObjetivos({
             <p className="text-xs text-gray-400">Confianza del agente: {nodoActual.confianza_agente}</p>
           </div>
 
-          {nodoActual.contenido.matriz_consistencia && nodoActual.contenido.matriz_consistencia.length > 0 && (
+          {c?.matriz_consistencia && c.matriz_consistencia.length > 0 && (
             <div className="bg-white rounded-lg border p-5">
               <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">
                 Matriz de consistencia (ensamblada automáticamente, no editable — se recalcula
@@ -357,7 +362,7 @@ export default function FormulacionObjetivos({
                     </tr>
                   </thead>
                   <tbody>
-                    {nodoActual.contenido.matriz_consistencia.map((fila, i) => (
+                    {c.matriz_consistencia.map((fila, i) => (
                       <tr key={i} className="border-b last:border-0 align-top">
                         <td className="pr-2 py-1">{fila.objetivo_especifico}</td>
                         <td className="pr-2 py-1 text-gray-500">{fila.causa_asociada ?? "—"}</td>

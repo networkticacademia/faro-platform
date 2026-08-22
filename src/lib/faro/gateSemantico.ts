@@ -57,7 +57,7 @@ export async function evaluarCoherenciaSemanticaCheckpoint(
     const [{ data: origenRow }, { data: destinoRow }] = await Promise.all([
       supabase
         .from("grafo_nodos")
-        .select("contenido")
+        .select("contenido, contenido_origen, contenido_presentacion")
         .eq("project_id", project_id)
         .eq("tipo", par.nodoOrigen)
         .eq("confirmado_humano", true)
@@ -66,7 +66,7 @@ export async function evaluarCoherenciaSemanticaCheckpoint(
         .maybeSingle(),
       supabase
         .from("grafo_nodos")
-        .select("contenido")
+        .select("contenido, contenido_origen, contenido_presentacion")
         .eq("project_id", project_id)
         .eq("tipo", par.nodoDestino)
         .eq("confirmado_humano", true)
@@ -77,13 +77,16 @@ export async function evaluarCoherenciaSemanticaCheckpoint(
 
     if (!origenRow || !destinoRow) continue; // algún nodo del par aún no confirmado
 
+    const contenidoOrigenRaw = (origenRow.contenido_origen ?? origenRow.contenido_presentacion ?? origenRow.contenido) as Record<string, unknown>;
+    const contenidoDestinoRaw = (destinoRow.contenido_origen ?? destinoRow.contenido_presentacion ?? destinoRow.contenido) as Record<string, unknown>;
+
     const contenidoOrigenResumido = resumirNodo(
       par.nodoOrigen as NodoRequerido,
-      origenRow.contenido as Record<string, unknown>
+      contenidoOrigenRaw
     );
     const contenidoDestinoResumido = resumirNodo(
       par.nodoDestino as NodoRequerido,
-      destinoRow.contenido as Record<string, unknown>
+      contenidoDestinoRaw
     );
 
     const prompt = construirPromptVerificacionSemantica({

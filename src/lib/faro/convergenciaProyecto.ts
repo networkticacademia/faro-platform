@@ -15,6 +15,7 @@
 import type { ResultadoCoherenciaPar } from "./verificadorSemantico";
 import type { BrechaTrazabilidad } from "./verificadorEstructural";
 import type { ContradiccionDetectada } from "./mci";
+import { decidirTerminacion, type ResultadoDecisionCapa } from "./capaDecision";
 
 // Pesos provisionales — declarados aparte para que sea fácil ajustarlos
 // cuando haya datos reales de calibración, sin tocar la lógica.
@@ -39,12 +40,12 @@ function generarSugerenciaNodo(d: { l_faro: number; confianza_agente: string | n
     return `El agente declaró confianza baja al generarlo — revise el contenido con cuidado y considere regenerar con instrucciones más específicas.`;
   }
   if (d.confianza_agente === "media") {
-    return `Confianza media del agente — revise si hay algo impreciso y regenere con feedback puntual si es necesario.`;
+    return `Confianza media — revise la coherencia de los campos clave antes de confirmar.`;
   }
   return `L_FARO individual alto sin causa evidente declarada — revise el contenido manualmente, puede haber una contradicción con RSL (Δ) no resuelta.`;
 }
 
-export function ordenarNodosPorContribucion(detalles: DetalleLFaroNodo[]): DetalleLFaroNodo[] {
+function ordenarNodosPorContribucion(detalles: DetalleLFaroNodo[]): DetalleLFaroNodo[] {
   return [...detalles].sort((a, b) => b.l_faro - a.l_faro);
 }
 
@@ -64,6 +65,7 @@ export interface ResultadoConvergenciaProyecto {
   promedio_delta_ij: number | null; // null si no se ha corrido la verificación semántica
   es_provisional: boolean; // true mientras falten piezas (δᵢⱼ o Φ no calculados)
   detalle_l_faro_por_nodo: DetalleLFaroNodo[]; // ordenado de mayor a menor contribución — para saber QUÉ nodo corregir primero
+  decision?: ResultadoDecisionCapa; // Capa de transducción ordinal y probabilidades calibradas (preliminar)
 }
 
 export function calcularConvergenciaProyecto(params: {
@@ -77,12 +79,14 @@ export function calcularConvergenciaProyecto(params: {
   nodosConfirmadosTotal: number;
   cronogramaExcedeDuracion: boolean | null; // null = duración no confirmada todavía, no se puede evaluar
   mesesExcedidos?: number;
+  seTauProyecto?: number;
 }): ResultadoConvergenciaProyecto {
   const {
     lFaroReducidaPorNodoConfirmado, tauCProyecto, deltasIj, phi,
     brechasEstructurales, contradicciones,
     nodosRequeridosTotal, nodosConfirmadosTotal,
     cronogramaExcedeDuracion, mesesExcedidos,
+    seTauProyecto,
   } = params;
 
   const promedioLFaroNodos =
@@ -171,14 +175,26 @@ export function calcularConvergenciaProyecto(params: {
     }))
   );
 
+  const lFaroProyectoRedondeado = Math.round(lFaroProyecto * 1000) / 1000;
+
+  // Capa de Decisión posterior (transducción probabilística ordinal + compuertas duras)
+  // Si seTauProyecto no se pasa directamente, se despeja o usa default 0.25
+  const seTauEfectivo = seTauProyecto ?? (tauCProyecto > 0 ? Math.max(0, 1 - (tauCProyecto / 0.35)) : 0.25);
+  const decision = decidirTerminacion({
+    lFaroProyecto: lFaroProyectoRedondeado,
+    seTau: seTauEfectivo,
+    condiciones,
+  });
+
   return {
     convergio,
-    l_faro_proyecto: Math.round(lFaroProyecto * 1000) / 1000,
+    l_faro_proyecto: lFaroProyectoRedondeado,
     tau_c_proyecto: tauCProyecto,
     condiciones,
     phi,
     promedio_delta_ij: promedioDeltaIj !== null ? Math.round(promedioDeltaIj * 1000) / 1000 : null,
     es_provisional: esProvisional,
     detalle_l_faro_por_nodo: detalleLFaroPorNodo,
+    decision,
   };
 }

@@ -318,10 +318,16 @@ export async function verificarCircuitoAntesDeRegenerar(
 ): Promise<void> {
   const { data: previos } = await supabase
     .from("grafo_nodos")
-    .select("id")
+    .select("id, sellado")
     .eq("project_id", project_id)
     .eq("tipo", nodo_tipo)
+    .order("iteracion", { ascending: false })
     .limit(1);
+
+  const nodoMasReciente = previos?.[0];
+  if (nodoMasReciente?.sellado) {
+    throw new Error(`[diodo] El nodo ${nodo_tipo} está sellado — escritura en origen bloqueada. Debe reabrir el nodo explícitamente para regenerarlo.`);
+  }
 
   const esRegeneracion = (previos?.length ?? 0) > 0;
   if (!esRegeneracion) return; // primera generación real del nodo — nada que comparar, nunca se bloquea

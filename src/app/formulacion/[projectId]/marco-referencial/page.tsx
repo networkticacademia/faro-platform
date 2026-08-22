@@ -34,7 +34,7 @@ export default async function MarcoReferencialPage({
   // teórica ya rellenados — no genéricos.
   const { data: nodoRuta } = await supabase
     .from("grafo_nodos")
-    .select("contenido")
+    .select("contenido, contenido_origen, contenido_presentacion")
     .eq("project_id", projectId)
     .eq("tipo", "RUTA")
     .eq("confirmado_humano", true)
@@ -42,7 +42,7 @@ export default async function MarcoReferencialPage({
     .limit(1)
     .maybeSingle();
 
-  const problemaProyecto = (nodoRuta?.contenido as { problema?: string } | null)?.problema ?? "";
+  const problemaProyecto = ((nodoRuta?.contenido_presentacion ?? nodoRuta?.contenido_origen ?? nodoRuta?.contenido) as { problema?: string } | null)?.problema ?? "";
 
   return (
     <FormulacionMarcoReferencial

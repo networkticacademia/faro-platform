@@ -25,11 +25,16 @@ interface NodoGrafo {
   project_id: string;
   tipo: string;
   iteracion: number;
-  contenido: MetodologiaOutput & { matriz_consistencia_extendida?: FilaMatrizConsistenciaExtendida[] };
+  contenido?: MetodologiaOutput & { matriz_consistencia_extendida?: FilaMatrizConsistenciaExtendida[] };
+  contenido_origen?: MetodologiaOutput & { matriz_consistencia_extendida?: FilaMatrizConsistenciaExtendida[] };
+  contenido_presentacion?: MetodologiaOutput & { matriz_consistencia_extendida?: FilaMatrizConsistenciaExtendida[] };
   confianza_agente: string | null;
   preguntas_pendientes: string[];
   confirmado_humano: boolean;
   editado_humano: boolean;
+  sellado?: boolean;
+  sellado_en?: string | null;
+  reaperturas_count?: number;
   delta_nodal: number | null;
   created_at: string;
 }
@@ -62,25 +67,29 @@ export default function FormulacionMetodologia({
 
   const nodosValidos = (nodos ?? []).filter((n): n is NodoGrafo => Boolean(n && n.id != null));
   const nodoActual = nodosValidos[0] ?? null;
-  const c = nodoActual?.contenido;
+  const c = (nodoActual?.contenido_presentacion ?? nodoActual?.contenido_origen ?? nodoActual?.contenido);
 
   async function generar(conFeedback?: string) {
-    setGenerando(true); setError(null);
+    setGenerando(true);
+    setError(null);
     try {
       const res = await fetch("/api/mci/metodologia/generar", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ project_id: project.id, feedback: conFeedback }),
       });
       const data = await res.json();
-      if (data.circuito_detenido) {
-        setError(`El circuito de convergencia detuvo la regeneración: ${data.motivo_circuito ?? "sin mejora tras varias rondas"}. Puede usar "bypass" si ya revisó el resultado actual.`);
-        return;
-      }
       if (!res.ok || !data.nodo) throw new Error(data.error ?? "Error generando la propuesta.");
-      setNodos((prev) => [data.nodo, ...prev.filter(Boolean)]);
-      setMetrica(data.metrica); setFeedback(""); setRespuestasPreguntas({}); setEditando(false);
-    } catch (e) { setError(e instanceof Error ? e.message : "Error desconocido."); }
-    finally { setGenerando(false); }
+      setNodos((prev) => [data.nodo, ...prev]);
+      setMetrica(data.metrica);
+      setFeedback("");
+      setRespuestasPreguntas({});
+      setEditando(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error desconocido.");
+    } finally {
+      setGenerando(false);
+    }
   }
 
   async function confirmar(editado: boolean) {
@@ -92,7 +101,8 @@ export default function FormulacionMetodologia({
       );
       if (!continuar) return;
     }
-    setConfirmando(true); setError(null);
+    setConfirmando(true);
+    setError(null);
     try {
       // 1. Consultar preguntas abiertas de este nodo para el modal de sellado
       const qRes = await fetch(`/api/mci/preguntas/pendientes?project_id=${project.id}`);
@@ -114,7 +124,8 @@ export default function FormulacionMetodologia({
 
       const contenidoEditado = editado && ed ? ed : undefined;
       const res = await fetch("/api/mci/ruta/confirmar", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nodo_id: nodoActual.id,
           contenido_editado: contenidoEditado,
@@ -126,28 +137,36 @@ export default function FormulacionMetodologia({
       setNodos((prev) => [data.nodo, ...prev.slice(1)]);
       setEditando(false);
       setRespuestasPreguntas({});
-    } catch (e) { setError(e instanceof Error ? e.message : "Error desconocido."); }
-    finally { setConfirmando(false); }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error desconocido.");
+    } finally {
+      setConfirmando(false);
+    }
   }
 
   async function reabrirParaEditar() {
     if (!nodoActual) return;
-    setReabriendo(true); setError(null);
+    setReabriendo(true);
+    setError(null);
     try {
       const res = await fetch("/api/mci/nodo/reabrir", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nodo_id: nodoActual.id }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al reabrir el nodo.");
       setNodos((prev) => [data.nodo, ...prev.slice(1)]);
-    } catch (e) { setError(e instanceof Error ? e.message : "Error desconocido."); }
-    finally { setReabriendo(false); }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error desconocido.");
+    } finally {
+      setReabriendo(false);
+    }
   }
 
   function iniciarEdicion() {
-    if (!nodoActual) return;
-    setEd(JSON.parse(JSON.stringify(nodoActual.contenido)));
+    if (!c) return;
+    setEd(JSON.parse(JSON.stringify(c)));
     setEditando(true);
   }
 

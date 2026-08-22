@@ -134,35 +134,112 @@ export default function TarjetaConvergencia({
             </div>
           )}
 
-          {/* Indicador grande */}
-          <div className="flex items-center gap-4">
-            <span className="text-5xl">{resultado.convergio ? "✅" : "⏳"}</span>
-            <div>
-              <p className="text-lg font-bold text-faro-navy">
-                {resultado.convergio ? "El proyecto convergió" : "Aún no converge"}
-              </p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                L_FARO<sub>proyecto</sub> ={" "}
-                <span className="font-mono font-semibold">{resultado.l_faro_proyecto.toFixed(3)}</span>
-                {" · "}τc ={" "}
-                <span className="font-mono">{resultado.tau_c_proyecto.toFixed(3)}</span>
-              </p>
-              {resultado.phi !== null && (
-                <p className="text-xs text-gray-500">
-                  Φ (cobertura rúbrica) ={" "}
-                  <span className="font-mono font-semibold">{resultado.phi.toFixed(3)}</span>
-                  {resultado.phi_detalle && (
-                    <span className="text-gray-400">
-                      {" "}({resultado.phi_detalle.itemsConsiderados} ítem(s) considerado(s)
-                      {resultado.phi_detalle.itemsSinPeso > 0
-                        ? `, ${resultado.phi_detalle.itemsSinPeso} sin peso`
-                        : ""})
-                    </span>
+          {/* Indicador grande y Capa de Decisión Transducida */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <div className="flex items-center gap-4">
+              <span className="text-4xl">
+                {resultado.decision?.estado === "CONVERGE"
+                  ? "✅"
+                  : resultado.decision?.estado === "REVISION"
+                  ? "⚠️"
+                  : "⏳"}
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-base font-bold text-faro-navy">
+                    {resultado.decision?.estado === "CONVERGE"
+                      ? "Estado: CONVERGE (Listo para exportar)"
+                      : resultado.decision?.estado === "REVISION"
+                      ? "Estado: REVISIÓN (Banda de rechazo)"
+                      : "Estado: NO CONVERGE (Continuar iterando)"}
+                  </p>
+                  <span
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      resultado.decision?.estado === "CONVERGE"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : resultado.decision?.estado === "REVISION"
+                        ? "bg-amber-100 text-amber-800"
+                        : "bg-rose-100 text-rose-800"
+                    }`}
+                  >
+                    {resultado.decision?.estado ?? (resultado.convergio ? "CONVERGE" : "NO CONVERGE")}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  L_FARO<sub>proyecto</sub> ={" "}
+                  <span className="font-mono font-semibold">{resultado.l_faro_proyecto.toFixed(3)}</span>
+                  {" · "}τc ={" "}
+                  <span className="font-mono">{resultado.tau_c_proyecto.toFixed(3)}</span>
+                  {resultado.decision && (
+                    <>
+                      {" · "}η = <span className="font-mono font-semibold">{resultado.decision.eta.toFixed(3)}</span>
+                      {" · "}T = <span className="font-mono">{resultado.decision.temperatura.toFixed(2)}</span>
+                    </>
                   )}
                 </p>
-              )}
+                {resultado.phi !== null && (
+                  <p className="text-xs text-gray-500">
+                    Φ (cobertura rúbrica) ={" "}
+                    <span className="font-mono font-semibold">{resultado.phi.toFixed(3)}</span>
+                    {resultado.phi_detalle && (
+                      <span className="text-gray-400">
+                        {" "}({resultado.phi_detalle.itemsConsiderados} ítem(s) considerado(s)
+                        {resultado.phi_detalle.itemsSinPeso > 0
+                          ? `, ${resultado.phi_detalle.itemsSinPeso} sin peso`
+                          : ""})
+                      </span>
+                    )}
+                  </p>
+                )}
+              </div>
             </div>
+
+            {/* Probabilidades Calibradas */}
+            {resultado.decision && (
+              <div className="w-full sm:w-auto flex flex-col sm:items-end border-t sm:border-t-0 sm:border-l border-slate-200 pt-3 sm:pt-0 sm:pl-4">
+                <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-1">
+                  Probabilidades (Modelo Ordinal)
+                </span>
+                <div className="flex items-center gap-3 text-xs">
+                  <div className="text-center">
+                    <div className="font-bold text-rose-700 font-mono">
+                      {resultado.decision.probabilidades_porcentaje.no_converge}%
+                    </div>
+                    <div className="text-[10px] text-gray-500">No converge</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-bold text-amber-700 font-mono">
+                      {resultado.decision.probabilidades_porcentaje.revision}%
+                    </div>
+                    <div className="text-[10px] text-gray-500">Revisión</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-bold text-emerald-700 font-mono">
+                      {resultado.decision.probabilidades_porcentaje.converge}%
+                    </div>
+                    <div className="text-[10px] text-gray-500">Converge</div>
+                  </div>
+                </div>
+                <p className="text-[10px] text-amber-700 font-medium mt-1.5 flex items-center gap-1">
+                  <span>ℹ️</span> Probabilidad preliminar — parámetros sin calibrar
+                </p>
+              </div>
+            )}
           </div>
+
+          {/* Compuertas duras fallidas si existen */}
+          {resultado.decision && !resultado.decision.compuertas_aprobadas && (
+            <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-xs text-rose-800 space-y-1">
+              <p className="font-semibold flex items-center gap-1.5 text-rose-900">
+                <span>🛑</span> Bloqueo por compuertas duras binarias ({resultado.decision.compuertas_fallidas.length})
+              </p>
+              <ul className="list-disc list-inside space-y-0.5 text-[11px] text-rose-700">
+                {resultado.decision.compuertas_fallidas.map((f, idx) => (
+                  <li key={idx}>{f}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* 5 condiciones */}
           <ul className="space-y-2">

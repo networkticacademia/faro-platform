@@ -1,15 +1,6 @@
-// ============================================================
-// FARO — POST /api/mci/nodo/reabrir
-// Endpoint genérico por nodo_id (mismo patrón que
-// /api/mci/ruta/confirmar) — desmarca confirmado_humano para
-// permitir que el formulador vuelva a editar un nodo que ya
-// había confirmado, sin perder el contenido actual ni crear una
-// iteración nueva. El contenido queda intacto; solo cambia el
-// estado de confirmación.
-// ============================================================
-
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { payloadReapertura } from "@/lib/faro/diodoNodal";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -24,9 +15,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Falta nodo_id." }, { status: 400 });
   }
 
+  // Consultar estado previo para incrementar contador de reaperturas
+  const { data: nodoPrevio } = await supabase
+    .from("grafo_nodos")
+    .select("id, reaperturas_count, sellado")
+    .eq("id", nodo_id)
+    .single();
+
+  const updateData = payloadReapertura(nodoPrevio);
+
   const { data: nodo, error } = await supabase
     .from("grafo_nodos")
-    .update({ confirmado_humano: false })
+    .update(updateData)
     .eq("id", nodo_id)
     .select()
     .single();

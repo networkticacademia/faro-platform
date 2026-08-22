@@ -97,14 +97,14 @@ export async function obtenerNodoConfirmado<T>(
 ): Promise<T | null> {
   const { data } = await supabase
     .from("grafo_nodos")
-    .select("contenido")
+    .select("contenido, contenido_origen, contenido_presentacion")
     .eq("project_id", project_id)
     .eq("tipo", tipo)
     .eq("confirmado_humano", true)
     .order("iteracion", { ascending: false })
     .limit(1)
     .maybeSingle();
-  return (data?.contenido as T) ?? null;
+  return ((data?.contenido_presentacion ?? data?.contenido_origen ?? data?.contenido) as T) ?? null;
 }
 
 /** Falla explícita nombrando el nodo faltante — nunca genera con huecos. */

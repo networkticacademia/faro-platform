@@ -66,12 +66,15 @@ export default async function DashboardPage({
   // no solo para las tarjetas de resumen.
   const { data: nodosConfirmadosCompletos } = await supabase
     .from("grafo_nodos")
-    .select("tipo, contenido, confirmado_humano, delta_nodal, created_at, iteracion")
+    .select("tipo, contenido, contenido_origen, contenido_presentacion, confirmado_humano, sellado, sellado_en, reaperturas_count, delta_nodal, created_at, iteracion")
     .eq("project_id", projectId)
     .eq("confirmado_humano", true)
     .order("iteracion", { ascending: false });
 
-  const nodosConfirmados = nodosConfirmadosCompletos ?? [];
+  const nodosConfirmados = (nodosConfirmadosCompletos ?? []).map((n) => ({
+    ...n,
+    contenido: (n.contenido_origen ?? n.contenido_presentacion ?? n.contenido) as Record<string, unknown>,
+  }));
 
   const actividadOpenRouter = await obtenerActividadOpenRouter();
 
