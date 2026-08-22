@@ -12,6 +12,17 @@ import TriagePregunta from "./TriagePregunta";
 
 type Prioridad = "P1" | "P2" | "P3";
 
+interface PreguntaDependienteUI {
+  id: string;
+  nodo_tipo: string;
+  texto_pregunta: string;
+  prioridad: Prioridad;
+  estado: string;
+  condicion_activacion?: string;
+  cerrada_por_rama?: boolean;
+  razon_cierre?: string;
+}
+
 interface PreguntaRaiz {
   id: string;
   nodo_tipo: string;
@@ -21,6 +32,7 @@ interface PreguntaRaiz {
   nodos_afectados: string[];
   agrupa_count?: number;
   nodos_involucrados?: string[];
+  dependientes?: PreguntaDependienteUI[];
 }
 
 interface Conteo {
@@ -57,6 +69,19 @@ export default function PreguntasPendientesAgrupadas({ projectId }: { projectId:
     cargar();
   }, [cargar]);
 
+  const reabrirDependiente = async (depId: string) => {
+    try {
+      await fetch(`/api/mci/preguntas/responder`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pregunta_id: depId, estado: "abierta" }),
+      });
+      cargar();
+    } catch (e) {
+      console.error("Error al reabrir dependiente:", e);
+    }
+  };
+
   if (cargando) {
     return <div className="p-4 text-xs sm:text-sm text-gray-500">Cargando preguntas pendientes...</div>;
   }
@@ -91,42 +116,94 @@ export default function PreguntasPendientesAgrupadas({ projectId }: { projectId:
         <div className="space-y-4">
           {preguntas
             .filter((p) => p.prioridad === grupoAbierto)
-            .map((p) => (
-              <div key={p.id} className={`rounded-xl border p-5 shadow-sm transition-all ${CONFIG_PRIORIDAD[p.prioridad].clase}`}>
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
-                  <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">
-                    {p.nodo_tipo}
-                  </span>
-                  {p.agrupa_count && p.agrupa_count > 0 ? (
-                    <span className="text-[11px] bg-faro-navy/10 text-faro-navy font-semibold px-2 py-0.5 rounded-full">
-                      Agrupa {p.agrupa_count + 1} preguntas
+            .map((p) => {
+              const depsAbiertas = (p.dependientes ?? []).filter((d) => d.estado === "abierta");
+              const depsCerradas = (p.dependientes ?? []).filter((d) => d.estado === "no_aplica");
+
+              return (
+                <div key={p.id} className={`rounded-xl border p-5 shadow-sm transition-all ${CONFIG_PRIORIDAD[p.prioridad].clase}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                    <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">
+                      {p.nodo_tipo}
                     </span>
+                    {p.agrupa_count && p.agrupa_count > 0 ? (
+                      <span className="text-[11px] bg-faro-navy/10 text-faro-navy font-semibold px-2 py-0.5 rounded-full">
+                        Agrupa {p.agrupa_count + 1} preguntas
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mb-2 text-sm font-medium text-gray-900 leading-relaxed">{p.texto_pregunta}</p>
+
+                  {p.agrupa_count && p.agrupa_count > 0 && (p.nodos_involucrados?.length ?? 0) > 0 ? (
+                    <p className="mb-3 text-xs text-gray-500 font-medium">
+                      agrupa {p.agrupa_count + 1} preguntas de: {p.nodos_involucrados?.join(", ")}
+                    </p>
+                  ) : (p.nodos_involucrados?.length ?? 0) > 0 ? (
+                    <p className="mb-3 text-xs text-gray-500 font-mono">
+                      Nodos involucrados: {(p.nodos_involucrados ?? p.nodos_afectados).join(" → ")}
+                    </p>
+                  ) : p.nodos_afectados.length > 0 ? (
+                    <p className="mb-3 text-xs text-gray-500 font-mono">
+                      Afecta: {p.nodos_afectados.join(" → ")}
+                    </p>
                   ) : null}
+
+                  <TriagePregunta
+                    preguntaId={p.id}
+                    projectId={projectId}
+                    textoPregunta={p.texto_pregunta}
+                    onResuelta={cargar}
+                  />
+
+                  {/* Rama de Dependientes Activas Indentadas */}
+                  {depsAbiertas.length > 0 && (
+                    <div className="mt-4 pl-4 border-l-2 border-faro-navy/30 space-y-3 bg-white/60 p-3 rounded-r-lg">
+                      <p className="text-xs font-semibold text-faro-navy uppercase tracking-wider">
+                        ↳ Preguntas de seguimiento dependientes ({depsAbiertas.length})
+                      </p>
+                      {depsAbiertas.map((d) => (
+                        <div key={d.id} className="text-xs bg-white p-3 rounded-md border border-gray-200 shadow-2xs">
+                          <p className="font-medium text-gray-900 mb-2">{d.texto_pregunta}</p>
+                          <TriagePregunta
+                            preguntaId={d.id}
+                            projectId={projectId}
+                            textoPregunta={d.texto_pregunta}
+                            onResuelta={cargar}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Rama de Dependientes Cerradas por Rama (Colapsadas / Auditables) */}
+                  {depsCerradas.length > 0 && (
+                    <details className="mt-3 text-xs text-gray-500 pl-4 border-l-2 border-gray-300">
+                      <summary className="cursor-pointer font-medium hover:text-gray-700">
+                        Ver {depsCerradas.length} pregunta(s) cerrada(s) por rama (no aplican)
+                      </summary>
+                      <div className="mt-2 space-y-2">
+                        {depsCerradas.map((d) => (
+                          <div key={d.id} className="p-2 bg-gray-50 rounded border border-gray-200 flex items-start justify-between gap-2">
+                            <div>
+                              <p className="line-through text-gray-600">{d.texto_pregunta}</p>
+                              {d.razon_cierre && (
+                                <p className="text-[11px] text-gray-400 italic mt-0.5">Razón: {d.razon_cierre}</p>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => reabrirDependiente(d.id)}
+                              className="text-[11px] font-semibold text-faro-navy hover:underline shrink-0"
+                            >
+                              Reabrir
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 </div>
-                <p className="mb-2 text-sm font-medium text-gray-900 leading-relaxed">{p.texto_pregunta}</p>
-
-                {p.agrupa_count && p.agrupa_count > 0 && (p.nodos_involucrados?.length ?? 0) > 0 ? (
-                  <p className="mb-3 text-xs text-gray-500 font-medium">
-                    agrupa {p.agrupa_count + 1} preguntas de: {p.nodos_involucrados?.join(", ")}
-                  </p>
-                ) : (p.nodos_involucrados?.length ?? 0) > 0 ? (
-                  <p className="mb-3 text-xs text-gray-500 font-mono">
-                    Nodos involucrados: {(p.nodos_involucrados ?? p.nodos_afectados).join(" → ")}
-                  </p>
-                ) : p.nodos_afectados.length > 0 ? (
-                  <p className="mb-3 text-xs text-gray-500 font-mono">
-                    Afecta: {p.nodos_afectados.join(" → ")}
-                  </p>
-                ) : null}
-
-                <TriagePregunta
-                  preguntaId={p.id}
-                  projectId={projectId}
-                  textoPregunta={p.texto_pregunta}
-                  onResuelta={cargar}
-                />
-              </div>
-            ))}
+              );
+            })}
         </div>
       )}
     </div>

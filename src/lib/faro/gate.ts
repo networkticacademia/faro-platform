@@ -110,6 +110,7 @@ export async function verificarGate(
     .eq("project_id", project_id)
     .eq("estado", "abierta")
     .eq("prioridad", "P1")
+    .is("depende_de", null)
     .in("nodo_tipo", config.nodosEvaluados);
 
   if (error) {

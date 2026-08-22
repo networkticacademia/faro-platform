@@ -50,12 +50,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Falta project_id." }, { status: 400 });
   }
 
-  // Traer preguntas abiertas y diferidas/agrupadas
+  // Traer preguntas abiertas, agrupadas, diferidas y no_aplica
   const { data: todasPreguntas, error } = await supabase
     .from("preguntas_pendientes")
-    .select("id, project_id, nodo_id, nodo_tipo, campo_origen, texto_pregunta, prioridad, pregunta_raiz_id, nodos_afectados, estado, respuesta, created_at, resolved_at")
+    .select("id, project_id, nodo_id, nodo_tipo, campo_origen, texto_pregunta, prioridad, pregunta_raiz_id, agrupada_en, depende_de, condicion_activacion, cerrada_por_rama, razon_cierre, nodos_afectados, estado, respuesta, created_at, resolved_at")
     .eq("project_id", project_id)
-    .in("estado", ["abierta", "agrupada", "diferida"])
+    .in("estado", ["abierta", "agrupada", "diferida", "no_aplica"])
     .order("created_at", { ascending: true });
 
   if (error) {
@@ -64,16 +64,31 @@ export async function GET(request: Request) {
 
   const filas = (todasPreguntas ?? []) as FilaPregunta[];
 
-  // Agrupar por el ID de la representante (agrupada_en ?? pregunta_raiz_id ?? id)
-  const grupos = new Map<string, FilaPregunta[]>();
+  // Separar dependientes (depende_de != null)
+  const dependientesMap = new Map<string, FilaPregunta[]>();
+  const filasSinDependientes: FilaPregunta[] = [];
+
   for (const p of filas) {
+    if (p.depende_de) {
+      const depKey = p.depende_de as string;
+      const list = dependientesMap.get(depKey) ?? [];
+      list.push(p);
+      dependientesMap.set(depKey, list);
+    } else {
+      filasSinDependientes.push(p);
+    }
+  }
+
+  // Agrupar primarias por groupKey = agrupada_en ?? pregunta_raiz_id ?? id
+  const grupos = new Map<string, FilaPregunta[]>();
+  for (const p of filasSinDependientes) {
     const groupKey = (p.agrupada_en as string | null) ?? (p.pregunta_raiz_id as string | null) ?? p.id;
     const lista = grupos.get(groupKey) ?? [];
     lista.push(p);
     grupos.set(groupKey, lista);
   }
 
-  // Solo consideramos como representantes aquellas preguntas que están en estado 'abierta'
+  // Solo consideramos como representantes aquellas preguntas primarias que están en estado 'abierta'
   const preguntas = Array.from(grupos.entries())
     .map(([repId, miembros]) => {
       const representante = miembros.find((m) => m.id === repId && m.estado === "abierta")
@@ -83,11 +98,22 @@ export async function GET(request: Request) {
 
       const resto = miembros.filter((m) => m.id !== representante.id);
       const nodosInvolucrados = Array.from(new Set(miembros.map((m) => m.nodo_tipo)));
+      const dependientes = dependientesMap.get(representante.id) ?? [];
 
       return {
         ...representante,
         agrupa_count: resto.length,
         nodos_involucrados: nodosInvolucrados,
+        dependientes: dependientes.map((d) => ({
+          id: d.id,
+          nodo_tipo: d.nodo_tipo,
+          texto_pregunta: d.texto_pregunta,
+          prioridad: d.prioridad,
+          estado: d.estado,
+          condicion_activacion: d.condicion_activacion,
+          cerrada_por_rama: d.cerrada_por_rama,
+          razon_cierre: d.razon_cierre,
+        })),
         ...(incluirDetalle
           ? { agrupadas: resto.map((h) => ({ id: h.id, nodo_tipo: h.nodo_tipo, texto_pregunta: h.texto_pregunta })) }
           : {}),
@@ -99,6 +125,7 @@ export async function GET(request: Request) {
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     });
 
+  // Conteo para UI y dashboard: solo primarias abiertas
   const conteo = {
     P1: preguntas.filter((p) => p.prioridad === "P1").length,
     P2: preguntas.filter((p) => p.prioridad === "P2").length,
